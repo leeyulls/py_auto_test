@@ -1,6 +1,7 @@
 """
 report_generator.py
 수집된 데이터를 다중 시트 엑셀(.xlsx), 마크다운(.md), CSV 파일로 정갈하게 생성하는 모듈
+(종합이슈, 주식/환율, 종목분석 & 매수/매도 추천 리포트 지원)
 """
 
 import datetime
@@ -18,8 +19,8 @@ class ReportGenerator:
             self.output_dir = output_dir
         os.makedirs(self.output_dir, exist_ok=True)
 
-    def generate_excel(self, general_news: list, market_news: list, exchange_rates: list, stock_indices: list, date_str: str) -> str:
-        """구글 드라이브 업로드용 2개 시트(종합이슈, 주식/환율) 엑셀 파일 생성"""
+    def generate_excel(self, general_news: list, market_news: list, exchange_rates: list, stock_indices: list, stock_advice: dict, date_str: str) -> str:
+        """구글 드라이브 업로드용 3개 시트(종합이슈, 주식/환율, 종목분석/매매추천) 엑셀 파일 생성"""
         file_path = os.path.join(self.output_dir, f"{date_str}_데일리_이슈_및_금융동향_브리핑.xlsx")
 
         with pd.ExcelWriter(file_path, engine="openpyxl") as writer:
@@ -34,7 +35,6 @@ class ReportGenerator:
             df_fx = pd.DataFrame(exchange_rates)
             df_stock_news = pd.DataFrame(market_news)
 
-            # 지수 및 환율을 상단에 요약 배치하고, 아래에 뉴스 배치
             combined_rows = []
             if not df_indices.empty:
                 combined_rows.append({"구분": "=== [국내 증시 지수] ===", "세부내용": "", "수치/등락": "", "참고": ""})
@@ -61,10 +61,14 @@ class ReportGenerator:
             df_summary = pd.DataFrame(combined_rows)
             df_summary.to_excel(writer, sheet_name="주식_환율_경제동향", index=False, startrow=0)
 
-            # 주식 뉴스 테이블은 8번째 줄부터 이어서 작성
             start_row = len(combined_rows) + 2
             if not df_stock_news.empty:
                 df_stock_news.to_excel(writer, sheet_name="주식_환율_경제동향", index=False, startrow=start_row)
+
+            # 3. 종목분석 및 매수/매도 추천 시트
+            if stock_advice and "all_evaluations" in stock_advice:
+                df_advice = pd.DataFrame(stock_advice["all_evaluations"])
+                df_advice.to_excel(writer, sheet_name="종목분석_매매추천", index=False)
 
             # 시트 서식 적용 (헤더 색상, 너비 자동 조절)
             self._style_workbook(writer.book)
@@ -107,28 +111,85 @@ class ReportGenerator:
                 for cell in col:
                     if cell.value:
                         val_str = str(cell.value)
-                        # 한글 폭 고려 (한글 1자 약 1.8폭)
                         length = sum(2 if ord(c) > 127 else 1 for c in val_str[:50])
                         max_len = max(max_len, length)
                 sheet.column_dimensions[col_letter].width = min(max(max_len + 3, 12), 65)
 
-    def generate_markdown(self, general_news: list, market_news: list, exchange_rates: list, stock_indices: list, date_str: str) -> str:
-        """구글 문서/마크다운 뷰어용 종합 브리핑 리포트 생성"""
+    def generate_markdown(self, general_news: list, market_news: list, exchange_rates: list, stock_indices: list, stock_advice: dict, date_str: str) -> str:
+        """구글 문서/마크다운 뷰어용 종합 브리핑 & 종목 추천 리포트 생성"""
         file_path = os.path.join(self.output_dir, f"{date_str}_데일리_이슈_및_금융동향_브리핑.md")
 
         lines = [
-            f"# 📰 대한민국 데일리 종합 이슈 & 금융/환율 브리핑 ({date_str})",
+            f"# 📰 대한민국 데일리 종합 이슈 & 주가 분석/매매 추천 브리핑 ({date_str})",
             "",
-            "> 이 리포트는 주요 사건·사회·경제·세계·연예·신상품 이슈 및 주식/환율 특화 정보를 자동 수집하여 작성되었습니다.",
+            "> 이 리포트는 사회·경제·사건사고 종합 이슈와 함께 실시간 주가·환율·기술적 지표 및 뉴스 모멘텀을 분석하여 오늘 및 장기 매수/매도 추천 정보를 제공합니다.",
             "",
             "---",
             "",
-            "## 📈 1. 실시간 금융 시장 지표 (주식 & 환율)",
+            "## 🎯 1. 오늘의 핵심 주식 매매 추천 (Action Signals)",
+            "",
+        ]
+
+        # 오늘 사면 좋을 주식 (단기)
+        today_buys = stock_advice.get("today_buy_picks", [])
+        lines.append("### 🟢 [오늘 사면 좋을 주식 - 단기 반등 / 모멘텀 매수]")
+        if today_buys:
+            for b in today_buys:
+                lines.append(f"- **{b['name']}** ({b['ticker']}) - 현재가: `{b['price']}`")
+                lines.append(f"  - 💡 **추천 근거**: {b['reason']}")
+        else:
+            lines.append("- 현재 기준 극단적 단기 과매도 또는 돌파 종목 없음 (보수적 접근 추천)")
+        lines.append("")
+
+        # 장기적으로 모아가면 좋을 주식 (중장기)
+        long_buys = stock_advice.get("longterm_buy_picks", [])
+        lines.append("### ⭐ [장기적으로 사면 좋을 주식 - 성장 주도주 분할 매수]")
+        if long_buys:
+            for lb in long_buys:
+                lines.append(f"- **{lb['name']}** ({lb['ticker']}) - 현재가: `{lb['price']}`")
+                lines.append(f"  - 💡 **선정 근거**: {lb['reason']}")
+        else:
+            lines.append("- 고점 과열 또는 추세 조정 중인 종목이 많아 관망 추천")
+        lines.append("")
+
+        # 주의 / 매도하면 좋을 주식
+        sells = stock_advice.get("sell_warning_picks", [])
+        lines.append("### 🔴 [주의 / 팔면 좋은 주식 - 과열 차익실현 & 리스크 관리]")
+        if sells:
+            for s in sells:
+                lines.append(f"- **{s['name']}** ({s['ticker']}) - `[{s['type']}]`")
+                lines.append(f"  - ⚠️ **경고 사유**: {s['reason']}")
+        else:
+            lines.append("- 현재 과열권 진입 종목 또는 급격한 악재 종목 없음")
+        lines.append("")
+
+        # 전체 종목 종합 지표 테이블
+        lines.extend([
+            "---",
+            "",
+            "## 📊 2. 주요 종목별 상세 기술 지표 및 매매 신호 분석표",
+            "",
+            "| 종목명 (섹터) | 현재가 (등락률) | RSI(14) | 20일선 이격도 | 52주 위치 | 단기 신호 | 장기 신호 | 핵심 이유 |",
+            "| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |",
+        ])
+
+        for ev in stock_advice.get("all_evaluations", []):
+            lines.append(
+                f"| **{ev['종목명']}**<br>({ev['섹터']}) | {ev['현재가']}<br>({ev['전일대비']}) | "
+                f"{ev['RSI(14)']} | {ev['20일선이격도']} | {ev['52주위치']} | "
+                f"{ev['단기신호']} | {ev['장기신호']} | {ev['단기근거']} |"
+            )
+
+        lines.extend([
+            "",
+            "---",
+            "",
+            "## 📈 3. 실시간 금융 시장 지표 (주식 & 환율)",
             "",
             "### 🇰🇷 주요 증시 지수",
             "| 지수명 | 현재 지수 | 전일 대비 등락 |",
             "| :--- | :--- | :--- |",
-        ]
+        ])
 
         for idx in stock_indices:
             lines.append(f"| {idx['지수명']} | **{idx['현재지수']}** | {idx['전일대비']} |")
@@ -147,7 +208,7 @@ class ReportGenerator:
             "",
             "---",
             "",
-            "## 💼 2. 주식·기업 발표 & 주가 영향 전망 뉴스",
+            "## 💼 4. 주식·기업 발표 & 시장 영향 뉴스",
             "",
             "| 구분 | 관련 기업/기관 | 기사 제목 | 영향/전망 | 언론사 |",
             "| :--- | :--- | :--- | :--- | :--- |",
@@ -162,7 +223,7 @@ class ReportGenerator:
             "",
             "---",
             "",
-            "## 🌐 3. 분야별 종합 이슈 & 핫토픽 (사회/경제/세계/연예/신상품)",
+            "## 🌐 5. 분야별 종합 이슈 & 핫토픽 (사회/경제/세계/연예/신상품)",
             "",
         ])
 
