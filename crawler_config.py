@@ -1,27 +1,34 @@
 """
 crawler_config.py
-뉴스 수집 출처(RSS 피드) 및 카테고리 정의
+7대 분야별(정치, 사회/사건사고, 거시경제, 주식/금융, 세계, IT/신상품, 연예) 수집 출처 및 설정
 """
 
-# 카테고리별 RSS 피드 목록
+# 7대 핵심 카테고리별 RSS 피드 (구글 뉴스 탑 + 연합뉴스 전문 피드)
 NEWS_FEEDS = {
-    "주요사건/사회": [
+    "정치": [
+        "https://news.google.com/rss/headlines/section/topic/POLITICS?hl=ko&gl=KR&ceid=KR:ko",
+        "https://www.yna.co.kr/rss/politics.xml",
+    ],
+    "사회/사건사고": [
         "https://news.google.com/rss/headlines/section/topic/NATION?hl=ko&gl=KR&ceid=KR:ko",
         "https://www.yna.co.kr/rss/society.xml",
     ],
-    "경제/비즈니스": [
+    "거시경제/비즈니스": [
         "https://news.google.com/rss/headlines/section/topic/BUSINESS?hl=ko&gl=KR&ceid=KR:ko",
+        "https://www.yna.co.kr/rss/economy.xml",
         "https://www.mk.co.kr/rss/30100041/",
     ],
     "세계/국제": [
         "https://news.google.com/rss/headlines/section/topic/WORLD?hl=ko&gl=KR&ceid=KR:ko",
-    ],
-    "연예/문화": [
-        "https://news.google.com/rss/headlines/section/topic/ENTERTAINMENT?hl=ko&gl=KR&ceid=KR:ko",
+        "https://www.yna.co.kr/rss/international.xml",
     ],
     "IT/과학/신상품": [
         "https://news.google.com/rss/headlines/section/topic/SCITECH?hl=ko&gl=KR&ceid=KR:ko",
         "https://www.yna.co.kr/rss/industry.xml",
+    ],
+    "연예/대중문화": [
+        "https://news.google.com/rss/headlines/section/topic/ENTERTAINMENT?hl=ko&gl=KR&ceid=KR:ko",
+        "https://www.yna.co.kr/rss/entertainment.xml",
     ],
 }
 
@@ -35,6 +42,9 @@ FINANCE_FEEDS = {
         "https://news.google.com/rss/search?q=%EC%9B%90%EB%8B%AC%EB%9F%AC+%ED%99%98%EC%9C%A8+OR+%EA%B8%88%EB%A6%AC+%EC%A0%84%EB%A7%9D&hl=ko&gl=KR&ceid=KR:ko",
     ],
 }
+
+# 네이버 모바일 증권 애널리스트 리서치 리포트 API (우선순위 3 전문 채널)
+NAVER_RESEARCH_API = "https://m.stock.naver.com/api/research/company?page=1&pageSize=15"
 
 # HTTP 요청 헤더
 REQUEST_HEADERS = {
