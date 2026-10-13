@@ -1,4 +1,4 @@
-﻿# Python
+# Python
 __pycache__/
 *.py[cod]
 *.class
@@ -6,8 +6,9 @@ __pycache__/
 venv/
 env/
 
-# Environment variables
+# Environment & config variables
 .env
+email_config.txt
 
 # Logs & temporary files
 *.log

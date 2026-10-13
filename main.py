@@ -28,9 +28,14 @@ def load_env(env_path):
 
 
 def main():
-    # 0. .env 환경 변수 로드
+    # 0. 설정 파일 로드 (email_config.txt 우선, 없으면 .env)
     base_dir = os.path.dirname(os.path.abspath(__file__))
-    load_env(os.path.join(base_dir, ".env"))
+    txt_config = os.path.join(base_dir, "email_config.txt")
+    env_config = os.path.join(base_dir, ".env")
+    if os.path.exists(txt_config):
+        load_env(txt_config)
+    elif os.path.exists(env_config):
+        load_env(env_config)
 
     today_str = datetime.date.today().strftime("%Y-%m-%d")
     now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
