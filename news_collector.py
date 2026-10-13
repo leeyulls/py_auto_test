@@ -1,6 +1,7 @@
 """
 news_collector.py
-7대 분야별 뉴스 수집 및 '2(언론사 동시집중보도) > 1(분야별 랭킹/대표 헤드라인)' 선별 엔진
+7대 분야별 뉴스 수집 및 분야별 3~10건 이상의 다수 헤드라인 선별 엔진
+(언론사 동시집중보도 클러스터링 우선 배치)
 """
 
 import collections
@@ -32,15 +33,13 @@ class NewsCollector:
         words = [w for w in t.split() if len(w) >= 2 and w not in stopwords]
         return words
 
-    def collect_all_categories(self, limit_per_feed=8) -> dict:
+    def collect_all_categories(self, limit_per_feed=15, top_n_per_category=8) -> dict:
         """
-        7대 분야별 뉴스 수집 및
-        2(언론사 동시 집중보도 클러스터링) > 1(분야별 랭킹 대표 헤드라인) 정밀 선별
+        7대 분야별 뉴스 수집 (분야별 최소 3~10건 수집 보장)
         """
         raw_articles = []
         collected_links = set()
 
-        # 1. 피드별 기사 원천 수집
         for category, feed_urls in NEWS_FEEDS.items():
             for feed_idx, url in enumerate(feed_urls):
                 try:
@@ -52,7 +51,6 @@ class NewsCollector:
                         if not raw_title or link in collected_links:
                             continue
 
-                        # 언론사 분리
                         source = "주요언론"
                         clean_title = raw_title
                         if " - " in raw_title:
@@ -73,20 +71,18 @@ class NewsCollector:
                             "링크": link,
                             "발행일시": entry.get("published", datetime.datetime.now().strftime("%Y-%m-%d")),
                             "keywords": self._extract_keywords(clean_title),
-                            "feed_rank": rank_idx,  # 피드 내 순위 (조회수/헤드라인 순)
+                            "feed_rank": rank_idx,
                         })
                 except Exception as e:
                     print(f"[경고] {category} RSS 수집 중 오류 ({url}): {e}")
 
-        # 2. 우선순위 2번 알고리즘: 다수 언론사 동시 집중 보도(클러스터링) 분석
-        # 각 키워드가 몇 개 이상의 서로 다른 언론사에서 보도되었는지 계산
+        # 키워드별 언론사 보도량 집계 (클러스터링)
         keyword_media_map = collections.defaultdict(set)
         for art in raw_articles:
             for kw in art["keywords"]:
                 keyword_media_map[kw].add(art["언론사"])
 
         for art in raw_articles:
-            # 기사가 포함한 키워드들 중 가장 많은 언론사가 다룬 보도 수 집계
             max_media_count = 1
             clustered_kws = []
             for kw in art["keywords"]:
@@ -100,7 +96,7 @@ class NewsCollector:
             art["is_clustered"] = (max_media_count >= 3)
             art["clustered_kws"] = list(set(clustered_kws))
 
-        # 3. 중복 및 연결 이슈 필터링
+        # 중복 및 연결 이슈 필터링
         filtered_articles = []
         for art in raw_articles:
             status = "신규 이슈"
@@ -120,18 +116,17 @@ class NewsCollector:
             art["연결된전일이슈"] = conn_title
             filtered_articles.append(art)
 
-        # 4. 카테고리별 정렬 및 1위 대표 기사 선별
-        # 정렬 기준: 1순위 다수 언론사 보도량(media_count desc), 2순위 피드 랭킹순(feed_rank asc)
+        # 분야별 정렬 (1순위 언론사 집중도, 2순위 랭킹순)
         categorized_articles = collections.defaultdict(list)
         for art in filtered_articles:
             categorized_articles[art["분야"]].append(art)
 
+        # 분야별 상위 3~10건 리스트 추출
         category_top_picks = {}
         for cat, items in categorized_articles.items():
             items.sort(key=lambda x: (x["media_count"], -x["feed_rank"]), reverse=True)
-            category_top_picks[cat] = items[0] if items else None
+            category_top_picks[cat] = items[:top_n_per_category]
 
-        # 5. 전 분야 통틀어 가장 언론사 집중도가 높은 '오늘의 메가 핫토픽' 1건 선정
         all_sorted = sorted(filtered_articles, key=lambda x: x["media_count"], reverse=True)
         mega_issue = all_sorted[0] if (all_sorted and all_sorted[0]["media_count"] >= 3) else None
 

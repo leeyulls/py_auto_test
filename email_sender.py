@@ -1,6 +1,6 @@
 """
 email_sender.py
-네이버 SMTP를 활용하여 7대 분야별 균형 헤드라인 + 메가 핫토픽 + 주식 추천 브리핑 HTML 메일 발송 모듈
+네이버 SMTP를 활용하여 7대 분야별 다수 헤드라인(분야별 3~5건) + 매수/매도 추천금액 포함 브리핑 HTML 메일 발송 모듈
 """
 
 import os
@@ -22,33 +22,47 @@ class EmailSender:
         """이메일 발송 계정 정보가 설정되어 있는지 확인"""
         return bool(self.naver_user and self.naver_password)
 
-    def build_html_body(self, date_str: str, stock_indices: list, exchange_rates: list, stock_advice: dict, news_result: dict, top_research: dict = None) -> str:
+    def build_html_body(self, date_str: str, stock_indices: list, exchange_rates: list, stock_advice: dict, news_result: dict, top_research_list: list = None) -> str:
         """스마트폰과 PC에서 가독성 극대화된 모던 카드형 HTML 이메일 템플릿 생성"""
         today_buys = stock_advice.get("today_buy_picks", [])
         long_buys = stock_advice.get("longterm_buy_picks", [])
         sells = stock_advice.get("sell_warning_picks", [])
 
-        # 1. 오늘 단기 매수 카드
+        # 1. 오늘 단기 매수 카드 (매수/매도 추천금액 포함)
         today_buy_html = ""
         if today_buys:
-            for b in today_buys[:3]:
+            for b in today_buys[:4]:
                 today_buy_html += f"""
-                <div style="background: #F0FDF4; border-left: 4px solid #16A34A; padding: 10px 14px; margin-bottom: 8px; border-radius: 4px;">
-                    <div style="font-weight: bold; color: #15803D; font-size: 15px;">🟢 {b['name']} <span style="font-size: 13px; color: #4B5563;">({b['ticker']})</span> - <span style="color: #111827;">{b['price']}</span></div>
-                    <div style="color: #374151; font-size: 13px; margin-top: 4px;">💡 <b>판단 근거:</b> {b['reason']}</div>
+                <div style="background: #F0FDF4; border-left: 4px solid #16A34A; padding: 12px 14px; margin-bottom: 10px; border-radius: 6px;">
+                    <div style="font-weight: bold; color: #15803D; font-size: 15px;">
+                        🟢 {b['name']} <span style="font-size: 13px; color: #4B5563;">({b['ticker']})</span> - <span style="color: #111827;">현재가: {b['cur_price']}</span>
+                    </div>
+                    <div style="margin: 6px 0; background: #DCFCE7; padding: 6px 10px; border-radius: 4px; font-size: 13px; color: #166534;">
+                        💰 <b>매수 추천가:</b> <span style="font-weight: bold;">{b['buy_price']}</span> &nbsp;|&nbsp; 
+                        🎯 <b>목표 매도가:</b> <span style="font-weight: bold; color: #15803D;">{b['sell_price']}</span> 
+                        <span style="font-size: 12px; background: #BBF7D0; padding: 1px 6px; border-radius: 3px; font-weight: bold;">(기대수익 {b['expected_yield']})</span>
+                    </div>
+                    <div style="color: #374151; font-size: 12px; margin-top: 4px;">💡 <b>판단 근거:</b> {b['reason']}</div>
                 </div>
                 """
         else:
             today_buy_html = "<p style='color: #6B7280; font-size: 13px;'>현재 극단적 단기 과매도 또는 급등 돌파 종목 없음 (보수적 접근 추천)</p>"
 
-        # 2. 장기 매수 카드
+        # 2. 장기 매수 카드 (분할 매수/목표가 포함)
         long_buy_html = ""
         if long_buys:
-            for lb in long_buys[:3]:
+            for lb in long_buys[:4]:
                 long_buy_html += f"""
-                <div style="background: #EFF6FF; border-left: 4px solid #2563EB; padding: 10px 14px; margin-bottom: 8px; border-radius: 4px;">
-                    <div style="font-weight: bold; color: #1D4ED8; font-size: 15px;">⭐ {lb['name']} <span style="font-size: 13px; color: #4B5563;">({lb['ticker']})</span> - <span style="color: #111827;">{lb['price']}</span></div>
-                    <div style="color: #374151; font-size: 13px; margin-top: 4px;">💡 <b>성장 모멘텀:</b> {lb['reason']}</div>
+                <div style="background: #EFF6FF; border-left: 4px solid #2563EB; padding: 12px 14px; margin-bottom: 10px; border-radius: 6px;">
+                    <div style="font-weight: bold; color: #1D4ED8; font-size: 15px;">
+                        ⭐ {lb['name']} <span style="font-size: 13px; color: #4B5563;">({lb['ticker']})</span> - <span style="color: #111827;">현재가: {lb['cur_price']}</span>
+                    </div>
+                    <div style="margin: 6px 0; background: #DBEAFE; padding: 6px 10px; border-radius: 4px; font-size: 13px; color: #1E40AF;">
+                        💰 <b>분할 매수가:</b> <span style="font-weight: bold;">{lb['buy_price']}</span> &nbsp;|&nbsp; 
+                        🎯 <b>장기 목표가:</b> <span style="font-weight: bold; color: #1D4ED8;">{lb['sell_price']}</span> 
+                        <span style="font-size: 12px; background: #BFDBFE; padding: 1px 6px; border-radius: 3px; font-weight: bold;">(기대수익 {lb['expected_yield']})</span>
+                    </div>
+                    <div style="color: #374151; font-size: 12px; margin-top: 4px;">💡 <b>성장 모멘텀:</b> {lb['reason']}</div>
                 </div>
                 """
         else:
@@ -57,11 +71,17 @@ class EmailSender:
         # 3. 매도 / 주의 카드
         sell_html = ""
         if sells:
-            for s in sells[:3]:
+            for s in sells[:4]:
                 sell_html += f"""
-                <div style="background: #FEF2F2; border-left: 4px solid #DC2626; padding: 10px 14px; margin-bottom: 8px; border-radius: 4px;">
-                    <div style="font-weight: bold; color: #B91C1C; font-size: 15px;">🔴 {s['name']} <span style="font-size: 13px; color: #4B5563;">({s['ticker']})</span> - <span style="background: #FEE2E2; padding: 2px 6px; border-radius: 4px; font-size: 12px;">{s['type']}</span></div>
-                    <div style="color: #374151; font-size: 13px; margin-top: 4px;">⚠️ <b>주의 사유:</b> {s['reason']}</div>
+                <div style="background: #FEF2F2; border-left: 4px solid #DC2626; padding: 12px 14px; margin-bottom: 10px; border-radius: 6px;">
+                    <div style="font-weight: bold; color: #B91C1C; font-size: 15px;">
+                        🔴 {s['name']} <span style="font-size: 13px; color: #4B5563;">({s['ticker']})</span> - <span style="color: #111827;">현재가: {s['cur_price']}</span>
+                        <span style="background: #FEE2E2; color: #DC2626; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-left: 6px;">{s['type']}</span>
+                    </div>
+                    <div style="margin: 6px 0; background: #FEE2E2; padding: 5px 10px; border-radius: 4px; font-size: 12px; color: #991B1B;">
+                        🎯 <b>권고 매도가:</b> <span style="font-weight: bold;">{s['sell_price']}</span>
+                    </div>
+                    <div style="color: #374151; font-size: 12px; margin-top: 4px;">⚠️ <b>주의 사유:</b> {s['reason']}</div>
                 </div>
                 """
         else:
@@ -75,13 +95,14 @@ class EmailSender:
         mega_issue = news_result.get("mega_issue")
         mega_html = ""
         if mega_issue:
+            mega_link = mega_issue.get("링크") or mega_issue.get("link", "")
             mega_html = f"""
             <div style="background: #FFF1F2; border: 2px solid #F43F5E; border-radius: 8px; padding: 14px 16px; margin-bottom: 24px;">
                 <div style="display: inline-block; background: #E11D48; color: #FFFFFF; font-size: 12px; font-weight: bold; padding: 2px 8px; border-radius: 12px; margin-bottom: 6px;">
                     🔥 언론사 {mega_issue['media_count']}개사 집중 보도 메가 토픽
                 </div>
                 <div style="font-size: 16px; font-weight: bold; margin-bottom: 6px;">
-                    <a href="{mega_issue.get('링크') or mega_issue.get('link', '')}" style="color: #9F1239; text-decoration: none;">{mega_issue['기사제목']}</a>
+                    <a href="{mega_link}" style="color: #9F1239; text-decoration: none;">{mega_issue['기사제목']}</a>
                     <span style="font-size: 12px; color: #64748B; font-weight: normal;">({mega_issue['언론사']})</span>
                 </div>
                 <div style="font-size: 13px; color: #475569; line-height: 1.4;">
@@ -90,51 +111,66 @@ class EmailSender:
             </div>
             """
 
-        # 6. 📌 7대 분야별 대표 헤드라인 & 1줄 요약 (균등 배치)
+        # 6. 📌 7대 분야별 다수 헤드라인 (분야별 3~5건씩 풍성하게 배치)
         top_picks = news_result.get("category_top_picks", {})
         category_order = [
             ("🏛️ 정치", "정치"),
-            ("🚨 사회/사건사고", "사회/사건사고"),
-            ("💼 거시경제/비즈니스", "거시경제/비즈니스"),
-            ("📈 주식/기업분석", "주식/기업분석"),
-            ("🌍 세계/국제", "세계/국제"),
-            ("✨ IT/과학/신상품", "IT/과학/신상품"),
-            ("🎬 연예/대중문화", "연예/대중문화"),
+            ("🚨 사회 / 사건사고", "사회/사건사고"),
+            ("💼 거시경제 / 비즈니스", "거시경제/비즈니스"),
+            ("📈 주식 / 기업분석 (증권사 리서치)", "주식/기업분석"),
+            ("🌍 세계 / 국제", "세계/국제"),
+            ("✨ IT / 과학 / 신상품", "IT/과학/신상품"),
+            ("🎬 연예 / 대중문화", "연예/대중문화"),
         ]
 
         headlines_html = ""
         for icon_title, cat_key in category_order:
-            if cat_key == "주식/기업분석" and top_research:
-                # 네이버 증권 전문 애널리스트 리포트 노출 (우선순위 3)
+            if cat_key == "주식/기업분석" and top_research_list:
+                # 증권사 리서치 리포트 3건 노출
+                research_items_html = ""
+                for rep in top_research_list[:3]:
+                    research_items_html += f"""
+                    <div style="margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px dashed #E2E8F0;">
+                        <div style="font-size: 13px; font-weight: 600;">
+                            <a href="{rep['링크']}" style="color: #0F172A; text-decoration: none;">{rep['기사제목']}</a>
+                        </div>
+                        <div style="font-size: 12px; color: #64748B; margin-top: 2px;">
+                            📊 <b>의견/목표가:</b> {rep['요약']}
+                        </div>
+                    </div>
+                    """
                 headlines_html += f"""
-                <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 6px; padding: 12px; margin-bottom: 10px;">
-                    <div style="font-size: 12px; font-weight: bold; color: #2563EB; margin-bottom: 4px;">
-                        {icon_title} <span style="background: #DBEAFE; color: #1D4ED8; padding: 1px 6px; border-radius: 4px; font-size: 11px;">증권사 전문 리포트</span>
+                <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 14px; margin-bottom: 16px;">
+                    <div style="font-size: 14px; font-weight: bold; color: #2563EB; margin-bottom: 10px; border-bottom: 2px solid #DBEAFE; padding-bottom: 4px;">
+                        {icon_title}
                     </div>
-                    <div style="font-size: 14px; font-weight: 600; margin-bottom: 4px;">
-                        <a href="{top_research['링크']}" style="color: #0F172A; text-decoration: none;">{top_research['기사제목']}</a>
-                    </div>
-                    <div style="font-size: 12px; color: #64748B;">
-                        📊 <b>투자의견:</b> {top_research['요약']}
-                    </div>
+                    {research_items_html}
                 </div>
                 """
             else:
-                item = top_picks.get(cat_key)
-                if item:
-                    tag = f" <span style='background: #FEE2E2; color: #DC2626; padding: 1px 5px; border-radius: 3px; font-size: 11px;'>{item['상태']}</span>" if "집중" in item['상태'] else ""
+                items = top_picks.get(cat_key, [])
+                if items:
+                    cat_items_html = ""
+                    for it in items[:4]:  # 각 분야별 상위 3~4건 노출
+                        it_link = it.get("링크") or it.get("link", "")
+                        tag = f" <span style='background: #FEE2E2; color: #DC2626; padding: 1px 5px; border-radius: 3px; font-size: 11px;'>{it['상태']}</span>" if "집중" in it['상태'] else ""
+                        cat_items_html += f"""
+                        <div style="margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px dashed #E2E8F0;">
+                            <div style="font-size: 13px; font-weight: 600;">
+                                <a href="{it_link}" style="color: #0F172A; text-decoration: none;">{it['기사제목']}</a>{tag}
+                                <span style="font-size: 11px; color: #94A3B8; font-weight: normal;">({it['언론사']})</span>
+                            </div>
+                            <div style="font-size: 12px; color: #64748B; margin-top: 2px;">
+                                💡 {it['요약내용']}
+                            </div>
+                        </div>
+                        """
                     headlines_html += f"""
-                    <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 6px; padding: 12px; margin-bottom: 10px;">
-                        <div style="font-size: 12px; font-weight: bold; color: #334155; margin-bottom: 4px;">
-                            {icon_title}{tag}
+                    <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 14px; margin-bottom: 16px;">
+                        <div style="font-size: 14px; font-weight: bold; color: #1E293B; margin-bottom: 10px; border-bottom: 2px solid #E2E8F0; padding-bottom: 4px;">
+                            {icon_title} <span style="font-size: 12px; color: #64748B; font-weight: normal;">(주요 뉴스 {len(items[:4])}건)</span>
                         </div>
-                        <div style="font-size: 14px; font-weight: 600; margin-bottom: 4px;">
-                            <a href="{item['링크']}" style="color: #0F172A; text-decoration: none;">{item['기사제목']}</a>
-                            <span style="font-size: 12px; color: #94A3B8; font-weight: normal;">({item['언론사']})</span>
-                        </div>
-                        <div style="font-size: 12px; color: #64748B;">
-                            💡 <b>1줄 요약:</b> {item['요약내용']}
-                        </div>
+                        {cat_items_html}
                     </div>
                     """
 
@@ -143,13 +179,13 @@ class EmailSender:
         <html>
         <head><meta charset="utf-8"></head>
         <body style="font-family: -apple-system, BlinkMacSystemFont, 'Malgun Gothic', '맑은 고딕', sans-serif; background-color: #F8FAFC; margin: 0; padding: 20px; line-height: 1.5;">
-            <div style="max-width: 640px; margin: 0 auto; background: #FFFFFF; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: 1px solid #E2E8F0;">
+            <div style="max-width: 660px; margin: 0 auto; background: #FFFFFF; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: 1px solid #E2E8F0;">
                 
                 <!-- 헤더 -->
                 <div style="background: linear-gradient(135deg, #1E3A8A 0%, #2563EB 100%); color: #FFFFFF; padding: 24px; text-align: center;">
                     <div style="font-size: 13px; letter-spacing: 1px; opacity: 0.9; text-transform: uppercase;">Daily Morning Stock & Issue Briefing</div>
                     <h1 style="margin: 8px 0 0; font-size: 22px;">☕ 오늘의 모닝 브리핑 ({date_str})</h1>
-                    <p style="margin: 6px 0 0; font-size: 13px; opacity: 0.85;">7대 분야별 핵심 헤드라인 & 실시간 주가 분석·매매 추천</p>
+                    <p style="margin: 6px 0 0; font-size: 13px; opacity: 0.85;">매수/매도 추천금액 & 7대 분야별 다수 헤드라인 (일자별 누적 아카이브)</p>
                 </div>
 
                 <div style="padding: 24px;">
@@ -157,22 +193,24 @@ class EmailSender:
                     <!-- 🔥 메가 핫토픽 -->
                     {mega_html}
 
-                    <!-- 1. 주식 매매 추천 섹션 -->
+                    <!-- 1. 주식 매매 추천 & 추천 금액 섹션 -->
                     <div style="margin-bottom: 24px;">
-                        <h2 style="font-size: 17px; color: #1E293B; border-bottom: 2px solid #3B82F6; padding-bottom: 6px; margin-top: 0;">🎯 오늘의 핵심 주식 매매 추천</h2>
+                        <h2 style="font-size: 17px; color: #1E293B; border-bottom: 2px solid #3B82F6; padding-bottom: 6px; margin-top: 0;">
+                            🎯 오늘의 주식 매매 신호 및 추천 금액 (Action Signals)
+                        </h2>
                         
                         <div style="margin-top: 14px;">
-                            <div style="font-size: 14px; font-weight: bold; color: #16A34A; margin-bottom: 6px;">[오늘 단기 매수 유망 - 낙폭과대 반등 / 모멘텀]</div>
+                            <div style="font-size: 14px; font-weight: bold; color: #16A34A; margin-bottom: 6px;">[오늘 단기 매수 유망 - 추천 매수가 & 목표 매도가]</div>
                             {today_buy_html}
                         </div>
 
                         <div style="margin-top: 14px;">
-                            <div style="font-size: 14px; font-weight: bold; color: #2563EB; margin-bottom: 6px;">[장기 모아가면 좋을 주식 - 성장 주도주 분할 매수]</div>
+                            <div style="font-size: 14px; font-weight: bold; color: #2563EB; margin-bottom: 6px;">[장기 모아가면 좋을 주식 - 분할 매수가 & 장기 목표가]</div>
                             {long_buy_html}
                         </div>
 
                         <div style="margin-top: 14px;">
-                            <div style="font-size: 14px; font-weight: bold; color: #DC2626; margin-bottom: 6px;">[주의 / 팔면 좋은 주식 - 과열 차익실현 & 리스크 관리]</div>
+                            <div style="font-size: 14px; font-weight: bold; color: #DC2626; margin-bottom: 6px;">[주의 / 팔면 좋은 주식 - 권고 매도가 & 리스크 관리]</div>
                             {sell_html}
                         </div>
                     </div>
@@ -191,9 +229,11 @@ class EmailSender:
                         </table>
                     </div>
 
-                    <!-- 3. 7대 분야별 핵심 헤드라인 & 1줄 요약 -->
+                    <!-- 3. 7대 분야별 다수 헤드라인 -->
                     <div style="margin-bottom: 24px;">
-                        <h2 style="font-size: 17px; color: #1E293B; border-bottom: 2px solid #3B82F6; padding-bottom: 6px;">🌐 오늘 아침 7대 분야별 핵심 헤드라인 & 1줄 요약</h2>
+                        <h2 style="font-size: 17px; color: #1E293B; border-bottom: 2px solid #3B82F6; padding-bottom: 6px;">
+                            🌐 7대 분야별 주요 헤드라인 (분야별 3~4건)
+                        </h2>
                         <div style="margin-top: 12px;">
                             {headlines_html}
                         </div>
@@ -201,7 +241,8 @@ class EmailSender:
 
                     <!-- 안내 박스 -->
                     <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 6px; padding: 12px; font-size: 12px; color: #64748B;">
-                        📎 <b>첨부 파일 안내:</b> 전체 종목의 상세 기술지표(RSI, 20일선 이격도, 52주 위치)와 전체 기사 데이터가 정리된 다중 시트 엑셀 파일(<code>.xlsx</code>)이 첨부되어 있습니다.
+                        📎 <b>첨부 파일 안내:</b> 전체 종목의 매수/매도 추천가표와 7대 분야 전체 기사가 정리된 엑셀 파일(<code>.xlsx</code>)이 첨부되어 있습니다.<br>
+                        📊 <b>구글 드라이브 안내:</b> 일자별 데이터가 매일 누적으로 축적되어 기록되고 있습니다.
                     </div>
 
                 </div>
@@ -216,7 +257,7 @@ class EmailSender:
         """
         return html
 
-    def send_report(self, date_str: str, stock_indices: list, exchange_rates: list, stock_advice: dict, news_result: dict, top_research: dict = None, attachment_path: str = None) -> bool:
+    def send_report(self, date_str: str, stock_indices: list, exchange_rates: list, stock_advice: dict, news_result: dict, top_research_list: list = None, attachment_path: str = None) -> bool:
         """이메일 조립 및 네이버 SMTP 발송"""
         if not self.is_configured():
             print("\n⚠️ [이메일 발송 건너뜀] NAVER_USER 또는 NAVER_PASSWORD가 설정되지 않았습니다.")
@@ -224,7 +265,7 @@ class EmailSender:
 
         try:
             msg = MIMEMultipart("mixed")
-            msg["Subject"] = f"☕ [데일리 브리핑] {date_str} 7대 분야별 핵심 이슈 & 주식 추천 리포트"
+            msg["Subject"] = f"☕ [데일리 브리핑] {date_str} 매수·매도 추천금액 & 7대 분야별 주요 이슈 리포트"
             msg["From"] = f"{self.naver_user}@naver.com"
             msg["To"] = self.receiver_email
 
@@ -234,7 +275,7 @@ class EmailSender:
                 exchange_rates=exchange_rates,
                 stock_advice=stock_advice,
                 news_result=news_result,
-                top_research=top_research
+                top_research_list=top_research_list
             )
             msg.attach(MIMEText(html_content, "html", "utf-8"))
 

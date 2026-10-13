@@ -80,6 +80,9 @@ class StockAnalyzer:
             is_usd = ticker in ["NVDA", "AAPL", "TSLA"]
             currency_symbol = "$" if is_usd else "원"
 
+            recent_high = max(closes[-20:]) if len(closes) >= 20 else max(closes)
+            recent_low = min(closes[-20:]) if len(closes) >= 20 else min(closes)
+
             return {
                 "ticker": ticker,
                 "cur_price": cur_price,
@@ -89,6 +92,8 @@ class StockAnalyzer:
                 "currency": currency_symbol,
                 "high_52w": high_52w,
                 "low_52w": low_52w,
+                "recent_high": recent_high,
+                "recent_low": recent_low,
                 "pos_52w": round(pos_52w, 1),
                 "ma20": round(ma20, 1),
                 "ma60": round(ma60, 1),
