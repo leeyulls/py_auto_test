@@ -82,6 +82,12 @@ STOCK_UNIVERSE = [
         "name": "테슬라 (Tesla)",
         "sector": "전기차/자율주행",
         "keywords": ["테슬라", "Tesla", "로보택시", "FSD", "일론 머스크"]
+    },
+    {
+        "ticker": "MSFT",
+        "name": "마이크로소프트 (Microsoft)",
+        "sector": "글로벌 AI/클라우드",
+        "keywords": ["마이크로소프트", "MSFT", "Microsoft", "코파일럿", "애저", "Azure", "OpenAI"]
     }
 ]
 

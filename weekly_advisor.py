@@ -161,6 +161,13 @@ class WeeklyAdvisor:
                     "summary": r.get("핵심요약", "")
                 })
 
+        # -------------------------------------------------------------
+        # 5. 🎯 추천 종목 사후 검증(Backtesting) 및 주간 적중률 집계 (Feature 1)
+        # -------------------------------------------------------------
+        from performance_tracker import PerformanceTracker
+        pt = PerformanceTracker(master_file_path=self.master_file)
+        performance_res = pt.evaluate_performance(current_date_str=target_date.strftime("%Y-%m-%d"))
+
         return {
             "week_label": week_label,
             "target_date_str": target_date.strftime("%Y-%m-%d"),
@@ -168,4 +175,6 @@ class WeeklyAdvisor:
             "top_stocks": top_stocks_this_week,
             "weekly_issues": weekly_top_issues,
             "weekly_reports": weekly_top_reports,
+            "performance_data": performance_res,
         }
+

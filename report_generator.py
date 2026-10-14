@@ -21,8 +21,8 @@ class ReportGenerator:
         os.makedirs(self.output_dir, exist_ok=True)
         self.master_file = os.path.join(self.output_dir, "일자별_누적_데일리_이슈_및_주식_브리핑_마스터.xlsx")
 
-    def generate_excel(self, general_news: list, market_news: list, exchange_rates: list, stock_indices: list, stock_advice: dict, crypto_advice: dict, official_reports: list, date_str: str) -> dict:
-        """5개 시트(7대 분야 종합이슈, 주식/환율, 종목분석/추천가, 코인분석/추천가, 증권사_공식리포트_Top10) 엑셀 생성"""
+    def generate_excel(self, general_news: list, market_news: list, exchange_rates: list, stock_indices: list, stock_advice: dict, crypto_advice: dict, official_reports: list, date_str: str, performance_data: dict = None, special_disclosures: list = None) -> dict:
+        """7개 시트(7대분야_종합이슈, 시장지표_및_환율, 종목분석_매매추천, 코인분석_매매추천, 증권사_공식리포트_Top10, 추천성과_사후검증, 특수공시_DART_KIND) 엑셀 생성"""
         month_str = date_str[:7]
         month_dir = os.path.join(self.output_dir, month_str)
         os.makedirs(month_dir, exist_ok=True)
@@ -83,6 +83,9 @@ class ReportGenerator:
             # 시트 3: 종목별 기술 분석 & 추천가표
             if stock_advice and "all_evaluations" in stock_advice:
                 df_advice = pd.DataFrame(stock_advice["all_evaluations"])
+                cols_to_drop = [c for c in ["is_us"] if c in df_advice.columns]
+                if cols_to_drop:
+                    df_advice = df_advice.drop(columns=cols_to_drop)
                 df_advice.to_excel(writer, sheet_name="종목분석_매매추천", index=False)
 
             # 시트 4: 코인 (비트코인, 이더리움, 솔라나) 분석 및 매수/매도 추천금액
@@ -107,12 +110,13 @@ class ReportGenerator:
                 df_coins = pd.DataFrame(coin_rows)
                 df_coins.to_excel(writer, sheet_name="코인분석_매매추천", index=False)
 
-            # 시트 5: 증권사 공식 애널리스트 리포트 Top 10
+            # 시트 5: 증권사 공식 애널리스트 리포트 Top 10 + 2026/2027 예상 실적 표
             if official_reports:
                 rep_rows = []
                 for r in official_reports:
                     tp = r.get("target_price")
                     tp_str = f"{int(tp):,}원" if tp else "-"
+                    ft = r.get("financial_table", {})
                     rep_rows.append({
                         "신뢰도점수": r.get("credibility_score", 0),
                         "증권사": r.get("broker", ""),
@@ -120,12 +124,29 @@ class ReportGenerator:
                         "리포트제목": r.get("title", ""),
                         "공인_목표주가": tp_str,
                         "투자의견": r.get("opinion", "BUY"),
+                        "2026F_예상매출": ft.get("rev_2026", "-"),
+                        "2026F_예상영업익": ft.get("op_2026", "-"),
+                        "2027F_예상매출": ft.get("rev_2027", "-"),
+                        "2027F_예상영업익": ft.get("op_2027", "-"),
+                        "실적요약_YoY": ft.get("yoy_summary", ""),
                         "시장조회수": r.get("read_count", 0),
                         "핵심요약": r.get("summary_text", ""),
                         "PDF파일명": r.get("pdf_filename", ""),
                     })
                 df_rep = pd.DataFrame(rep_rows)
                 df_rep.to_excel(writer, sheet_name="증권사_공식리포트_Top10", index=False)
+
+            # 시트 6: 🎯 추천 종목 사후 검증 (Backtesting) 및 누적 적중률
+            if performance_data and performance_data.get("records"):
+                df_perf = pd.DataFrame(performance_data["records"])
+                disp_cols = [c for c in ["추천일자", "종목명", "티커", "추천당시가", "매수추천가", "목표매도가", "손절기준가", "검증결과", "실현수익률", "최고도달가", "소요일수"] if c in df_perf.columns]
+                df_perf[disp_cols].to_excel(writer, sheet_name="추천성과_사후검증", index=False)
+
+            # 시트 7: 🏛️ 금융감독원(DART) & KIND 기업 핵심 특수 공시
+            if special_disclosures:
+                df_disc = pd.DataFrame(special_disclosures)
+                disc_cols = [c for c in ["공시구분", "공시배지", "관련기업", "공시제목", "영향전망", "언론사", "공시일시", "링크"] if c in df_disc.columns]
+                df_disc[disc_cols].to_excel(writer, sheet_name="특수공시_DART_KIND", index=False)
 
             self._style_workbook(writer.book)
 
@@ -139,13 +160,15 @@ class ReportGenerator:
             official_reports=official_reports,
             stock_indices=stock_indices,
             exchange_rates=exchange_rates,
-            date_str=date_str
+            date_str=date_str,
+            performance_data=performance_data,
+            special_disclosures=special_disclosures,
         )
 
         return {"daily_path": daily_path, "master_path": self.master_file, "month_str": month_str}
 
-    def _update_master_accumulation(self, general_news: list, stock_advice: dict, crypto_advice: dict, official_reports: list, stock_indices: list, exchange_rates: list, date_str: str):
-        """기존 마스터 엑셀에 오늘의 주식/코인/공식리포트/뉴스 데이터를 누적으로 덧붙여 저장"""
+    def _update_master_accumulation(self, general_news: list, stock_advice: dict, crypto_advice: dict, official_reports: list, stock_indices: list, exchange_rates: list, date_str: str, performance_data: dict = None, special_disclosures: list = None):
+        """기존 마스터 엑셀에 오늘의 주식/코인/공식리포트/뉴스/성과검증/특수공시 데이터를 누적으로 덧붙여 저장"""
         master_dfs = {}
         if os.path.exists(self.master_file):
             try:
@@ -172,6 +195,8 @@ class ReportGenerator:
         # 2. 주식매매추천 누적
         if stock_advice and "all_evaluations" in stock_advice:
             today_advice_df = pd.DataFrame(stock_advice["all_evaluations"])
+            if "is_us" in today_advice_df.columns:
+                today_advice_df = today_advice_df.drop(columns=["is_us"])
             today_advice_df.insert(0, "분석일자", date_str)
 
             if "주식추천_누적" in master_dfs:
@@ -206,12 +231,13 @@ class ReportGenerator:
             else:
                 master_dfs["코인추천_누적"] = today_coin_df
 
-        # 4. 증권사 공식 리포트 누적
+        # 4. 증권사 공식 리포트 누적 (2026/2027 실적 표 컬럼 포함)
         if official_reports:
             rep_rows = []
             for r in official_reports:
                 tp = r.get("target_price")
                 tp_str = f"{int(tp):,}원" if tp else "-"
+                ft = r.get("financial_table", {})
                 rep_rows.append({
                     "수집일자": date_str,
                     "신뢰도점수": r.get("credibility_score", 0),
@@ -220,6 +246,11 @@ class ReportGenerator:
                     "리포트제목": r.get("title", ""),
                     "목표주가": tp_str,
                     "투자의견": r.get("opinion", "BUY"),
+                    "2026F_예상매출": ft.get("rev_2026", "-"),
+                    "2026F_예상영업익": ft.get("op_2026", "-"),
+                    "2027F_예상매출": ft.get("rev_2027", "-"),
+                    "2027F_예상영업익": ft.get("op_2027", "-"),
+                    "실적전망요약": ft.get("yoy_summary", ""),
                     "핵심요약": r.get("summary_text", ""),
                     "PDF파일명": r.get("pdf_filename", ""),
                 })
@@ -231,7 +262,33 @@ class ReportGenerator:
             else:
                 master_dfs["공식리포트_누적"] = today_rep_df
 
-        # 5. 시장지표 누적
+        # 5. 추천 성과 검증 누적 (Feature 1)
+        if performance_data and performance_data.get("records"):
+            perf_df = pd.DataFrame(performance_data["records"])
+            perf_cols = [c for c in ["추천일자", "종목명", "티커", "추천당시가", "매수추천가", "목표매도가", "손절기준가", "검증결과", "실현수익률", "최고도달가", "소요일수"] if c in perf_df.columns]
+            perf_df = perf_df[perf_cols]
+            perf_df.insert(0, "검증기준일", date_str)
+            if "추천성과_검증누적" in master_dfs:
+                old_df = master_dfs["추천성과_검증누적"]
+                old_df = old_df[old_df["검증기준일"] != date_str]
+                master_dfs["추천성과_검증누적"] = pd.concat([old_df, perf_df], ignore_index=True)
+            else:
+                master_dfs["추천성과_검증누적"] = perf_df
+
+        # 6. 특수 공시 누적 (Feature 3)
+        if special_disclosures:
+            disc_df = pd.DataFrame(special_disclosures)
+            disc_cols = [c for c in ["공시구분", "공시배지", "관련기업", "공시제목", "영향전망", "언론사", "공시일시", "링크"] if c in disc_df.columns]
+            disc_df = disc_df[disc_cols]
+            disc_df.insert(0, "수집일자", date_str)
+            if "특수공시_누적" in master_dfs:
+                old_df = master_dfs["특수공시_누적"]
+                old_df = old_df[old_df["수집일자"] != date_str]
+                master_dfs["특수공시_누적"] = pd.concat([old_df, disc_df], ignore_index=True)
+            else:
+                master_dfs["특수공시_누적"] = disc_df
+
+        # 7. 시장지표 누적
         market_rows = []
         for idx in stock_indices:
             market_rows.append({"일자": date_str, "구분": "증시 지수", "항목": idx["지수명"], "수치": idx["현재지수"], "등락": idx["전일대비"]})
@@ -290,7 +347,7 @@ class ReportGenerator:
                         max_len = max(max_len, length)
                 sheet.column_dimensions[col_letter].width = min(max(max_len + 3, 12), 65)
 
-    def generate_markdown(self, general_news: list, market_news: list, exchange_rates: list, stock_indices: list, stock_advice: dict, crypto_advice: dict, official_reports: list, news_result: dict, date_str: str) -> str:
+    def generate_markdown(self, general_news: list, market_news: list, exchange_rates: list, stock_indices: list, stock_advice: dict, crypto_advice: dict, official_reports: list, news_result: dict, date_str: str, performance_data: dict = None, special_disclosures: list = None) -> str:
         """구글 문서/마크다운 뷰어용 종합 브리핑 리포트 생성 (월별 폴더에 저장)"""
         month_str = date_str[:7]
         month_dir = os.path.join(self.output_dir, month_str)
@@ -301,7 +358,7 @@ class ReportGenerator:
         lines = [
             f"# 📰 대한민국 데일리 종합 이슈 & 주식·코인(BTC/ETH/SOL)·공식리포트 브리핑 ({date_str})",
             "",
-            "> 7대 핵심 분야 헤드라인과 실시간 주가·환율·**3대 코인 추천가 & 증권사 공식 Top 10 애널리스트 리포트 심층 분석** 일일 리포트입니다.",
+            "> 7대 핵심 분야 헤드라인과 실시간 주가·환율·**3대 코인 추천가 & 증권사 공식 Top 10 애널리스트 리포트 심층 분석 & 사후 검증 & DART 특수 공시** 일일 리포트입니다.",
             "",
             "---",
             "",
@@ -319,22 +376,81 @@ class ReportGenerator:
                 "",
             ])
 
-        # 📄 1. 증권사 공식 애널리스트 Top 10 리포트 심층 분석 (공인 목표가 & 팩트)
+        # 🎯 1. AI 추천 종목 사후 검증 (Backtesting) & 누적 적중률
+        if performance_data and performance_data.get("summary"):
+            s = performance_data["summary"]
+            lines.extend([
+                "## 🎯 1. AI 추천 종목 사후 검증(Backtesting) & 누적 적중률 트래커",
+                "> 과거 시스템 추천 종목의 목표가 달성 및 손절 여부를 전수 추적한 사후 검증 결과입니다.",
+                "",
+                f"- 🏆 **누적 적중률 (Win Rate)**: **{s.get('win_rate', 0)}%**",
+                f"- 📊 **검증 모수**: 총 {s.get('total_picks', 0)}건 (목표가 달성: **{s.get('success_count', 0)}건** | 손절 터치: {s.get('stoploss_count', 0)}건 | 보유 진행 중: {s.get('holding_count', 0)}건)",
+                f"- 💰 **평균 수익률**: **{s.get('avg_return', 0.0):+.2f}%**",
+                "",
+                "| 추천일자 | 종목명 (티커) | 매수 추천가 | 목표 매도가 | 검증 결과 | 실현 수익률 | 소요 일수 |",
+                "| :--- | :--- | :--- | :--- | :--- | :--- | :--- |",
+            ])
+            for rec in performance_data.get("records", [])[:6]:
+                lines.append(
+                    f"| {rec.get('추천일자')} | **{rec.get('종목명')}** ({rec.get('티커')}) | {rec.get('매수추천가')} | "
+                    f"{rec.get('목표매도가')} | **{rec.get('검증결과')}** | **{rec.get('실현수익률')}** | {rec.get('소요일수')} |"
+                )
+            lines.extend(["", "---", ""])
+
+        # 🏛️ 2. 금융감독원(DART) & KIND 기업 핵심 특수 공시
+        if special_disclosures:
+            lines.extend([
+                "## 🏛️ 2. 금융감독원(DART) & KIND 기업 핵심 특수 공시 실시간 연동",
+                "> 자사주 취득/소각, 대주주 장내매수, 대규모 수주계약, 무상증자 등 기업 가치 급변 요인 공시입니다.",
+                "",
+                "| 공시 분류 | 기업명 | 공시 핵심 내용 | 시장 영향 및 시사점 | 출처 |",
+                "| :--- | :--- | :--- | :--- | :--- |",
+            ])
+            for d in special_disclosures[:6]:
+                corp = d.get('관련기업') or "주요상장사"
+                lines.append(
+                    f"| `{d.get('공시배지')}` | **{corp}** | [{d.get('공시제목')}]({d.get('링크')}) | "
+                    f"{d.get('영향전망')} | {d.get('언론사')} |"
+                )
+            lines.extend(["", "---", ""])
+
+        # 🇺🇸 3. 미국 글로벌 빅테크 4대장 (NVDA, TSLA, AAPL, MSFT)
+        us_bigtech = stock_advice.get("us_bigtech_picks", [])
+        if us_bigtech:
+            lines.extend([
+                "## 🇺🇸 3. 미국 글로벌 빅테크 4대장 (NVDA, TSLA, AAPL, MSFT) 집중 분석",
+                "> 전일 뉴욕 증시 종가 및 원화 환산 가격, 기술적 지표(이격도/RSI) 기반 매수가/목표가 밴드입니다.",
+                "",
+                "| 기업명 (티커) | 현재가 (원화 환산) | 전일 대비 | 매수 추천가 | 목표 매도가 | 단기 신호 | 기대수익 | RSI |",
+                "| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |",
+            ])
+            for u in us_bigtech:
+                lines.append(
+                    f"| **{u.get('종목명')}**<br>({u.get('티커')}) | {u.get('현재가')} | {u.get('전일대비')} | "
+                    f"**{u.get('매수_추천금액')}** | **{u.get('목표_매도금액')}** | {u.get('단기신호')} | "
+                    f"{u.get('기대_수익률')} | {u.get('RSI(14)')} |"
+                )
+            lines.extend(["", "---", ""])
+
+        # 📄 4. 증권사 공식 애널리스트 Top 10 리포트 심층 분석 + 2026/2027 실적 추정치 표
         if official_reports:
             lines.extend([
-                "## 📄 1. 증권사 공식 애널리스트 Top 10 리포트 심층 분석 (공인 목표가 & 팩트)",
+                "## 📄 4. 증권사 공식 애널리스트 Top 10 리포트 & 핵심 실적 추정치 표 (YoY)",
                 "> 5대 신뢰도 지표(기관 공신력, 정량 목표가, 변동 모멘텀, 조회수, 집중도)로 엄선된 공식 리포트입니다. 원본 PDF는 구글 드라이브 월별 폴더(`공식_리서치_PDF`)에 자동 보관됩니다.",
                 "",
-                "| 종목명 (증권사) | 공인 목표주가 | 투자의견 | 신뢰도 점수 | 애널리스트 핵심 요약 & 호재 근거 | PDF 파일명 |",
-                "| :--- | :--- | :--- | :--- | :--- | :--- |",
+                "| 종목명 (증권사) | 공인 목표주가 | 투자의견 | 2026F 예상 실적 | 2027F 예상 실적 | 실적 요약 (YoY) | 신뢰도 |",
+                "| :--- | :--- | :--- | :--- | :--- | :--- | :--- |",
             ])
             for r in official_reports:
                 tp = r.get("target_price")
                 tp_str = f"{int(tp):,}원" if tp else "-"
+                ft = r.get("financial_table", {})
+                f_2026 = f"매출 {ft.get('rev_2026', '-')}<br>영익 {ft.get('op_2026', '-')}"
+                f_2027 = f"매출 {ft.get('rev_2027', '-')}<br>영익 {ft.get('op_2027', '-')}"
                 lines.append(
                     f"| **{r.get('item_name', '')}**<br>({r.get('broker', '')}) | **{tp_str}** | "
-                    f"`{r.get('opinion', 'BUY')}` | ⭐ {r.get('credibility_score', 0)}점 | "
-                    f"{r.get('summary_text', '')[:100]}... | `{r.get('pdf_filename', '')}` |"
+                    f"`{r.get('opinion', 'BUY')}` | {f_2026} | {f_2027} | "
+                    f"{ft.get('yoy_summary', '')[:50]}... | ⭐ {r.get('credibility_score', 0)}점 |"
                 )
             lines.extend(["", "---", ""])
 

@@ -217,7 +217,74 @@ class ResearchManager:
             else:
                 rep["pdf_downloaded"] = True
 
+            # PDF 핵심 실적 표(2026/2027 예상 매출 및 영업익) 자동 발췌
+            if os.path.exists(file_path):
+                rep["financial_table"] = self.extract_financial_table_from_pdf(file_path)
+            else:
+                rep["financial_table"] = {
+                    "rev_2026": "-", "op_2026": "-", "rev_2027": "-", "op_2027": "-",
+                    "yoy_summary": "실적 데이터 미기재", "has_table": False
+                }
+
         return top_reports
+
+    @staticmethod
+    def extract_financial_table_from_pdf(pdf_path: str) -> dict:
+        """애널리스트 PDF 원본의 1~3페이지로부터 2026/2027 예상 실적 표(매출/영업익/YoY) 자동 발췌"""
+        default_res = {
+            "rev_2026": "-",
+            "op_2026": "-",
+            "rev_2027": "-",
+            "op_2027": "-",
+            "yoy_summary": "2026~2027 연간 실적 성장세 추정",
+            "has_table": False,
+        }
+        if not pdf_path or not os.path.exists(pdf_path):
+            return default_res
+
+        try:
+            from pypdf import PdfReader
+            reader = PdfReader(pdf_path)
+            extracted_text = ""
+            for page in reader.pages[:3]:
+                extracted_text += (page.extract_text() or "") + "\n"
+
+            # 1. 2026 / 2027 연간 추정치 표 매칭
+            rev_match = re.search(r'매출액[^\d\n]*([0-9,.]+)\s+([0-9,.]+)\s+([0-9,.]+)\s+([0-9,.]+)', extracted_text)
+            op_match = re.search(r'영업이익[^\d\n]*([0-9,.-]+)\s+([0-9,.-]+)\s+([0-9,.-]+)\s+([0-9,.-]+)', extracted_text)
+            preview_matches = re.findall(r'(?:2026년|3Q26|4Q26|연결)[^\n.]{0,80}(?:매출액|영업이익)[^\n.]{0,80}(?:YoY|QoQ|원|%)[^\n.]*', extracted_text)
+
+            rev_2026 = "-"
+            rev_2027 = "-"
+            op_2026 = "-"
+            op_2027 = "-"
+            has_table = False
+
+            if rev_match:
+                vals = rev_match.groups()
+                rev_2026 = f"{vals[2]}십억원"
+                rev_2027 = f"{vals[3]}십억원"
+                has_table = True
+
+            if op_match:
+                vals = op_match.groups()
+                op_2026 = f"{vals[2]}십억원"
+                op_2027 = f"{vals[3]}십억원"
+                has_table = True
+
+            yoy_summary = preview_matches[0].strip() if preview_matches else "2026/2027 실적 성장세 및 기업가치 재평가 전망"
+
+            return {
+                "rev_2026": rev_2026,
+                "op_2026": op_2026,
+                "rev_2027": rev_2027,
+                "op_2027": op_2027,
+                "yoy_summary": yoy_summary[:120],
+                "has_table": has_table,
+            }
+        except Exception as e:
+            return default_res
+
 
     def collect_and_process(self, date_str: str = None, top_n: int = 10) -> dict:
         """

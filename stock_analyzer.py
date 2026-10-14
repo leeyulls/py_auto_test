@@ -77,7 +77,7 @@ class StockAnalyzer:
             # 52주 내 현재가 위치 백분율 (0% ~ 100%)
             pos_52w = ((cur_price - low_52w) / (high_52w - low_52w) * 100) if high_52w > low_52w else 50.0
 
-            is_usd = ticker in ["NVDA", "AAPL", "TSLA"]
+            is_usd = not (ticker.endswith(".KS") or ticker.endswith(".KQ"))
             currency_symbol = "$" if is_usd else "원"
 
             recent_high = max(closes[-20:]) if len(closes) >= 20 else max(closes)
