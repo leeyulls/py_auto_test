@@ -69,11 +69,13 @@ class GoogleDriveSync:
                     "folder_name": "데일리_브리핑_수집",
                     "is_master": is_master
                 }
-                res = requests.post(self.apps_script_url, json=payload, timeout=25)
-                if res.status_code == 200:
+                res = requests.post(self.apps_script_url, json=payload, timeout=30, allow_redirects=True)
+                if res.status_code == 200 or res.status_code == 302:
                     print(f"✅ Google Apps Script 웹앱 클라우드 동기화 완료: {filename}")
                     results["success"] = True
                     results["methods_attempted"].append("Apps Script Web App")
+                else:
+                    print(f"[경고] Apps Script 웹앱 업로드 응답 코드: {res.status_code}")
             except Exception as e:
                 print(f"[경고] Apps Script 웹앱 업로드 실패: {e}")
 

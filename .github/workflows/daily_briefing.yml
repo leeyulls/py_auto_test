@@ -1,10 +1,10 @@
-name: Daily Morning Stock & News Briefing
+name: Daily Morning Stock, Crypto & News Briefing
 
 on:
   schedule:
-    # GitHub 서버 정각(00:00) 큐 지연을 방지하기 위해 한국 시간(KST) 오전 08:50 (UTC 23:50)에 트리거
-    # 9시 출근 전에 여유 있게 도착하도록 보장합니다.
-    - cron: '50 23 * * *'
+    # 한국 시간(KST) 매일 아침 07:00에 수신할 수 있도록 UTC 21:55 (06:55 KST)에 실행
+    # (GitHub Actions 정각 큐 지연을 방지하여 7시 정각에 메일이 도착하도록 보장)
+    - cron: '55 21 * * *'
   # GitHub 웹페이지 및 CLI에서 원클릭 수동 실행 버튼 제공
   workflow_dispatch:
 
@@ -27,7 +27,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: 크롤링, 주가 분석, 구글 드라이브 누적 및 브리핑 이메일 발송
+      - name: 크롤링, 주가/코인 분석, 구글 드라이브 누적 및 07시 브리핑 이메일 발송
         env:
           PYTHONIOENCODING: utf-8
           NAVER_USER: ${{ secrets.NAVER_USER }}

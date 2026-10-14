@@ -1,7 +1,8 @@
 """
 report_generator.py
-7대 분야별 데이터 및 주가 분석 & 매수/매도 추천금액 리포트 생성기
-(당일 단독 리포트 + '일자별 누적/축적 마스터 엑셀' 동시 업데이트 지원)
+7대 분야별 뉴스, 주식 분석/추천가 및
+비트코인·이더리움·솔라나 3대 코인 매매추천 리포트 생성기
+(당일 단독 리포트 + 일자별 누적 마스터 엑셀 동시 업데이트)
 """
 
 import datetime
@@ -20,11 +21,8 @@ class ReportGenerator:
         os.makedirs(self.output_dir, exist_ok=True)
         self.master_file = os.path.join(self.output_dir, "일자별_누적_데일리_이슈_및_주식_브리핑_마스터.xlsx")
 
-    def generate_excel(self, general_news: list, market_news: list, exchange_rates: list, stock_indices: list, stock_advice: dict, date_str: str) -> dict:
-        """
-        1) 당일 브리핑 엑셀 파일 생성
-        2) 일자별 누적/축적 마스터 엑셀 파일 업데이트 (과거 데이터 누적 보관)
-        """
+    def generate_excel(self, general_news: list, market_news: list, exchange_rates: list, stock_indices: list, stock_advice: dict, crypto_advice: dict, date_str: str) -> dict:
+        """4개 시트(7대 분야 종합이슈, 주식/환율, 종목분석/추천가, 코인분석/추천가) 엑셀 생성"""
         daily_path = os.path.join(self.output_dir, f"{date_str}_데일리_이슈_및_금융동향_브리핑.xlsx")
 
         # ---------------------------------------------------------
@@ -74,19 +72,42 @@ class ReportGenerator:
                 df_stock_clean = df_stock_news[cols]
                 df_stock_clean.to_excel(writer, sheet_name="주식_환율_경제동향", index=False, startrow=start_row)
 
-            # 시트 3: 종목분석 및 매수/매도 추천금액
+            # 시트 3: 주식 종목분석 및 매수/매도 추천금액
             if stock_advice and "all_evaluations" in stock_advice:
                 df_advice = pd.DataFrame(stock_advice["all_evaluations"])
-                df_advice.to_excel(writer, sheet_name="종목분석_매매추천", index=False)
+                df_advice.to_excel(writer, sheet_name="주식종목_매매추천", index=False)
+
+            # 시트 4: 코인 (비트코인, 이더리움, 솔라나) 분석 및 매수/매도 추천금액
+            if crypto_advice and "coins" in crypto_advice:
+                coin_rows = []
+                for c in crypto_advice["coins"]:
+                    coin_rows.append({
+                        "코인명": f"{c['icon']} {c['name']}",
+                        "심볼": c["symbol"],
+                        "현재가": c["cur_price"],
+                        "24시간등락": c["change_rate"],
+                        "매수_추천금액": c["buy_price"],
+                        "목표_매도금액": c["sell_price"],
+                        "손절_기준가": c["stop_loss"],
+                        "기대_수익률": c["expected_yield"],
+                        "투자신호": c["signal"],
+                        "전망및근거": c["outlook"],
+                        "RSI(14)": c["rsi"],
+                        "20일선이격도": c["disparity_20"],
+                        "24시간거래대금": c["volume_24h_krw"],
+                    })
+                df_coins = pd.DataFrame(coin_rows)
+                df_coins.to_excel(writer, sheet_name="코인분석_매매추천", index=False)
 
             self._style_workbook(writer.book)
 
         # ---------------------------------------------------------
-        # 2. 일자별 누적 마스터 엑셀 파일 업데이트 (축적 저장)
+        # 2. 일자별 누적 마스터 엑셀 파일 업데이트
         # ---------------------------------------------------------
         self._update_master_accumulation(
             general_news=general_news,
             stock_advice=stock_advice,
+            crypto_advice=crypto_advice,
             stock_indices=stock_indices,
             exchange_rates=exchange_rates,
             date_str=date_str
@@ -94,9 +115,8 @@ class ReportGenerator:
 
         return {"daily_path": daily_path, "master_path": self.master_file}
 
-    def _update_master_accumulation(self, general_news: list, stock_advice: dict, stock_indices: list, exchange_rates: list, date_str: str):
-        """기존 마스터 엑셀에 오늘의 데이터를 누적으로 덧붙여 저장"""
-        # 기존 마스터 시트 읽기 (없으면 새로 생성)
+    def _update_master_accumulation(self, general_news: list, stock_advice: dict, crypto_advice: dict, stock_indices: list, exchange_rates: list, date_str: str):
+        """기존 마스터 엑셀에 오늘의 주식/코인/뉴스 데이터를 누적으로 덧붙여 저장"""
         master_dfs = {}
         if os.path.exists(self.master_file):
             try:
@@ -114,7 +134,6 @@ class ReportGenerator:
             today_general_df.insert(0, "수집일자", date_str)
 
             if "종합이슈_누적" in master_dfs:
-                # 당일 중복 방지
                 old_df = master_dfs["종합이슈_누적"]
                 old_df = old_df[old_df["수집일자"] != date_str]
                 master_dfs["종합이슈_누적"] = pd.concat([old_df, today_general_df], ignore_index=True)
@@ -133,7 +152,32 @@ class ReportGenerator:
             else:
                 master_dfs["주식추천_누적"] = today_advice_df
 
-        # 3. 시장지표 및 환율 누적
+        # 3. 코인매매추천 누적
+        if crypto_advice and "coins" in crypto_advice:
+            coin_rows = []
+            for c in crypto_advice["coins"]:
+                coin_rows.append({
+                    "분석일자": date_str,
+                    "코인명": c["name"],
+                    "심볼": c["symbol"],
+                    "현재가": c["cur_price"],
+                    "24시간등락": c["change_rate"],
+                    "매수_추천금액": c["buy_price"],
+                    "목표_매도금액": c["sell_price"],
+                    "손절_기준가": c["stop_loss"],
+                    "기대_수익률": c["expected_yield"],
+                    "투자신호": c["signal"],
+                    "전망및근거": c["outlook"],
+                })
+            today_coin_df = pd.DataFrame(coin_rows)
+            if "코인추천_누적" in master_dfs:
+                old_df = master_dfs["코인추천_누적"]
+                old_df = old_df[old_df["분석일자"] != date_str]
+                master_dfs["코인추천_누적"] = pd.concat([old_df, today_coin_df], ignore_index=True)
+            else:
+                master_dfs["코인추천_누적"] = today_coin_df
+
+        # 4. 시장지표 누적
         market_rows = []
         for idx in stock_indices:
             market_rows.append({"일자": date_str, "구분": "증시 지수", "항목": idx["지수명"], "수치": idx["현재지수"], "등락": idx["전일대비"]})
@@ -149,7 +193,6 @@ class ReportGenerator:
             else:
                 master_dfs["시장지표_누적"] = today_market_df
 
-        # 마스터 파일 저장
         with pd.ExcelWriter(self.master_file, engine="openpyxl") as writer:
             for sheet_name, df in master_dfs.items():
                 df.to_excel(writer, sheet_name=sheet_name, index=False)
@@ -193,14 +236,14 @@ class ReportGenerator:
                         max_len = max(max_len, length)
                 sheet.column_dimensions[col_letter].width = min(max(max_len + 3, 12), 65)
 
-    def generate_markdown(self, general_news: list, market_news: list, exchange_rates: list, stock_indices: list, stock_advice: dict, news_result: dict, date_str: str) -> str:
+    def generate_markdown(self, general_news: list, market_news: list, exchange_rates: list, stock_indices: list, stock_advice: dict, crypto_advice: dict, news_result: dict, date_str: str) -> str:
         """구글 문서/마크다운 뷰어용 종합 브리핑 리포트 생성"""
         file_path = os.path.join(self.output_dir, f"{date_str}_데일리_이슈_및_금융동향_브리핑.md")
 
         lines = [
-            f"# 📰 대한민국 데일리 종합 이슈 & 주가 분석/매매 추천 브리핑 ({date_str})",
+            f"# 📰 대한민국 데일리 종합 이슈 & 주식·코인(BTC/ETH/SOL) 매매 추천 브리핑 ({date_str})",
             "",
-            "> 7대 핵심 분야(정치, 사회, 거시경제, 주식, 세계, IT, 연예)별 대표 헤드라인과 실시간 주가·환율·기술적 지표 및 **매수 추천금액/목표 매도금액**을 분석한 일일 리포트입니다.",
+            "> 7대 핵심 분야 헤드라인과 실시간 주가·환율·**3대 코인(비트코인, 이더리움, 솔라나) 매수/매도 추천금액 및 전망**을 분석한 일일 리포트입니다.",
             "",
             "---",
             "",
@@ -218,8 +261,31 @@ class ReportGenerator:
                 "",
             ])
 
+        # 🪙 3대 코인 (비트코인, 이더리움, 솔라나) 분석 및 추천금액
+        lines.extend([
+            "## 🪙 1. 3대 코인(BTC, ETH, SOL) 실시간 시세 & 매매 추천금액",
+            "",
+            "| 코인명 (심볼) | 현재가 (24h 등락) | 매수 추천가 | 목표 매도가 | 손절 기준가 | 기대수익 | 투자 신호 | 전망 및 근거 |",
+            "| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |",
+        ])
+
+        for c in crypto_advice.get("coins", []):
+            lines.append(
+                f"| **{c['icon']} {c['name']}**<br>({c['symbol']}) | {c['cur_price']}<br>({c['change_rate']}) | "
+                f"**{c['buy_price']}** | **{c['sell_price']}** | {c['stop_loss']} | "
+                f"**{c['expected_yield']}** | {c['signal']} | {c['outlook']} |"
+            )
+
+        # 코인 관련 주요 뉴스
+        c_news = crypto_advice.get("crypto_news", [])
+        if c_news:
+            lines.append("\n### 📰 주요 가상자산 뉴스 & 시장 전망")
+            for cn in c_news[:3]:
+                lines.append(f"- **[{cn['title']}]({cn['link']})** ({cn['source']})")
+        lines.extend(["", "---", ""])
+
         # 🎯 오늘의 핵심 주식 매매 추천 & 추천금액
-        lines.append("## 🎯 1. 오늘의 핵심 주식 매매 추천 & 추천 금액 (Action Signals)\n")
+        lines.append("## 🎯 2. 오늘의 핵심 주식 매매 추천 & 추천 금액 (Action Signals)\n")
         today_buys = stock_advice.get("today_buy_picks", [])
         lines.append("### 🟢 [오늘 사면 좋을 주식 - 단기 반등 / 모멘텀 매수]")
         if today_buys:
@@ -252,11 +318,11 @@ class ReportGenerator:
             lines.append("- 현재 과열권 진입 종목 또는 급격한 악재 종목 없음")
         lines.append("")
 
-        # 2. 주요 종목별 상세 기술 지표 및 추천가 분석표
+        # 3. 주요 종목별 상세 기술 지표 표
         lines.extend([
             "---",
             "",
-            "## 📊 2. 주요 종목별 상세 기술 지표 및 매수/매도 추천금액 분석표",
+            "## 📊 3. 주요 종목별 상세 기술 지표 및 매수/매도 추천금액 분석표",
             "",
             "| 종목명 (섹터) | 현재가 (등락률) | 매수 추천가 | 목표 매도가 | 손절 기준가 | 기대수익 | 단기 신호 | 장기 신호 |",
             "| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |",
@@ -269,12 +335,12 @@ class ReportGenerator:
                 f"{ev['기대_수익률']} | {ev['단기신호']} | {ev['장기신호']} |"
             )
 
-        # 3. 실시간 시장 지표
+        # 4. 실시간 시장 지표
         lines.extend([
             "",
             "---",
             "",
-            "## 📈 3. 실시간 금융 시장 지표 (증시 & 환율)",
+            "## 📈 4. 실시간 금융 시장 지표 (증시 & 환율)",
             "",
             "### 🇰🇷 주요 증시 지수",
             "| 지수명 | 현재 지수 | 전일 대비 등락 |",
@@ -294,12 +360,12 @@ class ReportGenerator:
         for fx in exchange_rates:
             lines.append(f"| {fx['통화명']} | **{fx['환율(원)']}원** | {fx['변동/기준']} |")
 
-        # 4. 7대 분야별 다수 헤드라인
+        # 5. 7대 분야별 다수 헤드라인
         lines.extend([
             "",
             "---",
             "",
-            "## 🌐 4. 7대 분야별 주요 헤드라인 (분야별 3~8건)",
+            "## 🌐 5. 7대 분야별 주요 헤드라인",
             "",
         ])
 

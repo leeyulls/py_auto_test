@@ -14,3 +14,6 @@ email_config.txt
 *.log
 .DS_Store
 Thumbs.db
+
+# Daily reports (only master file is tracked in repo)
+reports/*_데일리_이슈_및_금융동향_브리핑.*

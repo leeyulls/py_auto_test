@@ -8,10 +8,19 @@ import datetime
 import os
 import sys
 
+# Windows 콘솔 cp949 인코딩 에러 방지
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+        sys.stderr.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
+
 from history_manager import HistoryManager
 from market_collector import MarketCollector
 from news_collector import NewsCollector
 from stock_advisor import StockAdvisor
+from crypto_advisor import CryptoAdvisor
 from report_generator import ReportGenerator
 from google_drive_sync import GoogleDriveSync
 from email_sender import EmailSender
@@ -98,8 +107,17 @@ def main():
     print(f" - 장기 적립/매수 추천 (추천금액 포함): {long_buys}개")
     print(f" - 매도/과열 주의 종목 (권고 매도가 포함): {sells}개")
 
-    # 5. 리포트 생성 (당일 엑셀 + 일자별 누적 마스터 엑셀 + 마크다운)
-    print("\n[5/7] 📊 당일 엑셀 리포트 및 '일자별 누적 마스터 파일' 업데이트 중...")
+    # 5. 가상자산 3대장(비트코인, 이더리움, 솔라나) 시세 분석 및 추천금액 산출
+    print("\n[5/8] 🪙 가상자산 3대장(BTC, ETH, SOL) 실시간 시세 및 매매 추천금액 산출 중...")
+    crypto_advisor = CryptoAdvisor()
+    crypto_advice = crypto_advisor.analyze_coins()
+    coins_list = crypto_advice.get("coins", [])
+    print(f" - 분석된 가상자산: {len(coins_list)}개 코인")
+    for c in coins_list:
+        print(f"   • {c['icon']} {c['name']} ({c['symbol']}): 현재가 {c['cur_price']} ➔ 매수가: {c['buy_price']} | 목표가: {c['sell_price']} ({c['expected_yield']})")
+
+    # 6. 리포트 생성 (당일 엑셀 + 일자별 누적 마스터 엑셀 + 마크다운)
+    print("\n[6/8] 📊 당일 엑셀 리포트 및 '일자별 누적 마스터 파일' 업데이트 중...")
     report_gen = ReportGenerator()
     excel_paths = report_gen.generate_excel(
         general_news=general_news,
@@ -107,6 +125,7 @@ def main():
         exchange_rates=exchange_rates,
         stock_indices=stock_indices,
         stock_advice=stock_advice,
+        crypto_advice=crypto_advice,
         date_str=today_str,
     )
     daily_excel_path = excel_paths["daily_path"]
@@ -118,6 +137,7 @@ def main():
         exchange_rates=exchange_rates,
         stock_indices=stock_indices,
         stock_advice=stock_advice,
+        crypto_advice=crypto_advice,
         news_result=news_result,
         date_str=today_str,
     )
@@ -125,29 +145,34 @@ def main():
     print(f" - 📚 일자별 누적 마스터: {master_excel_path}")
     print(f" - 마크다운 브리핑: {md_path}")
 
-    # 6. 구글 드라이브 동기화 (당일 리포트 + 누적 마스터 동시 보관)
-    print("\n[6/7] ☁️ 구글 드라이브 동기화 점검 (당일 파일 + 누적 마스터)...")
+    # 7. 구글 드라이브 동기화 (당일 리포트 + 누적 마스터 동시 보관)
+    print("\n[7/8] ☁️ 구글 드라이브 동기화 점검 (당일 파일 + 누적 마스터)...")
     drive_sync = GoogleDriveSync()
     drive_sync.sync_file(daily_excel_path, is_master=False)
     drive_sync.sync_file(master_excel_path, is_master=True)
     drive_sync.sync_file(md_path, is_master=False)
 
-    # 7. 7대 분야 다수 헤드라인 & 매수/매도 추천금액 포함 이메일 발송
-    print("\n[7/7] 📧 매수/매도 추천금액 & 다수 헤드라인 모닝 브리핑 이메일 발송 중...")
+    # 8. 7대 분야 다수 헤드라인 & 주식/코인 매수·매도 추천금액 포함 이메일 발송
+    print("\n[8/8] 📧 매수/매도 추천금액 & 다수 헤드라인 모닝 브리핑 이메일 발송 중...")
     sender = EmailSender()
     sender.send_report(
         date_str=today_str,
         stock_indices=stock_indices,
         exchange_rates=exchange_rates,
         stock_advice=stock_advice,
+        crypto_advice=crypto_advice,
         news_result=news_result,
         top_research_list=top_research_list,
         attachment_path=daily_excel_path,
     )
 
-    # 8. 최종 요약 콘솔 출력
+    # 9. 최종 요약 콘솔 출력
     print("\n" + "=" * 70)
-    print("✨ [오늘의 주식 매수/매도 추천금액 하이라이트]")
+    print("✨ [오늘의 3대 코인(BTC, ETH, SOL) 매수/목표 매도금액]")
+    for c in coins_list:
+        print(f" • {c['icon']} {c['name']} ({c['symbol']}) | 현재가: {c['cur_price']} ➔ 매수가: {c['buy_price']} | 목표가: {c['sell_price']} ({c['expected_yield']}) [{c['signal']}]")
+
+    print("\n✨ [오늘의 주식 매수/매도 추천금액 하이라이트]")
     for b in stock_advice["today_buy_picks"][:3]:
         print(f" • 🟢 {b['name']} ({b['ticker']}) | 현재가: {b['cur_price']} ➔ 매수가: {b['buy_price']} | 목표가: {b['sell_price']} ({b['expected_yield']})")
     for s in stock_advice["sell_warning_picks"][:2]:

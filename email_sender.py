@@ -1,6 +1,7 @@
 """
 email_sender.py
-네이버 SMTP를 활용하여 7대 분야별 다수 헤드라인(분야별 3~5건) + 매수/매도 추천금액 포함 브리핑 HTML 메일 발송 모듈
+네이버 SMTP를 활용하여 7대 분야별 헤드라인 + 주식 추천가 +
+비트코인·이더리움·솔라나 3대 코인 매수/매도 추천금액 포함 브리핑 HTML 메일 발송 모듈
 """
 
 import os
@@ -22,16 +23,46 @@ class EmailSender:
         """이메일 발송 계정 정보가 설정되어 있는지 확인"""
         return bool(self.naver_user and self.naver_password)
 
-    def build_html_body(self, date_str: str, stock_indices: list, exchange_rates: list, stock_advice: dict, news_result: dict, top_research_list: list = None) -> str:
+    def build_html_body(self, date_str: str, stock_indices: list, exchange_rates: list, stock_advice: dict, crypto_advice: dict, news_result: dict, top_research_list: list = None) -> str:
         """스마트폰과 PC에서 가독성 극대화된 모던 카드형 HTML 이메일 템플릿 생성"""
         today_buys = stock_advice.get("today_buy_picks", [])
         long_buys = stock_advice.get("longterm_buy_picks", [])
         sells = stock_advice.get("sell_warning_picks", [])
 
-        # 1. 오늘 단기 매수 카드 (매수/매도 추천금액 포함)
+        # ---------------------------------------------------------
+        # 1. 🪙 3대 코인(BTC, ETH, SOL) 카드 섹션
+        # ---------------------------------------------------------
+        coins = crypto_advice.get("coins", [])
+        coin_cards_html = ""
+        for c in coins:
+            coin_cards_html += f"""
+            <div style="background: #FAF5FF; border-left: 4px solid #A855F7; padding: 12px 14px; margin-bottom: 10px; border-radius: 6px;">
+                <div style="font-weight: bold; color: #7E22CE; font-size: 15px;">
+                    {c['icon']} {c['name']} <span style="font-size: 13px; color: #6B7280;">({c['symbol']})</span> - <span style="color: #111827;">현재가: {c['cur_price']}</span> 
+                    <span style="font-size: 12px; color: {'#16A34A' if '+' in c['change_rate'] else '#DC2626'}; font-weight: bold;">({c['change_rate']})</span>
+                </div>
+                <div style="margin: 6px 0; background: #F3E8FF; padding: 6px 10px; border-radius: 4px; font-size: 13px; color: #581C87;">
+                    💰 <b>매수 추천가:</b> <span style="font-weight: bold;">{c['buy_price']}</span> &nbsp;|&nbsp; 
+                    🎯 <b>목표 매도가:</b> <span style="font-weight: bold; color: #7E22CE;">{c['sell_price']}</span> 
+                    <span style="font-size: 12px; background: #E9D5FF; padding: 1px 6px; border-radius: 3px; font-weight: bold;">(기대수익 {c['expected_yield']})</span>
+                </div>
+                <div style="color: #374151; font-size: 12px; margin-top: 4px;">
+                    💡 <b>전망 및 근거:</b> {c['outlook']} &nbsp;|&nbsp; 🛑 <b>손절가:</b> {c['stop_loss']} &nbsp;|&nbsp; 📊 <b>RSI:</b> {c['rsi']}
+                </div>
+            </div>
+            """
+
+        crypto_news_html = ""
+        c_news = crypto_advice.get("crypto_news", [])
+        if c_news:
+            crypto_news_html = "<div style='font-size: 12px; color: #6B7280; margin-top: 8px;'><b>📰 코인 시장 헤드라인:</b> " + " | ".join([f"<a href='{cn['link']}' style='color: #4B5563; text-decoration: none;'>{cn['title']}</a>" for cn in c_news[:2]]) + "</div>"
+
+        # ---------------------------------------------------------
+        # 2. 주식 매매 추천 카드
+        # ---------------------------------------------------------
         today_buy_html = ""
         if today_buys:
-            for b in today_buys[:4]:
+            for b in today_buys[:3]:
                 today_buy_html += f"""
                 <div style="background: #F0FDF4; border-left: 4px solid #16A34A; padding: 12px 14px; margin-bottom: 10px; border-radius: 6px;">
                     <div style="font-weight: bold; color: #15803D; font-size: 15px;">
@@ -48,10 +79,9 @@ class EmailSender:
         else:
             today_buy_html = "<p style='color: #6B7280; font-size: 13px;'>현재 극단적 단기 과매도 또는 급등 돌파 종목 없음 (보수적 접근 추천)</p>"
 
-        # 2. 장기 매수 카드 (분할 매수/목표가 포함)
         long_buy_html = ""
         if long_buys:
-            for lb in long_buys[:4]:
+            for lb in long_buys[:3]:
                 long_buy_html += f"""
                 <div style="background: #EFF6FF; border-left: 4px solid #2563EB; padding: 12px 14px; margin-bottom: 10px; border-radius: 6px;">
                     <div style="font-weight: bold; color: #1D4ED8; font-size: 15px;">
@@ -68,10 +98,9 @@ class EmailSender:
         else:
             long_buy_html = "<p style='color: #6B7280; font-size: 13px;'>지수 조정 진행 중, 지지선 확인 후 분할 매수 추천</p>"
 
-        # 3. 매도 / 주의 카드
         sell_html = ""
         if sells:
-            for s in sells[:4]:
+            for s in sells[:3]:
                 sell_html += f"""
                 <div style="background: #FEF2F2; border-left: 4px solid #DC2626; padding: 12px 14px; margin-bottom: 10px; border-radius: 6px;">
                     <div style="font-weight: bold; color: #B91C1C; font-size: 15px;">
@@ -87,11 +116,11 @@ class EmailSender:
         else:
             sell_html = "<p style='color: #6B7280; font-size: 13px;'>현재 특별한 과열 또는 급락 경고 종목 없음</p>"
 
-        # 4. 시장 지표 요약표
+        # 3. 시장 지표 요약표
         indices_rows = "".join([f"<tr><td style='padding: 6px 10px; border: 1px solid #E5E7EB; font-weight: bold;'>{i['지수명']}</td><td style='padding: 6px 10px; border: 1px solid #E5E7EB; text-align: right; color: #1D4ED8; font-weight: bold;'>{i['현재지수']}</td><td style='padding: 6px 10px; border: 1px solid #E5E7EB; text-align: right;'>{i['전일대비']}</td></tr>" for i in stock_indices])
         rates_rows = "".join([f"<tr><td style='padding: 6px 10px; border: 1px solid #E5E7EB; font-weight: bold;'>{r['통화명']}</td><td style='padding: 6px 10px; border: 1px solid #E5E7EB; text-align: right; color: #047857; font-weight: bold;'>{r['환율(원)']}원</td><td style='padding: 6px 10px; border: 1px solid #E5E7EB; text-align: right;'>{r['변동/기준']}</td></tr>" for r in exchange_rates[:3]])
 
-        # 5. 🔥 오늘 아침 대한민국 메가 핫토픽 (클러스터링 최상위)
+        # 4. 🔥 메가 핫토픽
         mega_issue = news_result.get("mega_issue")
         mega_html = ""
         if mega_issue:
@@ -111,7 +140,7 @@ class EmailSender:
             </div>
             """
 
-        # 6. 📌 7대 분야별 다수 헤드라인 (분야별 3~5건씩 풍성하게 배치)
+        # 5. 📌 7대 분야별 다수 헤드라인
         top_picks = news_result.get("category_top_picks", {})
         category_order = [
             ("🏛️ 정치", "정치"),
@@ -126,7 +155,6 @@ class EmailSender:
         headlines_html = ""
         for icon_title, cat_key in category_order:
             if cat_key == "주식/기업분석" and top_research_list:
-                # 증권사 리서치 리포트 3건 노출
                 research_items_html = ""
                 for rep in top_research_list[:3]:
                     research_items_html += f"""
@@ -151,7 +179,7 @@ class EmailSender:
                 items = top_picks.get(cat_key, [])
                 if items:
                     cat_items_html = ""
-                    for it in items[:4]:  # 각 분야별 상위 3~4건 노출
+                    for it in items[:3]:
                         it_link = it.get("링크") or it.get("link", "")
                         tag = f" <span style='background: #FEE2E2; color: #DC2626; padding: 1px 5px; border-radius: 3px; font-size: 11px;'>{it['상태']}</span>" if "집중" in it['상태'] else ""
                         cat_items_html += f"""
@@ -168,7 +196,7 @@ class EmailSender:
                     headlines_html += f"""
                     <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 14px; margin-bottom: 16px;">
                         <div style="font-size: 14px; font-weight: bold; color: #1E293B; margin-bottom: 10px; border-bottom: 2px solid #E2E8F0; padding-bottom: 4px;">
-                            {icon_title} <span style="font-size: 12px; color: #64748B; font-weight: normal;">(주요 뉴스 {len(items[:4])}건)</span>
+                            {icon_title} <span style="font-size: 12px; color: #64748B; font-weight: normal;">(주요 뉴스 {len(items[:3])}건)</span>
                         </div>
                         {cat_items_html}
                     </div>
@@ -183,9 +211,9 @@ class EmailSender:
                 
                 <!-- 헤더 -->
                 <div style="background: linear-gradient(135deg, #1E3A8A 0%, #2563EB 100%); color: #FFFFFF; padding: 24px; text-align: center;">
-                    <div style="font-size: 13px; letter-spacing: 1px; opacity: 0.9; text-transform: uppercase;">Daily Morning Stock & Issue Briefing</div>
-                    <h1 style="margin: 8px 0 0; font-size: 22px;">☕ 오늘의 모닝 브리핑 ({date_str})</h1>
-                    <p style="margin: 6px 0 0; font-size: 13px; opacity: 0.85;">매수/매도 추천금액 & 7대 분야별 다수 헤드라인 (일자별 누적 아카이브)</p>
+                    <div style="font-size: 13px; letter-spacing: 1px; opacity: 0.9; text-transform: uppercase;">Daily Morning 07:00 Stock, Crypto & News Briefing</div>
+                    <h1 style="margin: 8px 0 0; font-size: 22px;">☕ 아침 7시 모닝 브리핑 ({date_str})</h1>
+                    <p style="margin: 6px 0 0; font-size: 13px; opacity: 0.85;">주식 & 3대 코인(BTC/ETH/SOL) 추천금액 & 7대 분야별 헤드라인</p>
                 </div>
 
                 <div style="padding: 24px;">
@@ -193,9 +221,20 @@ class EmailSender:
                     <!-- 🔥 메가 핫토픽 -->
                     {mega_html}
 
-                    <!-- 1. 주식 매매 추천 & 추천 금액 섹션 -->
+                    <!-- 1. 🪙 3대 코인(비트코인, 이더리움, 솔라나) 섹션 -->
                     <div style="margin-bottom: 24px;">
-                        <h2 style="font-size: 17px; color: #1E293B; border-bottom: 2px solid #3B82F6; padding-bottom: 6px; margin-top: 0;">
+                        <h2 style="font-size: 17px; color: #1E293B; border-bottom: 2px solid #A855F7; padding-bottom: 6px; margin-top: 0;">
+                            🪙 3대 코인(BTC, ETH, SOL) 시세 & 매매 추천금액
+                        </h2>
+                        <div style="margin-top: 14px;">
+                            {coin_cards_html}
+                            {crypto_news_html}
+                        </div>
+                    </div>
+
+                    <!-- 2. 주식 매매 추천 & 추천 금액 섹션 -->
+                    <div style="margin-bottom: 24px;">
+                        <h2 style="font-size: 17px; color: #1E293B; border-bottom: 2px solid #3B82F6; padding-bottom: 6px;">
                             🎯 오늘의 주식 매매 신호 및 추천 금액 (Action Signals)
                         </h2>
                         
@@ -215,7 +254,7 @@ class EmailSender:
                         </div>
                     </div>
 
-                    <!-- 2. 시장 지표 요약 섹션 -->
+                    <!-- 3. 시장 지표 요약 섹션 -->
                     <div style="margin-bottom: 24px;">
                         <h2 style="font-size: 17px; color: #1E293B; border-bottom: 2px solid #3B82F6; padding-bottom: 6px;">📈 실시간 시장 지표 (증시 & 환율)</h2>
                         <table style="width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 10px;">
@@ -229,10 +268,10 @@ class EmailSender:
                         </table>
                     </div>
 
-                    <!-- 3. 7대 분야별 다수 헤드라인 -->
+                    <!-- 4. 7대 분야별 다수 헤드라인 -->
                     <div style="margin-bottom: 24px;">
                         <h2 style="font-size: 17px; color: #1E293B; border-bottom: 2px solid #3B82F6; padding-bottom: 6px;">
-                            🌐 7대 분야별 주요 헤드라인 (분야별 3~4건)
+                            🌐 7대 분야별 주요 헤드라인
                         </h2>
                         <div style="margin-top: 12px;">
                             {headlines_html}
@@ -241,7 +280,7 @@ class EmailSender:
 
                     <!-- 안내 박스 -->
                     <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 6px; padding: 12px; font-size: 12px; color: #64748B;">
-                        📎 <b>첨부 파일 안내:</b> 전체 종목의 매수/매도 추천가표와 7대 분야 전체 기사가 정리된 엑셀 파일(<code>.xlsx</code>)이 첨부되어 있습니다.<br>
+                        📎 <b>첨부 파일 안내:</b> 주식/코인 매매 추천표와 전체 기사가 정리된 엑셀 파일(<code>.xlsx</code>)이 첨부되어 있습니다.<br>
                         📊 <b>구글 드라이브 안내:</b> 일자별 데이터가 매일 누적으로 축적되어 기록되고 있습니다.
                     </div>
 
@@ -249,7 +288,7 @@ class EmailSender:
 
                 <!-- 푸터 -->
                 <div style="background: #F1F5F9; color: #64748B; font-size: 12px; text-align: center; padding: 14px; border-top: 1px solid #E2E8F0;">
-                    자동 발송 시스템: py_auto_test • 매일 아침 09:00 정기 발행
+                    자동 발송 시스템: py_auto_test • 매일 아침 07:00 정기 발행
                 </div>
             </div>
         </body>
@@ -257,7 +296,7 @@ class EmailSender:
         """
         return html
 
-    def send_report(self, date_str: str, stock_indices: list, exchange_rates: list, stock_advice: dict, news_result: dict, top_research_list: list = None, attachment_path: str = None) -> bool:
+    def send_report(self, date_str: str, stock_indices: list, exchange_rates: list, stock_advice: dict, crypto_advice: dict, news_result: dict, top_research_list: list = None, attachment_path: str = None) -> bool:
         """이메일 조립 및 네이버 SMTP 발송"""
         if not self.is_configured():
             print("\n⚠️ [이메일 발송 건너뜀] NAVER_USER 또는 NAVER_PASSWORD가 설정되지 않았습니다.")
@@ -265,7 +304,7 @@ class EmailSender:
 
         try:
             msg = MIMEMultipart("mixed")
-            msg["Subject"] = f"☕ [데일리 브리핑] {date_str} 매수·매도 추천금액 & 7대 분야별 주요 이슈 리포트"
+            msg["Subject"] = f"☕ [07시 모닝 브리핑] {date_str} 주식·코인(BTC/ETH/SOL) 추천금액 & 주요 뉴스"
             msg["From"] = f"{self.naver_user}@naver.com"
             msg["To"] = self.receiver_email
 
@@ -274,6 +313,7 @@ class EmailSender:
                 stock_indices=stock_indices,
                 exchange_rates=exchange_rates,
                 stock_advice=stock_advice,
+                crypto_advice=crypto_advice,
                 news_result=news_result,
                 top_research_list=top_research_list
             )
