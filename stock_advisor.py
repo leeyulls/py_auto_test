@@ -310,12 +310,13 @@ class StockAdvisor:
                 top_news = news_meta["matched_news"][0]
                 news_summary = f"{top_news['title']} ({top_news['source']})"
 
+            diff_fmt = f"{tech['diff']:+,.2f}" if is_usd else f"{int(tech['diff']):+,}"
             item_dict = {
                 "종목명": stock["name"],
                 "티커": ticker,
                 "섹터": stock["sector"],
                 "현재가": self._format_price(cur_p, is_usd) + krw_cur_str,
-                "전일대비": f"{tech['diff']:+,}{tech['currency']} ({tech['diff_ratio']:+.2f}%)",
+                "전일대비": f"{diff_fmt}{tech['currency']} ({tech['diff_ratio']:+.2f}%)",
                 "매수_추천금액": str_buy_price + krw_buy_str,
                 "목표_매도금액": str_sell_price + krw_sell_str,
                 "손절_기준가": str_stop_loss,

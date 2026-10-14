@@ -343,13 +343,22 @@ class ResearchManager:
                 has_table = True
 
             yoy_summary = preview_matches[0].strip() if preview_matches else "2026/2027 실적 성장세 및 기업가치 재평가 전망"
+            yoy_summary = yoy_summary[:120].strip()
+            # 괄호 짝 맞춤 보정 (열린 괄호가 닫히지 않은 경우 자동 보정)
+            open_p = yoy_summary.count("(")
+            close_p = yoy_summary.count(")")
+            if open_p > close_p:
+                yoy_summary += ")" * (open_p - close_p)
+            elif close_p > open_p:
+                # 닫는 괄호가 더 많은 경우 초과분 제거
+                yoy_summary = re.sub(r'\)+$', '', yoy_summary)
 
             return {
                 "rev_2026": rev_2026,
                 "op_2026": op_2026,
                 "rev_2027": rev_2027,
                 "op_2027": op_2027,
-                "yoy_summary": yoy_summary[:120],
+                "yoy_summary": yoy_summary,
                 "has_table": has_table,
             }
         except Exception as e:

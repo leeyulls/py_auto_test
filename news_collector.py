@@ -302,6 +302,15 @@ class NewsCollector:
 
                 if len(unique_items) >= top_n_per_category:
                     break
+
+            # 최소 3건 확보 보장 폴백 (엄격한 엔티티 캡 등으로 누락 방지)
+            if len(unique_items) < 3 and items:
+                for item in items:
+                    if item not in unique_items:
+                        unique_items.append(item)
+                        if len(unique_items) >= 3:
+                            break
+
             category_top_picks[cat] = unique_items
 
         all_sorted = sorted(filtered_articles, key=lambda x: (x["impact_score"], x["media_count"]), reverse=True)

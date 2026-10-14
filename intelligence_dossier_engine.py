@@ -64,6 +64,37 @@ class IntelligenceDossierEngine:
         return word
 
     @staticmethod
+    def has_jongseong(word: str) -> bool:
+        """단어의 마지막 글자가 종성(받침)을 가지는지 검사"""
+        if not word:
+            return False
+        last_char = word[-1]
+        if '가' <= last_char <= '힣':
+            return (ord(last_char) - 0xAC00) % 28 > 0
+        return False
+
+    @classmethod
+    def attach_josa(cls, word: str, josa_type: str) -> str:
+        """받침 유무에 따른 자연스러운 한국어 조사 반환"""
+        if not word:
+            return ""
+        has_j = cls.has_jongseong(word)
+        if josa_type in ("이/가", "가/이"):
+            return "이" if has_j else "가"
+        if josa_type in ("을/를", "를/을"):
+            return "을" if has_j else "를"
+        if josa_type in ("은/는", "는/은"):
+            return "은" if has_j else "는"
+        if josa_type in ("과/와", "와/과"):
+            return "과" if has_j else "와"
+        if josa_type in ("으로/로", "로/으로"):
+            last_char = word[-1]
+            if '가' <= last_char <= '힣' and (ord(last_char) - 0xAC00) % 28 == 8:  # 'ㄹ' 받침
+                return "로"
+            return "으로" if has_j else "로"
+        return ""
+
+    @staticmethod
     def _clean_text(raw_html: str) -> str:
         if not raw_html:
             return ""
@@ -85,14 +116,19 @@ class IntelligenceDossierEngine:
                 sentences.append(s_clean)
         return sentences
 
-    def search_multi_angle_context(self, query_keyword: str, angle: str = "배경", limit: int = 6) -> list:
-        """다각도 심층 2차 검색: 배경/역사, 쟁점/영향, 데이터/통계/전망"""
+    def search_multi_angle_context(self, query_keyword: str, angle: str = "배경", limit: int = 6, context_hint: str = None, exclude_terms: list = None) -> list:
+        """다각도 심층 2차 검색: 배경/역사, 쟁점/영향, 데이터/통계/전망 (힌트 결합 및 도메인 배제 필터 적용)"""
         results = []
         if not query_keyword or len(query_keyword.strip()) < 2:
             return results
 
         clean_kw = re.sub(r"['\"\[\]\(\)]", "", query_keyword).strip()
-        if angle == "배경":
+        default_excludes = ["오페라", "창작오페라", "정읍사", "판소리", "국악", "전북도립국악원"]
+        active_excludes = set(default_excludes + (exclude_terms or []))
+
+        if context_hint:
+            q_str = f'"{clean_kw}" ({context_hint})'
+        elif angle == "배경":
             q_str = f'"{clean_kw}" (배경 OR 역사 OR 원인 OR 발단 OR 비하인드)'
         elif angle == "쟁점":
             q_str = f'"{clean_kw}" (쟁점 OR 이해관계 OR 영향 OR 파장 OR 밸류체인 OR 경쟁)'
@@ -107,19 +143,27 @@ class IntelligenceDossierEngine:
         feed_url = f"https://news.google.com/rss/search?q={encoded_q}&hl=ko&gl=KR&ceid=KR:ko"
         try:
             parsed = feedparser.parse(feed_url)
-            for entry in parsed.entries[:limit]:
+            for entry in parsed.entries[:limit * 2]:
                 t = self._clean_text(entry.get("title", ""))
                 s = self._clean_text(entry.get("summary", ""))
                 link = entry.get("link", "")
                 source = "언론보도"
                 if " - " in t:
                     t, source = t.rsplit(" - ", 1)
+                
+                # 배제 키워드 필터링 (오탐 방지)
+                comb_text = f"{t} {s}"
+                if any(ex in comb_text for ex in active_excludes):
+                    continue
+
                 results.append({
                     "title": t.strip(),
                     "summary": s.strip(),
                     "link": link,
                     "source": source.strip()
                 })
+                if len(results) >= limit:
+                    break
         except Exception as e:
             pass
         return results
@@ -284,9 +328,9 @@ class IntelligenceDossierEngine:
 
         entity = self.extract_core_entity(raw_title)
 
-        # 2차 검색
-        origin_items = self.search_multi_angle_context(entity, angle="배경", limit=4)
-        retail_items = self.search_multi_angle_context(entity, angle="기업", limit=4)
+        # 2차 검색 (트렌드 도메인 힌트 및 무관 공연 배제)
+        origin_items = self.search_multi_angle_context(entity, angle="배경", limit=4, context_hint="팝업 OR 성수 OR 뷰티 OR 스킨케어 OR 트렌드 OR MZ", exclude_terms=["오페라", "창작오페라", "정읍사", "판소리", "국악", "전북도립국악원"])
+        retail_items = self.search_multi_angle_context(entity, angle="기업", limit=4, context_hint="매출 OR 유통 OR 올리브영 OR 팝업스토어", exclude_terms=["오페라", "창작오페라", "정읍사"])
 
         origin_sents = []
         for it in origin_items:
@@ -348,8 +392,6 @@ class IntelligenceDossierEngine:
         }
 
     # =========================================================================
-    # 📄 3. [기업 심층 해부] 증권사 공식 Top 애널리스트 리포트 인텔리전스
-    # =========================================================================
     # 📄 3. [기업 심층 해부] 증권사 공식 Top 애널리스트 리포트 인텔리전스 (비전문가 눈높이 개편)
     # =========================================================================
     def expand_analyst_report(self, rep: dict) -> dict:
@@ -363,7 +405,11 @@ class IntelligenceDossierEngine:
         ft = rep.get("financial_table", {})
         summary_raw = rep.get("summary_text", "")
 
-        headline = f"📘 [기업 정밀 해부] {broker}가 '{item_name}'에 목표가 {tp_str}을 제시한 핵심 이유"
+        broker_josa = self.attach_josa(broker, "이/가")
+        if target_price:
+            headline = f"📘 [기업 정밀 해부] {broker}{broker_josa} '{item_name}'에 목표가 {tp_str}을 제시한 핵심 이유"
+        else:
+            headline = f"📘 [기업 정밀 해부] {broker}{broker_josa} 주목한 '{item_name}', 목표주가 별도 미제시 배경과 실질 성장 잠재력"
         subhead = f"공식 투자의견: {opinion} • 비전문가도 한눈에 이해하는 비즈니스 경쟁력 & 2026/2027 실적 전망"
 
         sec_business = (
@@ -385,11 +431,20 @@ class IntelligenceDossierEngine:
         )
 
         # 실적 표 심층 해석 (비전문가 눈높이)
+        yoy_sum = ft.get('yoy_summary', '')
+        if yoy_sum:
+            open_p = yoy_sum.count("(")
+            close_p = yoy_sum.count(")")
+            if open_p > close_p:
+                yoy_sum += ")" * (open_p - close_p)
+            elif close_p > open_p:
+                yoy_sum = re.sub(r'\)+$', '', yoy_sum)
+
         if ft.get("has_table"):
             ft_detail = (
                 f"보고서에 수록된 공인 재무 추정치에 따르면, <b>2026년 예상 매출 {ft.get('rev_2026', '-')} / 영업이익 {ft.get('op_2026', '-')}</b>, "
                 f"<b>2027년 예상 매출 {ft.get('rev_2027', '-')} / 영업이익 {ft.get('op_2027', '-')}</b>을 달성할 것으로 전망됩니다. "
-                f"{ft.get('yoy_summary', '')} 이는 매출이 늘어날 때 고정비 부담이 줄어들며 순이익이 가파르게 불어나는 '이익 극대화 구간'에 본격 진입했음을 보여줍니다."
+                f"{yoy_sum} 이는 매출이 늘어날 때 고정비 부담이 줄어들며 순이익이 가파르게 불어나는 '이익 극대화 구간'에 본격 진입했음을 보여줍니다."
             )
         else:
             ft_detail = (
@@ -410,11 +465,18 @@ class IntelligenceDossierEngine:
             f"분기 실적 발표 때마다 실제 영업이익률이 예상대로 유지되는지 차분히 점검하는 것이 바람직합니다."
         )
 
-        sec_action = (
-            f"<b>5. 비전문가도 따라하기 쉬운 실전 투자 전략:</b><br>"
-            f"증권사가 제시한 공인 목표주가({tp_str})와 비교할 때 현재 주가는 충분한 가격적 매력(안전마진)을 갖추고 있습니다. "
-            f"주가가 단기적인 시장 출렁임으로 조정을 받을 때 한 번에 큰돈을 넣기보다는 2~3회 나누어 매수(분할 매수)한 뒤, 목표가에 도달할 때까지 차분히 보유하는 전략이 가장 안전하고 유리합니다."
-        )
+        if target_price:
+            sec_action = (
+                f"<b>5. 비전문가도 따라하기 쉬운 실전 투자 전략:</b><br>"
+                f"증권사가 제시한 공인 목표주가({tp_str})와 비교할 때 현재 주가는 충분한 가격적 매력(안전마진)을 갖추고 있습니다. "
+                f"주가가 단기적인 시장 출렁임으로 조정을 받을 때 한 번에 큰돈을 넣기보다는 2~3회 나누어 매수(분할 매수)한 뒤, 목표가에 도달할 때까지 차분히 보유하는 전략이 가장 안전하고 유리합니다."
+            )
+        else:
+            sec_action = (
+                f"<b>5. 비전문가도 따라하기 쉬운 실전 투자 전략:</b><br>"
+                f"증권사가 별도의 수치적 목표가를 제시하지 않은 것은 단기적 가격 예측보다는 중장기 비즈니스 펀더멘털과 체질 개선 추이에 주목한 것입니다. "
+                f"단기 테마성 급등락을 쫓기보다는 향후 발표될 분기별 실적 지표를 확인하며 분할 매수로 접근하는 전략이 안전하고 바람직합니다."
+            )
 
         return {
             "headline": headline,

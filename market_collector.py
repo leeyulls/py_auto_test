@@ -70,15 +70,47 @@ class MarketCollector:
         return results
 
     def get_stock_indices(self) -> list:
-        """코스피, 코스닥, 나스닥, S&P 500 주요 4대 지수 수집"""
+        """코스피, 코스닥, 나스닥, S&P 500 주요 4대 지수 수집 (국내 지수는 네이버 공식 polling API 우선)"""
         results = []
-        symbols = [
-            ("^KS11", "코스피 (KOSPI)"),
-            ("^KQ11", "코스닥 (KOSDAQ)"),
+        
+        # 1. 국내 지수 (코스피, 코스닥) 네이버 polling API 우선 조회
+        domestic_configs = [
+            ("KOSPI", "코스피 (KOSPI)"),
+            ("KOSDAQ", "코스닥 (KOSDAQ)")
+        ]
+        domestic_done = {}
+        for code, name in domestic_configs:
+            try:
+                url = f"https://polling.finance.naver.com/api/realtime/domestic/index/{code}"
+                r = requests.get(url, headers=REQUEST_HEADERS, timeout=5)
+                if r.status_code == 200:
+                    data = r.json().get("datas", [{}])[0]
+                    price_str = data.get("closePrice", "")
+                    diff_val = float(data.get("compareToPreviousClosePriceRaw", 0.0))
+                    ratio_val = float(data.get("fluctuationsRatioRaw", 0.0))
+                    sign = "+" if diff_val > 0 else ""
+                    arrow = "▲ " if diff_val > 0 else ("▼ " if diff_val < 0 else "- ")
+                    results.append({
+                        "지수명": name,
+                        "현재지수": price_str,
+                        "전일대비": f"{arrow}{sign}{diff_val:,.2f} ({sign}{ratio_val:.2f}%)",
+                    })
+                    domestic_done[code] = True
+            except Exception as e:
+                print(f"[정보] 네이버 증시 API ({code}) 조회 실패, 야후 파이낸스로 폴백: {e}")
+
+        # 2. 해외 지수 및 폴백 대상 야후 파이낸스 조회
+        yahoo_symbols = []
+        if "KOSPI" not in domestic_done:
+            yahoo_symbols.append(("^KS11", "코스피 (KOSPI)"))
+        if "KOSDAQ" not in domestic_done:
+            yahoo_symbols.append(("^KQ11", "코스닥 (KOSDAQ)"))
+        yahoo_symbols.extend([
             ("^IXIC", "나스닥 (NASDAQ)"),
             ("^GSPC", "S&P 500"),
-        ]
-        for sym, name in symbols:
+        ])
+
+        for sym, name in yahoo_symbols:
             try:
                 url = f"https://query1.finance.yahoo.com/v8/finance/chart/{sym}?interval=1d"
                 r = requests.get(url, headers=REQUEST_HEADERS, timeout=8)

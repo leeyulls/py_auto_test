@@ -123,11 +123,40 @@ class DisclosureCollector:
                     if not cls_info:
                         continue
 
-                    # 종목명 추정 (예: [공시 Pick] 스틱인베스트먼트, 41억원... -> 스틱인베스트먼트)
-                    match_corp = re.search(r"([가-힣A-Za-z0-9]+)\s*,\s*\d+", clean_title)
-                    if not match_corp:
-                        match_corp = re.search(r"\[[^\]]+\]\s*([가-힣A-Za-z0-9]+)", clean_title)
-                    corp_name = match_corp.group(1) if match_corp else ""
+                    # 1. 해외 증시/해외 종목 혼입 원천 차단 필터
+                    overseas_keywords = ["달러", "USD", "뉴욕증시", "월가", "미국 증시", "나스닥", "S&P", "NYSE", "NASDAQ"]
+                    if any(ow in clean_title or ow in raw_summary for ow in overseas_keywords):
+                        continue
+
+                    # 2. 기업명 추정 및 정제
+                    # 패턴 A: [공시 Pick] 기업명, 41억원...
+                    # 패턴 B: [공시] 기업명, 자사주...
+                    # 패턴 C: 기업명, 50억원 공급계약
+                    corp_name = ""
+                    match_corp = re.search(r"\[[^\]]+\]\s*([가-힣A-Za-z0-9]+)\s*,\s*", clean_title)
+                    if match_corp:
+                        corp_name = match_corp.group(1).strip()
+                    else:
+                        match_corp = re.search(r"([가-힣A-Za-z0-9]+)\s*,\s*\d+", clean_title)
+                        if match_corp:
+                            corp_name = match_corp.group(1).strip()
+                        else:
+                            match_bracket = re.search(r"\[([가-힣A-Za-z0-9]+)\]", clean_title)
+                            if match_bracket and match_bracket.group(1) not in ["공시", "단독", "특징주", "속보", "공시Pick", "공시 pick"]:
+                                corp_name = match_bracket.group(1).strip()
+
+                    # 일반 명사 및 부적합 키워드 필터링
+                    generic_nouns = {"상장사", "코스피", "코스닥", "기업", "국내", "주요", "대표", "올해", "내년", "정부", "금융위", "금감원", "특수공시", "공시", "증시", "특징주"}
+                    if not corp_name or corp_name in generic_nouns or len(corp_name) < 2:
+                        continue
+
+                    # 순수 영문 티커(예: AZZ 등 해외주식)이거나 한글이 한 글자도 없는 영문 2~4글자 제외
+                    if re.fullmatch(r"[A-Za-z]{1,5}", corp_name):
+                        continue
+
+                    # 한글이 포함된 국내 정상 상장사명 우선 검증
+                    if not re.search(r"[가-힣]", corp_name):
+                        continue
 
                     collected.append({
                         "공시구분": cls_info["category"],
