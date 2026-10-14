@@ -141,7 +141,7 @@ class StockAdvisor:
             rep_upside = ((target_p - cur_p) / cur_p * 100) if (target_p and cur_p) else 0.0
 
             # -------------------------------------------------------------
-            # 1. 단기 매매 판정 (오늘의 매수 vs 매도 - 하이브리드 매트릭스)
+            # 1. 단기 매매 판정 (다중 객관적 퀀트 지표 + 기관 리포트 크로스체크)
             # -------------------------------------------------------------
             short_signal = "관망 (HOLD)"
             short_reason = "중립 구간 유지 중"
@@ -151,54 +151,68 @@ class StockAdvisor:
             calc_sell_price = cur_p * 1.05
             calc_stop_loss = cur_p * 0.96
 
-            # A. 증권사 공식 리포트 결합 하이브리드 판정
-            if rep_meta and target_p and rep_upside >= 10.0 and ("BUY" in rep_opinion or "매수" in rep_opinion):
-                if rsi <= 62 and disp <= 5.0:
-                    # 건전한 눌림목 / 안정적 진입 구간 ➔ 적극 추천!
-                    short_signal = "🟢 오늘 단기 매수 (공식 리포트 + 기술적 눌림목)"
-                    short_reason = f"[{rep_broker}] 공인 목표가 {int(target_p):,}원(상승여력 +{rep_upside:.1f}%) 제시 및 RSI {rsi}로 과열 없는 건전한 매수 구간"
-                    calc_buy_price = cur_p * 0.99
-                    calc_sell_price = min(cur_p * 1.09, target_p * 0.95)
-                    calc_stop_loss = cur_p * 0.96
-                elif rsi >= 70 or disp >= 7.0:
-                    # 리포트는 매수이나 주가가 이미 단기 폭등한 상태 ➔ 과열 경고 (고점 매수 함정 방지)
-                    short_signal = "🔴 단기 과열 주의 (리포트 호재 선반영)"
-                    short_reason = f"[{rep_broker}] 목표가 {int(target_p):,}원 제시되었으나 RSI {rsi}, 이격도 {disp:+.1f}%로 단기 과열권. 고점 추격매수 금지 및 눌림목(20일선) 조정 시 접근 권고"
-                    calc_buy_price = ma20
-                    calc_sell_price = cur_p
-                    calc_stop_loss = cur_p * 0.98
+            vol_ratio = tech.get("vol_ratio", 1.0)
+            is_ma_aligned = tech.get("is_ma_aligned", False)
+            is_ma_downtrend = tech.get("is_ma_downtrend", False)
+            ma5 = tech.get("ma5", cur_p)
 
-            # B. 기술적 지표 & 뉴스 모멘텀 판정 (리포트 신호 미발생 시)
-            if short_signal == "관망 (HOLD)":
-                if (rsi <= 38 or disp <= -5.0) and sentiment >= 0:
-                    short_signal = "🟢 오늘 단기 매수 (저점 반등)"
-                    short_reason = f"RSI {rsi}로 단기 과매도 구간 진입, 기술적 반등 노림"
-                    calc_buy_price = cur_p * 0.99
-                    calc_sell_price = max(cur_p * 1.06, ma20 * 0.98)
-                    calc_stop_loss = cur_p * 0.965
-                elif (disp >= -2.0 and disp <= 3.0) and sentiment >= 1:
-                    short_signal = "🟢 오늘 단기 매수 (뉴스 모멘텀)"
-                    short_reason = "20일선 안착 중 호재성 뉴스 모멘텀 발생"
-                    calc_buy_price = cur_p
-                    calc_sell_price = cur_p * 1.07
-                    calc_stop_loss = cur_p * 0.96
-                elif rsi >= 70 or disp >= 7.0:
-                    short_signal = "🔴 오늘 단기 매도 (과열 차익실현)"
-                    short_reason = f"RSI {rsi}, 20일선 이격도 {disp:+.1f}%로 단기 과열권, 분할 차익 실현 권고"
-                    calc_buy_price = ma20
-                    calc_sell_price = cur_p
-                    calc_stop_loss = cur_p * 0.98
-            elif sentiment <= -1 and ret5 <= -4.0:
-                short_signal = "🔴 단기 비중 축소 (악재 주의)"
-                short_reason = "악재 보도 및 5일 연속 약세로 단기 추가 하락 위험"
+            # A. 객관적 매도/비중축소 신호 우선 검증
+            if rsi >= 70 or disp >= 7.0:
+                short_signal = "🔴 오늘 단기 매도 (과열 차익실현)"
+                short_reason = f"RSI {rsi}, 20일선 이격도 {disp:+.1f}%로 단기 과열권 진입. 욕심을 줄이고 분할 차익 실현 권고"
+                calc_buy_price = ma20
+                calc_sell_price = cur_p
+                calc_stop_loss = cur_p * 0.98
+            elif cur_p < ma20 * 0.94 and is_ma_downtrend:
+                short_signal = "🔴 단기 비중 축소 (추세 이탈 경고)"
+                short_reason = f"주가가 20일선({int(ma20):,}원)을 하향 이탈하고 이동평균선 역배열 지속. 리스크 관리 차원 비중 축소 권고"
                 calc_buy_price = recent_low * 0.95
                 calc_sell_price = cur_p * 0.99
                 calc_stop_loss = cur_p * 0.97
-            else:
-                # 관망 중립 상태
-                calc_buy_price = min(cur_p * 0.98, ma20)
-                calc_sell_price = max(cur_p * 1.05, recent_high)
-                calc_stop_loss = cur_p * 0.95
+            elif sentiment <= -1 and ret5 <= -4.0:
+                short_signal = "🔴 단기 비중 축소 (악재 주의)"
+                short_reason = "악재 보도 및 5일 연속 약세(-4% 이상)로 단기 추가 하락 위험"
+                calc_buy_price = recent_low * 0.95
+                calc_sell_price = cur_p * 0.99
+                calc_stop_loss = cur_p * 0.97
+
+            # B. 단기 매수 신호 (객관적 퀀트 기술지표 3박자 부합 여부)
+            if short_signal == "관망 (HOLD)":
+                # 리포트가 있는 경우: 리포트 맹신 방지 필터링
+                if rep_meta and target_p and rep_upside >= 10.0 and ("BUY" in rep_opinion or "매수" in rep_opinion):
+                    if is_ma_downtrend or cur_p < ma60 * 0.93:
+                        # 리포트는 BUY이나 주가 추세가 역배열 하향 중 ➔ 맹신 금지, 관망!
+                        short_signal = "⏸️ 관망 (기관 리포트 있으나 추세 미확인)"
+                        short_reason = f"[{rep_broker}] 목표가 {int(target_p):,}원 제시되었으나 주가가 60일선 하회 및 역배열 상태로, 기관 의견 맹신 금지 및 추세 반등 확인 전까지 신규 진입 보류"
+                        calc_buy_price = min(cur_p * 0.97, ma20)
+                        calc_sell_price = max(cur_p * 1.05, recent_high)
+                        calc_stop_loss = cur_p * 0.95
+                    elif 38 <= rsi <= 62 and -4.0 <= disp <= 4.0 and vol_ratio >= 0.6:
+                        # 객관적 기술 지표도 눌림목 안착 확인된 경우에만 추천!
+                        short_signal = "🟢 오늘 단기 매수 (기술적 눌림목 + 기관 컨센서스 일치)"
+                        short_reason = f"20일선 안착(이격도 {disp:+.1f}%), RSI {rsi} 건전 조정 및 [{rep_broker}] 목표가 {int(target_p):,}원(상승여력 +{rep_upside:.1f}%) 뒷받침"
+                        calc_buy_price = cur_p * 0.99
+                        calc_sell_price = min(cur_p * 1.09, target_p * 0.95)
+                        calc_stop_loss = cur_p * 0.96
+
+                # 리포트가 없거나 중립인 경우: 순수 퀀트 기술 지표 판정
+                if short_signal == "관망 (HOLD)":
+                    if (rsi <= 38 or disp <= -5.0) and cur_p >= ma60 * 0.90 and sentiment >= 0:
+                        short_signal = "🟢 오늘 단기 매수 (저점 과매도 반등)"
+                        short_reason = f"RSI {rsi}로 단기 과매도 구간 도달 및 지지선 부근 기술적 반등 기대 (거래량비율 {vol_ratio}x)"
+                        calc_buy_price = cur_p * 0.99
+                        calc_sell_price = max(cur_p * 1.06, ma20 * 0.98)
+                        calc_stop_loss = cur_p * 0.965
+                    elif (disp >= -2.0 and disp <= 3.5) and is_ma_aligned and sentiment >= 1:
+                        short_signal = "🟢 오늘 단기 매수 (정배열 골든 모멘텀)"
+                        short_reason = f"이동평균선 정배열 안착 및 호재성 뉴스 모멘텀 결합, 거래량 양호(비율 {vol_ratio}x)"
+                        calc_buy_price = cur_p
+                        calc_sell_price = cur_p * 1.08
+                        calc_stop_loss = cur_p * 0.96
+                    else:
+                        calc_buy_price = min(cur_p * 0.98, ma20)
+                        calc_sell_price = max(cur_p * 1.05, recent_high)
+                        calc_stop_loss = cur_p * 0.95
 
             # 단기 매수 신호가 발생했더라도 최근 3일 내 추천 종목이면 쿨다운 적용
             if "오늘 단기 매수" in short_signal and ticker in cooldown_map:

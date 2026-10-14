@@ -161,9 +161,9 @@ class IntelligenceDossierEngine:
         )
 
         chapter4 = (
-            f"<b>■ 최고경영진을 위한 전략적 제언 (Executive Insight):</b><br>"
+            f"<b>■ 오늘의 핵심 전략 제언 및 시사점:</b><br>"
             f"향후 발표될 정부의 세부 후속 가이드라인과 글로벌 파트너사들의 공식 반응이 1차 변곡점이 될 것입니다. "
-            f"단기적인 노이즈성 주가 등락에 일희일비하기보다는, 해당 이슈로 인해 장기적인 반사이익을 얻을 수혜 기업군(원자재 다변화 및 규제 대응 완료 기업)을 선별하고 포트폴리오의 안전마진을 확보하는 전략적 리밸런싱이 요구됩니다."
+            f"단기적인 노이즈성 주가 등락에 일희일비하기보다는, 해당 이슈로 인해 장기적인 반사이익을 얻을 수혜 기업군(원자재 다변화 및 규제 대응 완료 기업)을 선별하고 포트폴리오의 안전마진을 확보하는 전략적 접근이 요구됩니다."
         )
 
         return {
@@ -313,7 +313,7 @@ class IntelligenceDossierEngine:
         )
 
         sec_action = (
-            f"<b>5. 최고경영진/투자자 실전 전략:</b><br>"
+            f"<b>5. 투자자 실전 대응 전략:</b><br>"
             f"공인 목표주가({tp_str}) 대비 현재 주가는 유의미한 안전마진을 확보하고 있는 구간입니다. "
             f"일시적 시장 출렁임으로 20일 이동평균선 부근까지 주가가 조정받을 때 분할 매수로 비중을 점진적으로 확대하는 중장기 바이앤홀드(Buy & Hold) 전략이 유효합니다."
         )
@@ -347,13 +347,13 @@ class IntelligenceDossierEngine:
         link = disc.get("링크", "#")
         media = disc.get("언론사", "DART/KIND")
 
-        headline = f"🏛️ [특수공시 심층 행간 읽기] {corp}의 '{badge}' 단행, 숫자 뒤에 숨겨진 경영진의 진짜 속내"
+        headline = f"🏛️ [특수공시 심층 행간 읽기] {corp}의 '{badge}' 단행, 숫자 뒤에 숨겨진 기업의 진짜 속내"
 
         sec_context = (
             f"<b>■ 공시 배경 및 기업의 실질적 재무 체력:</b><br>"
             f"{corp}은 최근 공시를 통해 <b>[{title}]</b> 사안을 공식 발표했습니다. "
             f"기업이 자사주 매입이나 대규모 계약 체결을 결정할 수 있는 것은 장부상 이익뿐만 아니라 실제 가용한 잉여현금흐름(FCF)이 뒷받침되기 때문입니다. "
-            f"이번 조치는 경영진이 현재 회사의 본질 가치 대비 시장 주가가 지나치게 저평가되어 있다는 강력한 확신을 표명한 것으로 풀이됩니다."
+            f"이번 조치는 회사 측이 현재 본질 가치 대비 시장 주가가 지나치게 저평가되어 있다는 강력한 확신을 표명한 것으로 풀이됩니다."
         )
 
         sec_governance = (
@@ -379,4 +379,42 @@ class IntelligenceDossierEngine:
             "sec_strategy": sec_strategy,
             "link": link,
             "media": media
+        }
+
+    # =========================================================================
+    # 🌐 5. [분야별 주요 뉴스 확장 인텔리전스] 단순 헤드라인을 넘어선 본문 + 심층 인사이트
+    # =========================================================================
+    def expand_category_news(self, category: str, article: dict) -> dict:
+        """분야별 주요 뉴스에 대해 단순 헤드라인이 아닌 기사 내용 요약 + 2차 확장 인사이트 생성"""
+        title = article.get("기사제목", "")
+        summary = article.get("요약내용", "").strip()
+        link = article.get("링크") or article.get("link", "#")
+        media = article.get("언론사", "주요언론")
+        entity = self.extract_core_entity(title)
+
+        # 2차 확장 탐색 (쟁점/파급력)
+        extra_items = self.search_multi_angle_context(entity, angle="쟁점", limit=2)
+        extra_sents = []
+        for it in extra_items:
+            extra_sents.extend(self._split_into_clean_sentences(it["summary"]))
+
+        extra_text = " ".join(extra_sents[:2]) if extra_sents else f"{entity} 관련 사안은 단기적인 이슈에 그치지 않고 동종 업계 및 공급망 전반에 연쇄적인 영향을 미칠 것으로 전망됩니다."
+
+        if not summary or len(summary) < 25:
+            summary = f"{title}에 관한 구체적 정황과 대외적 파급 효과가 주요 언론을 통해 집중 조명되고 있습니다."
+
+        insight_text = (
+            f"<b>💡 확장 인사이트 & 체크포인트:</b> "
+            f"{extra_text} "
+            f"향후 관련 규제 당국의 입장 변화 및 주요 플레이어들의 대응 시나리오에 따라 시장 판도가 재편될 수 있으므로 지속적인 모니터링이 필요합니다."
+        )
+
+        return {
+            "title": title,
+            "media": media,
+            "link": link,
+            "content_summary": summary,
+            "expanded_insight": insight_text,
+            "entity": entity,
+            "category": category,
         }

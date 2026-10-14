@@ -334,20 +334,33 @@ class PdfReportGenerator:
                 for idx, it in enumerate(items[:5]):
                     it_link = it.get("링크") or it.get("link", "#")
                     tag = f" <span style='background: #FEE2E2; color: #DC2626; font-size: 9px; padding: 1px 4px; border-radius: 3px;'>{it.get('상태')}</span>" if "집중" in str(it.get('상태', '')) else ""
-                    if idx == 0:
+                    content_sum = it.get('content_summary') or it.get('요약내용', '')
+                    expanded_ins = it.get('expanded_insight', '')
+                    if not expanded_ins and IntelligenceDossierEngine:
+                        expanded_ins = f"<b>💡 확장 인사이트:</b> 관련 산업계 및 정책 환경의 후속 변화와 공급망 파급 효과를 지속적으로 모니터링해야 합니다."
+
+                    if idx < 2:
                         items_li += f"""
-                        <div style="margin-bottom: 6px; font-size: 11px;">
-                            <span style="font-weight: bold; color: #1D4ED8;">[TOP]</span> 
-                            <a href="{it_link}" style="color: #1D4ED8; text-decoration: none; font-weight: bold;">{it.get('기사제목')}</a>
-                            <span style="color: #64748B; font-size: 10px;">({it.get('언론사')})</span>{tag}
-                            <div style="color: #475569; font-size: 10.5px; margin-top: 2px; padding-left: 8px; border-left: 2px solid #3B82F6; line-height: 1.4;">{it.get('요약내용', '')}</div>
+                        <div style="margin-bottom: 8px; font-size: 11px; background: #FFFFFF; border: 1px solid #E2E8F0; padding: 8px 10px; border-radius: 4px;">
+                            <div>
+                                <span style="font-weight: bold; color: #1D4ED8;">[{idx + 1}]</span> 
+                                <a href="{it_link}" style="color: #1D4ED8; text-decoration: none; font-weight: bold;">{it.get('기사제목')}</a>
+                                <span style="color: #64748B; font-size: 10px;">({it.get('언론사')})</span>{tag}
+                            </div>
+                            <div style="color: #334155; font-size: 10.5px; margin-top: 3px; padding-left: 8px; border-left: 2px solid #3B82F6; line-height: 1.45;">
+                                <b>📰 기사 본문 요약:</b> {content_sum}
+                            </div>
+                            <div style="color: #1E40AF; background: #EFF6FF; border: 1px solid #BFDBFE; border-radius: 3px; padding: 4px 8px; font-size: 10px; margin-top: 3px; line-height: 1.4;">
+                                {expanded_ins}
+                            </div>
                         </div>
                         """
                     else:
                         items_li += f"""
                         <div style="margin-bottom: 4px; font-size: 10.5px; color: #334155;">
-                            • <a href="{it_link}" style="color: #334155; text-decoration: none;">{it.get('기사제목')}</a>
+                            • <a href="{it_link}" style="color: #334155; text-decoration: none; font-weight: 500;">{it.get('기사제목')}</a>
                             <span style="color: #94A3B8; font-size: 9px;">({it.get('언론사')})</span>{tag}
+                            <div style="color: #64748B; font-size: 10px; padding-left: 10px; line-height: 1.35;">- {content_sum[:90]}</div>
                         </div>
                         """
                 cat_news_html += f"""
@@ -359,12 +372,12 @@ class PdfReportGenerator:
                 </div>
                 """
 
-        # 9. HTML 조립 (The Executive Intelligence Herald 8-Page Edition)
+        # 9. HTML 조립 (My Daily Intelligence Briefing 8-Page Edition)
         html_content = f"""<!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8">
-<title>The Executive Intelligence Herald ({date_str})</title>
+<title>My Daily Intelligence Briefing ({date_str})</title>
 <style>
   @page {{
     size: A4;
@@ -453,16 +466,16 @@ class PdfReportGenerator:
   <!-- ============================================================ -->
   <div class="masthead">
     <div class="masthead-dateline">
-      <span>THE EXECUTIVE INTELLIGENCE HERALD</span>
-      <span>일일 심층 금융·전략산업 기획신문 • 사장님 친전 / 대외비</span>
+      <span>MY DAILY INTELLIGENCE BRIEFING</span>
+      <span>나만의 데일리 금융 & 심층 이슈 브리핑 • 개인 맞춤형 리포트</span>
       <span>기준일자: {date_str}</span>
     </div>
-    <div class="masthead-title">THE INTELLIGENCE HERALD</div>
-    <div class="masthead-tagline">단순 단신 요약을 탈피한 2차 심층 교차 취재 & 밸류체인 전방위 해부 에디션</div>
+    <div class="masthead-title">MY DAILY BRIEFING</div>
+    <div class="masthead-tagline">단순 요약을 탈피한 2차 심층 교차 취재 & 밸류체인 전방위 해부 에디션</div>
   </div>
 
   <div class="sec-banner" style="background: #1E3A8A;">
-    <span>🌐 1면 톱 기획특집 • MEGA INVESTIGATION</span>
+    <span>🌐 1면 톱 기획특집 • MEGA ISSUE FOCUS</span>
     <span style="font-size: 10px; opacity: 0.9;">취재원: {mega_d.get('source', '주요 언론')} | 심층 2차 확장 취재 완료</span>
   </div>
 
@@ -701,7 +714,7 @@ class PdfReportGenerator:
   {cat_news_html}
 
   <div style="margin-top: 24px; padding-top: 10px; border-top: 1px solid #CBD5E1; font-size: 10px; color: #64748B; text-align: center;">
-    본 보고서는 전략기획 리서치 자동화 파이프라인(The Executive Intelligence Herald)에 의해 매일 07:00 자동 발행되며, 구글 드라이브(월별 폴더)에 영구 보존됩니다.
+    본 보고서는 개인 맞춤형 인텔리전스 리서치 자동화 파이프라인(My Daily Briefing)에 의해 매일 07:00 자동 발행되며, 구글 드라이브(월별 폴더)에 영구 보존됩니다.
   </div>
 
 </body>
@@ -968,12 +981,12 @@ class PdfReportGenerator:
 </head>
 <body>
 
-  <!-- [표지] Executive Cover Page -->
+  <!-- [표지] Personal Weekly Briefing Cover Page -->
   <div class="cover-page">
     <div>
-      <div style="font-size: 12px; letter-spacing: 2px; color: #93C5FD; text-transform: uppercase;">Executive Intelligence Strategic Report</div>
-      <div style="display: inline-block; background: #DC2626; color: #ffffff; font-size: 11px; font-weight: bold; padding: 2px 10px; border-radius: 4px; margin-top: 14px;">
-        대외비 • 최고경영진 친전
+      <div style="font-size: 12px; letter-spacing: 2px; color: #93C5FD; text-transform: uppercase;">Weekly Strategic Intelligence Report</div>
+      <div style="display: inline-block; background: #2563EB; color: #ffffff; font-size: 11px; font-weight: bold; padding: 2px 10px; border-radius: 4px; margin-top: 14px;">
+        나만의 주간 브리핑 • 한 주간의 금융 & 이슈 총결산
       </div>
     </div>
 
@@ -982,7 +995,7 @@ class PdfReportGenerator:
         주간 글로벌 금융시장 및<br>핵심 전략 산업 종합 백서
       </h1>
       <div style="font-size: 16px; color: #93C5FD; margin-top: 12px;">
-        Weekly Strategic Intelligence & Asset Allocation Report
+        My Weekly Strategic Briefing & Asset Allocation Report
       </div>
       <div style="margin-top: 24px; font-size: 13px; opacity: 0.85; line-height: 1.6;">
         한 주간의 매크로 경제 지표, 7대 분야 메가 이슈, 증권사 공식 리포트 실적 추정치 및<br>
@@ -992,7 +1005,7 @@ class PdfReportGenerator:
 
     <div style="border-top: 1px solid rgba(255,255,255,0.2); padding-top: 20px; display: flex; justify-content: space-between; font-size: 12px; opacity: 0.9;">
       <div>결산 기간: <b>{week_label}</b></div>
-      <div>발행처: <b>전략기획 및 인텔리전스 리서치팀</b></div>
+      <div>발행처: <b>나만의 인텔리전스 리서치팀</b></div>
     </div>
   </div>
 

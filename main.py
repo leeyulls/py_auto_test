@@ -147,6 +147,13 @@ def main():
     for disc in special_disclosures[:2]:
         disc["dossier"] = dossier_engine.expand_special_disclosure(disc)
 
+    # 7대 분야별 주요 뉴스 상위 2건 2차 확장 인사이트 분석
+    for cat_name, items in category_top_picks.items():
+        for item in items[:2]:
+            expanded_news = dossier_engine.expand_category_news(cat_name, item)
+            item["content_summary"] = expanded_news["content_summary"]
+            item["expanded_insight"] = expanded_news["expanded_insight"]
+
     newspaper_dossier = {
         "mega_dossier": mega_dossier,
         "trend_dossier": trend_dossier,
@@ -156,7 +163,7 @@ def main():
     story_dive_data["newspaper_dossier"] = newspaper_dossier
 
     # 7. 주가 기술적 지표, 쿨다운(Cool-down) 주기 적용 & 미국 빅테크 4대장 매수/매도 추천금액 산출
-    print("\n[7/10] 🧠 주가 분석, 쿨다운 주기(동일종목 연속추천 방지) 및 미국 빅테크 4대장 산출 중...")
+    print("\n[7/10] 🧠 객관적 퀀트 지표(이평선·거래량·RSI) & 쿨다운 주기 결합 분석 중...")
     advisor = StockAdvisor(usd_krw_rate=usd_rate)
     combined_news_for_analysis = general_news + market_news
     stock_advice = advisor.analyze_universe(combined_news_for_analysis, usd_krw_rate=usd_rate, official_reports=official_reports)
@@ -222,7 +229,7 @@ def main():
     print(f" - 📝 마크다운 브리핑: {md_path}")
 
     # 11. 출판용 초고해상도 A4 데일리 심층 종합분석 보고서 (PDF) 편찬
-    print(f"\n[11/11] 📄 6~8페이지 규모 최고경영진 데일리 심층 종합분석 A4 PDF 보고서 편찬 중...")
+    print(f"\n[11/11] 📄 8페이지 규모 나만의 데일리 심층 분석 A4 PDF 보고서 편찬 중...")
     pdf_gen = PdfReportGenerator()
     month_dir = os.path.dirname(daily_excel_path)
     daily_pdf_path = os.path.join(month_dir, f"{today_str}_데일리_심층_종합분석_보고서.pdf")
@@ -299,7 +306,7 @@ def main():
             attachments=weekly_attachments
         )
     else:
-        print("\n📧 최고경영진 전략 인텔리전스 모닝 브리핑 이메일 발송 중 (엑셀 + 심층 PDF 첨부)...")
+        print("\n📧 나만의 데일리 브리핑 이메일 발송 중 (엑셀 + 심층 PDF 첨부)...")
         daily_attachments = [daily_excel_path]
         if os.path.exists(daily_pdf_path):
             daily_attachments.append(daily_pdf_path)

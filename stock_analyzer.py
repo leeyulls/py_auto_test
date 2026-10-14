@@ -60,9 +60,16 @@ class StockAnalyzer:
             high_52w = meta.get("fiftyTwoWeekHigh", max(closes))
             low_52w = meta.get("fiftyTwoWeekLow", min(closes))
 
-            # 이동평균선 계산
+            # 이동평균선 계산 (5일, 20일, 60일)
+            ma5 = sum(closes[-5:]) / min(len(closes), 5) if len(closes) >= 3 else cur_price
             ma20 = sum(closes[-20:]) / min(len(closes), 20) if len(closes) >= 5 else cur_price
             ma60 = sum(closes[-60:]) / min(len(closes), 60) if len(closes) >= 20 else cur_price
+
+            # 거래량 분석 (최근 거래량 vs 20일 평균 거래량)
+            volumes = [v for v in quotes.get("volume", []) if v is not None]
+            cur_vol = volumes[-1] if volumes else 0
+            avg_vol_20 = sum(volumes[-20:]) / min(len(volumes), 20) if len(volumes) >= 5 else cur_vol
+            vol_ratio = round(cur_vol / avg_vol_20, 2) if avg_vol_20 > 0 else 1.0
 
             # 20일선 이격도 (%)
             disparity_20 = ((cur_price - ma20) / ma20) * 100 if ma20 else 0
@@ -83,6 +90,9 @@ class StockAnalyzer:
             recent_high = max(closes[-20:]) if len(closes) >= 20 else max(closes)
             recent_low = min(closes[-20:]) if len(closes) >= 20 else min(closes)
 
+            is_ma_aligned = (cur_price >= ma20 >= ma60)
+            is_ma_downtrend = (cur_price < ma20 < ma60)
+
             return {
                 "ticker": ticker,
                 "cur_price": cur_price,
@@ -95,10 +105,14 @@ class StockAnalyzer:
                 "recent_high": recent_high,
                 "recent_low": recent_low,
                 "pos_52w": round(pos_52w, 1),
+                "ma5": round(ma5, 1),
                 "ma20": round(ma20, 1),
                 "ma60": round(ma60, 1),
                 "disparity_20": round(disparity_20, 2),
                 "rsi": rsi,
+                "vol_ratio": vol_ratio,
+                "is_ma_aligned": is_ma_aligned,
+                "is_ma_downtrend": is_ma_downtrend,
                 "return_5d": round(return_5d, 2),
                 "recent_closes": [round(c, 2) for c in (closes[-20:] if closes else [])],
             }

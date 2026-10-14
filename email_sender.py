@@ -206,7 +206,7 @@ class EmailSender:
         # 지수 및 환율 테이블
         indices_rows = ""
         for idx in stock_indices:
-            color = "#16A34A" if "+" in idx["전일대비"] else "#DC2626"
+            color = "#16A34A" if ("+" in idx["전일대비"] or "▲" in idx["전일대비"]) else "#DC2626"
             indices_rows += f"""
             <tr>
                 <td style="padding: 6px 10px; border: 1px solid #E5E7EB; font-weight: bold;">{idx['지수명']}</td>
@@ -217,11 +217,13 @@ class EmailSender:
 
         rates_rows = ""
         for fx in exchange_rates:
+            fx_diff = fx.get('전일대비') or fx.get('변동/기준', '')
+            fx_col = "#16A34A" if ("+" in fx_diff or "▲" in fx_diff) else ("#DC2626" if ("-" in fx_diff or "▼" in fx_diff) else "#6B7280")
             rates_rows += f"""
             <tr>
                 <td style="padding: 6px 10px; border: 1px solid #E5E7EB;">{fx['통화명']}</td>
                 <td style="padding: 6px 10px; border: 1px solid #E5E7EB; text-align: right; font-weight: bold;">{fx['환율(원)']}원</td>
-                <td style="padding: 6px 10px; border: 1px solid #E5E7EB; text-align: right; color: #6B7280; font-size: 12px;">{fx['변동/기준']}</td>
+                <td style="padding: 6px 10px; border: 1px solid #E5E7EB; text-align: right; color: {fx_col}; font-weight: bold; font-size: 12px;">{fx_diff}</td>
             </tr>
             """
 
@@ -229,11 +231,11 @@ class EmailSender:
         headlines_html = ""
         top_picks = news_result.get("category_top_picks", {})
         cat_order = [
-            ("정치", "🏛️ 정치 핵심 이슈"),
-            ("사회/사건사고", "🚨 사회·사건사고 이슈"),
             ("거시경제/비즈니스", "💼 거시경제 & 비즈니스"),
-            ("세계/국제", "🌍 세계·국제 뉴스"),
+            ("정치", "🏛️ 정치 핵심 이슈"),
             ("IT/과학/신상품", "💻 IT·과학 & 테크/신상품"),
+            ("세계/국제", "🌍 세계·국제 뉴스"),
+            ("사회/사건사고", "🚨 사회·사건사고 이슈"),
             ("연예/대중문화", "🎬 연예·문화 트렌드"),
         ]
 
@@ -245,21 +247,32 @@ class EmailSender:
                 for idx, it in enumerate(display_items):
                     it_link = it.get("링크") or it.get("link", "")
                     tag = f" <span style='background: #FEE2E2; color: #DC2626; padding: 1px 5px; border-radius: 3px; font-size: 11px;'>{it.get('상태', '')}</span>" if "집중" in str(it.get('상태', '')) else ""
-                    if idx == 0:
-                        summary_snippet = it.get("요약내용", "").strip()
-                        summary_div = f"<div style='font-size: 12px; color: #475569; margin-top: 3px; padding-left: 10px; border-left: 2px solid #3B82F6;'>{summary_snippet}</div>" if summary_snippet else ""
+                    content_sum = it.get('content_summary') or it.get('요약내용', '')
+                    expanded_ins = it.get('expanded_insight', '')
+                    if not expanded_ins and IntelligenceDossierEngine:
+                        expanded_ins = f"<b>💡 확장 인사이트:</b> 관련 산업계 및 정책 환경의 후속 변화와 공급망 파급 효과를 지속적으로 모니터링해야 합니다."
+
+                    if idx < 2:
                         cat_items_html += f"""
-                        <div style="margin-bottom: 8px; font-size: 13px; line-height: 1.4;">
-                            <span style="font-weight: bold; color: #1D4ED8;">[TOP]</span> <a href="{it_link}" style="color: #1D4ED8; text-decoration: none; font-weight: 600;">{it.get('기사제목', '')}</a>
-                            <span style="font-size: 11px; color: #6B7280;">({it.get('언론사', '')})</span>{tag}
-                            {summary_div}
+                        <div style="margin-bottom: 12px; font-size: 13px; background: #FFFFFF; border: 1px solid #E2E8F0; padding: 10px 12px; border-radius: 6px;">
+                            <div style="line-height: 1.4;">
+                                <span style="font-weight: bold; color: #1D4ED8;">[{idx + 1}]</span> <a href="{it_link}" style="color: #1D4ED8; text-decoration: none; font-weight: 600;">{it.get('기사제목', '')}</a>
+                                <span style="font-size: 11px; color: #6B7280;">({it.get('언론사', '')})</span>{tag}
+                            </div>
+                            <div style="font-size: 12px; color: #334155; margin-top: 5px; padding-left: 10px; border-left: 2px solid #3B82F6; line-height: 1.5;">
+                                <b>📰 기사 본문 요약:</b> {content_sum}
+                            </div>
+                            <div style="font-size: 11.5px; color: #1E40AF; background: #EFF6FF; border: 1px solid #BFDBFE; border-radius: 4px; padding: 6px 10px; margin-top: 5px; line-height: 1.45;">
+                                {expanded_ins}
+                            </div>
                         </div>
                         """
                     else:
                         cat_items_html += f"""
-                        <div style="margin-bottom: 5px; font-size: 12px; line-height: 1.4;">
-                            • <a href="{it_link}" style="color: #334155; text-decoration: none;">{it.get('기사제목', '')}</a>
+                        <div style="margin-bottom: 6px; font-size: 12px; line-height: 1.4;">
+                            • <a href="{it_link}" style="color: #334155; text-decoration: none; font-weight: 500;">{it.get('기사제목', '')}</a>
                             <span style="font-size: 11px; color: #94A3B8;">({it.get('언론사', '')})</span>{tag}
+                            <div style="color: #64748B; font-size: 11px; padding-left: 12px; line-height: 1.35;">- {content_sum[:90]}</div>
                         </div>
                         """
 
@@ -572,8 +585,8 @@ class EmailSender:
         exec_summary_html = f"""
         <div style="background: #F8FAFC; border: 2px solid #1E3A8A; border-radius: 8px; padding: 16px 18px; margin-bottom: 22px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
             <div style="font-size: 14px; font-weight: bold; color: #1E3A8A; margin-bottom: 8px; display: flex; align-items: center;">
-                <span>📋 오늘의 경영진 3대 핵심 요약 (Executive Summary)</span>
-                <span style="margin-left: auto; font-size: 11px; background: #DBEAFE; color: #1E40AF; padding: 2px 8px; border-radius: 10px; font-weight: bold;">대외비 • 사장님 친전</span>
+                <span>📋 오늘의 나만의 3대 핵심 요약 (Daily Summary)</span>
+                <span style="margin-left: auto; font-size: 11px; background: #DBEAFE; color: #1E40AF; padding: 2px 8px; border-radius: 10px; font-weight: bold;">나만의 데일리 브리핑</span>
             </div>
             <ul style="margin: 0; padding-left: 18px; font-size: 12.5px; color: #1E293B; line-height: 1.7;">
                 <li style="margin-bottom: 4px;"><b>1면 톱 기획:</b> {issue_brief}</li>
@@ -589,21 +602,21 @@ class EmailSender:
         <head>
             <meta charset="utf-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>The Executive Intelligence Herald ({date_str})</title>
+            <title>My Daily Intelligence Briefing ({date_str})</title>
         </head>
         <body style="font-family: -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', sans-serif; background-color: #F8FAFC; margin: 0; padding: 20px; line-height: 1.6; color: #1E293B;">
             <div style="max-width: 680px; margin: 0 auto; background: #FFFFFF; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); border: 1px solid #E2E8F0;">
                 
-                <!-- 헤더: 신문 스타일 프리미엄 톤앤매너 -->
+                <!-- 헤더: 나만의 데일리 브리핑 톤앤매너 -->
                 <div style="background: linear-gradient(135deg, #0F172A 0%, #1E3A8A 100%); color: #FFFFFF; padding: 26px 24px; text-align: center;">
-                    <div style="font-size: 11px; letter-spacing: 2px; color: #93C5FD; text-transform: uppercase; font-weight: bold;">The Executive Intelligence Herald</div>
-                    <h1 style="margin: 8px 0 0; font-size: 21px; font-weight: bold;">📰 [경영진 보고] {date_str} 나만의 프리미엄 인텔리전스 신문</h1>
-                    <p style="margin: 6px 0 0; font-size: 12.5px; opacity: 0.9; color: #E2E8F0;">단순 단신 요약을 탈피한 2차 심층 교차 취재 & 전방위 기업·공시 해부 에디션</p>
+                    <div style="font-size: 11px; letter-spacing: 2px; color: #93C5FD; text-transform: uppercase; font-weight: bold;">My Daily Intelligence Briefing</div>
+                    <h1 style="margin: 8px 0 0; font-size: 21px; font-weight: bold;">📰 [오늘의 브리핑] {date_str} 나만의 데일리 금융 & 이슈 리포트</h1>
+                    <p style="margin: 6px 0 0; font-size: 12.5px; opacity: 0.9; color: #E2E8F0;">단순 요약을 탈피한 2차 심층 교차 취재 & 전방위 기업·공시 해부 에디션</p>
                 </div>
 
                 <div style="padding: 24px;">
                     
-                    <!-- 📋 최고경영진 3대 핵심 요약 (Executive Summary) -->
+                    <!-- 📋 나만의 3대 핵심 요약 (Daily Summary) -->
                     {exec_summary_html}
 
                     <!-- 📰 1면 톱 기획특집 기사 (The Lead Story) -->
@@ -850,8 +863,8 @@ class EmailSender:
         exec_weekly_summary_html = f"""
         <div style="background: #F8FAFC; border: 2px solid #1E3A8A; border-radius: 8px; padding: 16px 18px; margin-bottom: 22px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
             <div style="font-size: 14px; font-weight: bold; color: #1E3A8A; margin-bottom: 8px; display: flex; align-items: center;">
-                <span>📋 최고경영진 주간 총결산 전략 브리프 (Executive Summary)</span>
-                <span style="margin-left: auto; font-size: 11px; background: #FEF3C7; color: #92400E; padding: 2px 8px; border-radius: 10px; font-weight: bold;">대외비 • 사장님 친전</span>
+                <span>📋 한 주간의 3대 핵심 요약 (Weekly Summary)</span>
+                <span style="margin-left: auto; font-size: 11px; background: #DBEAFE; color: #1E40AF; padding: 2px 8px; border-radius: 10px; font-weight: bold;">나만의 주간 브리핑</span>
             </div>
             <ul style="margin: 0; padding-left: 18px; font-size: 12.5px; color: #1E293B; line-height: 1.7;">
                 <li style="margin-bottom: 4px;"><b>AI 포트폴리오 성과:</b> 누적 적중 승률 <b>{win_rate}%</b>, 평균 수익률 <b>{avg_ret:+.2f}%</b> 달성으로 시장 대비 견고한 초과 수익률 유지</li>
@@ -867,21 +880,21 @@ class EmailSender:
         <head>
             <meta charset="utf-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>주간 글로벌 금융전략 총결산 백서</title>
+            <title>My Weekly Intelligence Briefing ({date_str})</title>
         </head>
         <body style="font-family: -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', sans-serif; background-color: #F8FAFC; margin: 0; padding: 20px; line-height: 1.6; color: #1E293B;">
             <div style="max-width: 680px; margin: 0 auto; background: #FFFFFF; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); border: 1px solid #E2E8F0;">
                 
-                <!-- 주간 전용 프리미엄 네이비&골드 헤더: 팀장 보고형 최고경영진 톤앤매너 -->
+                <!-- 주간 전용 프리미엄 네이비&골드 헤더: 나만의 주간 브리핑 톤앤매너 -->
                 <div style="background: linear-gradient(135deg, #0A0F1D 0%, #1E3A8A 60%, #92400E 100%); color: #FFFFFF; padding: 28px 24px; text-align: center;">
-                    <div style="font-size: 11px; letter-spacing: 2px; color: #FCD34D; font-weight: bold; text-transform: uppercase;">Weekly Strategic Intelligence Report</div>
-                    <h1 style="margin: 8px 0 0; font-size: 22px; font-weight: bold;">📊 [경영진 주간보고] {week_label} 금융·전략산업 총결산 백서</h1>
+                    <div style="font-size: 11px; letter-spacing: 2px; color: #FCD34D; font-weight: bold; text-transform: uppercase;">My Weekly Intelligence Briefing</div>
+                    <h1 style="margin: 8px 0 0; font-size: 22px; font-weight: bold;">📊 [나만의 주간 브리핑] {week_label} 금융·이슈 총결산 백서</h1>
                     <p style="margin: 6px 0 0; font-size: 12.5px; opacity: 0.9; color: #F1F5F9;">7일간 축적 데이터 종합 분석 • 차주 포트폴리오 전략 및 정식 백서 구글 드라이브 적재</p>
                 </div>
 
                 <div style="padding: 24px;">
 
-                    <!-- 📋 최고경영진 주간 핵심 요약 (Executive Summary) -->
+                    <!-- 📋 나만의 주간 핵심 요약 (Weekly Summary) -->
                     {exec_weekly_summary_html}
 
                     <!-- 🌐 주간 1면 톱 심층 기획 기사 -->
@@ -957,7 +970,7 @@ class EmailSender:
 
         try:
             msg = MIMEMultipart("mixed")
-            msg["Subject"] = f"💼 [경영진 보고] {date_str} 전략 인텔리전스 모닝 브리핑 (심층 PDF 드라이브 적재)"
+            msg["Subject"] = f"[{date_str} 나만의 오늘의 브리핑] 데일리 금융동향 & 심층 이슈 리포트"
             msg["From"] = f"{self.naver_user}@naver.com"
             msg["To"] = self.receiver_email
 
@@ -995,7 +1008,7 @@ class EmailSender:
                 server.login(self.naver_user, self.naver_password)
                 server.send_message(msg)
 
-            print(f"📧 ✅ [경영진 보고] 데일리 모닝 브리핑 이메일 발송 완료! 수신자: {self.receiver_email}")
+            print(f"📧 ✅ [오늘의 브리핑] 데일리 모닝 브리핑 이메일 발송 완료! 수신자: {self.receiver_email}")
             return True
         except Exception as e:
             print(f"📧 ❌ 이메일 발송 실패: {e}")
@@ -1010,7 +1023,7 @@ class EmailSender:
         week_label = weekly_data.get("week_label", "금주 주간 결산")
         try:
             msg = MIMEMultipart("mixed")
-            msg["Subject"] = f"💼 [경영진 주간보고] {week_label} 전략 인텔리전스 총결산 백서 (심층 PDF 드라이브 적재)"
+            msg["Subject"] = f"[{week_label} 나만의 주간 브리핑] 한 주간의 금융동향 & 심층 이슈 총결산"
             msg["From"] = f"{self.naver_user}@naver.com"
             msg["To"] = self.receiver_email
 
@@ -1036,7 +1049,7 @@ class EmailSender:
                 server.login(self.naver_user, self.naver_password)
                 server.send_message(msg)
 
-            print(f"📧 🏆 [경영진 주간보고] 주간 총결산 백서 이메일 발송 완료! 수신자: {self.receiver_email}")
+            print(f"📧 🏆 [주간 브리핑] 주간 총결산 백서 이메일 발송 완료! 수신자: {self.receiver_email}")
             return True
         except Exception as e:
             print(f"📧 ❌ 주간 이메일 발송 실패: {e}")

@@ -14,31 +14,70 @@ class MarketCollector:
         self.history_mgr = history_mgr
 
     def get_exchange_rates(self) -> list:
-        """주요 국가 실시간 환율 수집"""
+        """주요 국가 실시간 환율 및 전일대비 변동 수집 (야후 파이낸스 우선, 백업 er-api)"""
         results = []
+        fx_symbols = [
+            ("USDKRW=X", "미국 달러 (USD)", 1.0),
+            ("JPYKRW=X", "일본 100엔 (JPY)", 100.0),
+            ("EURKRW=X", "유로 (EUR)", 1.0),
+            ("CNYKRW=X", "중국 위안 (CNY)", 1.0),
+        ]
+        
+        # 1. 야후 파이낸스를 통한 실시간 전일대비 변동폭 산출
+        for sym, name, multiplier in fx_symbols:
+            try:
+                url = f"https://query1.finance.yahoo.com/v8/finance/chart/{sym}?interval=1d"
+                r = requests.get(url, headers=REQUEST_HEADERS, timeout=6)
+                if r.status_code == 200:
+                    meta = r.json()["chart"]["result"][0]["meta"]
+                    price = meta.get("regularMarketPrice", 0) * multiplier
+                    prev = meta.get("chartPreviousClose", price) * multiplier
+                    diff = price - prev
+                    ratio = (diff / prev * 100) if prev else 0.0
+                    sign = "+" if diff > 0 else ""
+                    arrow = "▲ " if diff > 0 else ("▼ " if diff < 0 else "- ")
+                    diff_str = f"{arrow}{sign}{diff:,.2f}원 ({sign}{ratio:.2f}%)"
+                    results.append({
+                        "통화명": name,
+                        "환율(원)": f"{price:,.2f}",
+                        "전일대비": diff_str,
+                        "변동/기준": diff_str,
+                    })
+            except Exception:
+                pass
+
+        if results:
+            return results
+
+        # 2. 백업 API 폴백
         try:
             r = requests.get("https://open.er-api.com/v6/latest/USD", timeout=8)
             if r.status_code == 200:
                 rates = r.json().get("rates", {})
                 krw = rates.get("KRW", 0)
-                results.append({"통화명": "미국 달러 (USD)", "환율(원)": f"{krw:,.2f}", "변동/기준": "매매기준율"})
+                results.append({"통화명": "미국 달러 (USD)", "환율(원)": f"{krw:,.2f}", "전일대비": "기준환율", "변동/기준": "매매기준율"})
                 if "JPY" in rates and rates["JPY"] > 0:
                     jpy_100 = (krw / rates["JPY"]) * 100
-                    results.append({"통화명": "일본 100엔 (JPY)", "환율(원)": f"{jpy_100:,.2f}", "변동/기준": "100엔 기준"})
+                    results.append({"통화명": "일본 100엔 (JPY)", "환율(원)": f"{jpy_100:,.2f}", "전일대비": "기준환율", "변동/기준": "100엔 기준"})
                 if "EUR" in rates and rates["EUR"] > 0:
                     eur = krw / rates["EUR"]
-                    results.append({"통화명": "유로 (EUR)", "환율(원)": f"{eur:,.2f}", "변동/기준": "매매기준율"})
+                    results.append({"통화명": "유로 (EUR)", "환율(원)": f"{eur:,.2f}", "전일대비": "기준환율", "변동/기준": "매매기준율"})
                 if "CNY" in rates and rates["CNY"] > 0:
                     cny = krw / rates["CNY"]
-                    results.append({"통화명": "중국 위안 (CNY)", "환율(원)": f"{cny:,.2f}", "변동/기준": "매매기준율"})
+                    results.append({"통화명": "중국 위안 (CNY)", "환율(원)": f"{cny:,.2f}", "전일대비": "기준환율", "변동/기준": "매매기준율"})
         except Exception as e:
             print(f"[경고] 환율 수집 오류: {e}")
         return results
 
     def get_stock_indices(self) -> list:
-        """코스피, 코스닥 지수 수집"""
+        """코스피, 코스닥, 나스닥, S&P 500 주요 4대 지수 수집"""
         results = []
-        symbols = [("^KS11", "코스피 (KOSPI)"), ("^KQ11", "코스닥 (KOSDAQ)")]
+        symbols = [
+            ("^KS11", "코스피 (KOSPI)"),
+            ("^KQ11", "코스닥 (KOSDAQ)"),
+            ("^IXIC", "나스닥 (NASDAQ)"),
+            ("^GSPC", "S&P 500"),
+        ]
         for sym, name in symbols:
             try:
                 url = f"https://query1.finance.yahoo.com/v8/finance/chart/{sym}?interval=1d"
@@ -50,10 +89,11 @@ class MarketCollector:
                     diff = price - prev
                     ratio = (diff / prev * 100) if prev else 0
                     sign = "+" if diff > 0 else ""
+                    arrow = "▲ " if diff > 0 else ("▼ " if diff < 0 else "- ")
                     results.append({
                         "지수명": name,
                         "현재지수": f"{price:,.2f}",
-                        "전일대비": f"{sign}{diff:,.2f} ({sign}{ratio:.2f}%)",
+                        "전일대비": f"{arrow}{sign}{diff:,.2f} ({sign}{ratio:.2f}%)",
                     })
             except Exception as e:
                 print(f"[경고] {name} 지수 수집 오류: {e}")

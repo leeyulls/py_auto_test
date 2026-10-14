@@ -16,6 +16,24 @@ TIER_1_BROKERS = [
 ]
 
 
+CORE_MARKET_LEADERS = {
+    # 반도체 & AI & 전력인프라
+    "삼성전자", "SK하이닉스", "한미반도체", "리노공업", "이수페타시스", "HD현대일렉트릭", "일진전기", "효성중공업", "두산에너빌리티",
+    # 2차전지 & 미래소재
+    "LG에너지솔루션", "POSCO홀딩스", "에코프로", "에코프로비엠", "포스코퓨처엠", "엘앤에프",
+    # 바이오 & 헬스케어
+    "알테오젠", "셀트리온", "삼성바이오로직스", "유한양행", "한미약품", "휴젤", "리가켐바이오", "삼천당제약",
+    # 자동차 & 방산 & 조선
+    "현대차", "기아", "현대모비스", "한화에어로스페이스", "현대로템", "LIG넥스원", "HD현대중공업", "삼성중공업", "한화오션",
+    # 플랫폼 & IT & 통신 & 엔터
+    "NAVER", "카카오", "크래프톤", "하이브", "JYP Ent.", "에스엠", "SK텔레콤", "KT", "LG유플러스",
+    # 금융 & 지주 & 밸류업
+    "메리츠금융지주", "KB금융", "신한지주", "하나금융지주", "삼성화재", "삼성물산",
+    # K-푸드 & K-뷰티 수출 소비재
+    "삼양식품", "농심", "오리온", "한국콜마", "코스맥스", "실리콘투", "아모레퍼시픽"
+}
+
+
 class ResearchManager:
     def __init__(self, output_dir=None):
         if output_dir is None:
@@ -26,7 +44,7 @@ class ResearchManager:
         self.headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         }
-        self.list_api = "https://m.stock.naver.com/api/research/company?page=1&pageSize=30"
+        self.list_api = "https://m.stock.naver.com/api/research/company?page={page}&pageSize=30"
         self.detail_api = "https://m.stock.naver.com/api/research/company/{research_id}"
 
     @staticmethod
@@ -42,7 +60,6 @@ class ResearchManager:
             return ""
         soup = BeautifulSoup(raw_html, "html.parser")
         text = soup.get_text(separator=" ").strip()
-        # 불필요한 연속 공백 축소
         return re.sub(r'\s+', ' ', text)
 
     @staticmethod
@@ -50,16 +67,13 @@ class ResearchManager:
         """글자 수 임의 절단(...) 없이 완결된 문장 단위로 마침표가 찍히는 완성형 요약문 추출"""
         if not raw_text:
             return ""
-        # 문장 단위 분리 (. ! ? 또는 다. 함. 음. 기준)
         sentences = re.split(r'(?<=[.!?다함음])\s+', raw_text.strip())
         complete = []
         cur_chars = 0
         for s in sentences:
             s_clean = s.strip()
-            # 너무 짧거나 의미 없는 표 헤더 등 제외
             if len(s_clean) < 15 or any(s_clean.startswith(prefix) for prefix in ["목표주가", "투자의견", "작성일", "발행일", "자료:"]):
                 continue
-            # 마침표 보정
             if not s_clean.endswith(('.', '!', '?')):
                 s_clean += '.'
             complete.append(s_clean)
@@ -74,37 +88,42 @@ class ResearchManager:
             trimmed += '.'
         return trimmed
 
-    def fetch_candidate_reports(self) -> list:
-        """최신 30개 후보 리포트 목록 및 세부 정보 수집"""
+    def fetch_candidate_reports(self, max_pages: int = 2) -> list:
+        """최신 2개 페이지(최대 60개) 후보 리포트 목록 및 세부 정보 수집"""
         candidates = []
-        try:
-            res = requests.get(self.list_api, headers=self.headers, timeout=8)
-            if res.status_code != 200:
-                return candidates
+        raw_items = []
+        for p in range(1, max_pages + 1):
+            try:
+                res = requests.get(self.list_api.format(page=p), headers=self.headers, timeout=8)
+                if res.status_code == 200:
+                    items = res.json()
+                    if isinstance(items, list):
+                        raw_items.extend(items)
+            except Exception as e:
+                print(f"[경고] 리서치 목록(p={p}) 수집 오류: {e}")
 
-            items = res.json()
-            if not isinstance(items, list):
-                return candidates
+        # 상세 조회 (중복 제거)
+        seen_ids = set()
+        for item in raw_items:
+            r_id = item.get("researchId")
+            if not r_id or r_id in seen_ids:
+                continue
+            seen_ids.add(r_id)
 
-            # 1차 목록 순회 및 상세 조회 (세부 정보 및 PDF 첨부 링크 확인)
-            for item in items[:25]:
-                r_id = item.get("researchId")
-                if not r_id:
-                    continue
+            broker = item.get("brokerName", "증권사").strip()
+            item_name = item.get("itemName", "").strip()
+            title = item.get("title", "").strip()
+            write_date = item.get("writeDate", "")
 
-                broker = item.get("brokerName", "증권사").strip()
-                item_name = item.get("itemName", "").strip()
-                title = item.get("title", "").strip()
-                write_date = item.get("writeDate", "")
+            try:
+                read_count = int(item.get("readCount", 0))
+            except Exception:
+                read_count = 0
 
-                try:
-                    read_count = int(item.get("readCount", 0))
-                except Exception:
-                    read_count = 0
-
-                # 상세 API 호출하여 attachUrl 및 본문 추출
-                d_url = self.detail_api.format(research_id=r_id)
-                d_res = requests.get(d_url, headers=self.headers, timeout=6)
+            # 상세 API 호출하여 attachUrl 및 본문 추출
+            d_url = self.detail_api.format(research_id=r_id)
+            try:
+                d_res = requests.get(d_url, headers=self.headers, timeout=5)
                 if d_res.status_code == 200:
                     d_data = d_res.json()
                     content_info = d_data.get("researchContent", {})
@@ -115,7 +134,6 @@ class ResearchManager:
                     if not complete_summary:
                         complete_summary = f"{broker}에서 발행한 {item_name} 관련 공식 기업 분석 리포트입니다."
 
-                    # 목표주가 및 투자의견
                     target_price = content_info.get("targetPrice") or item.get("targetPrice")
                     opinion = content_info.get("opinion") or item.get("opinion")
                     item_code = item.get("itemCode", "").strip()
@@ -134,38 +152,69 @@ class ResearchManager:
                         "target_price": target_price,
                         "opinion": opinion or "BUY",
                     })
-        except Exception as e:
-            print(f"[경고] 리서치 후보 수집 오류: {e}")
+            except Exception:
+                pass
 
         return candidates
 
-    def score_credibility(self, candidates: list) -> list:
-        """5대 신뢰도 평가 모델을 적용하여 점수 산출 및 정렬"""
+    def score_credibility(self, candidates: list, active_news: list = None) -> list:
+        """
+        [고도화된 리서치 선정 알고리즘]
+        단순 시간순이 아닌 '시장 주도주/트렌드 일치도 + 언론 집중도 + 실투자자 관심 조회수' 다차원 가중치 평가
+        """
         if not candidates:
             return []
 
-        # 동일 종목 복수 커버리지 카운트
+        # 당일 뉴스 언급 기업 세트 구축
+        news_company_mentions = set()
+        if active_news:
+            for n in active_news:
+                n_title = n.get("기사제목", "") + " " + n.get("제목", "") + " " + n.get("title", "")
+                for leader in CORE_MARKET_LEADERS:
+                    if leader in n_title:
+                        news_company_mentions.add(leader)
+
+        # 복수 커버리지 집계
         item_counts = {}
         for c in candidates:
             name = c["item_name"]
             if name:
                 item_counts[name] = item_counts.get(name, 0) + 1
 
-        # 최대 조회수
-        max_reads = max([c["read_count"] for c in candidates] + [1])
+        # 최대 조회수 정규화 기준 (최소 500)
+        max_reads = max([c["read_count"] for c in candidates] + [500])
 
         scored = []
         for c in candidates:
             score = 0
             breakdown = {}
+            item_name = c["item_name"]
 
-            # 1. 발행 기관 공신력 (Tier 1: 30점, Tier 2: 20점)
+            # 1. 핵심 시장 주도주 & 트렌드 부합도 (최대 35점)
+            is_market_leader = item_name in CORE_MARKET_LEADERS
+            leader_score = 35 if is_market_leader else 10
+            score += leader_score
+            breakdown["주도주부합도"] = f"{leader_score}점 ({'핵심 주도·성장 산업군' if is_market_leader else '일반 개별종목'})"
+
+            # 2. 당일 언론·시장 집중도 (Media Buzz) (최대 25점)
+            is_in_news = item_name in news_company_mentions
+            buzz_score = 25 if is_in_news else 5
+            score += buzz_score
+            breakdown["언론주목도"] = f"{buzz_score}점 ({'당일 주요 뉴스 이슈 결합' if is_in_news else '통상 커버리지'})"
+
+            # 3. 실투자자 관심도 (조회수 정규화 최대 25점)
+            read_cnt = c["read_count"]
+            read_score = int(min(read_cnt / max_reads, 1.0) * 20) + (5 if read_cnt >= 500 else 0)
+            score += read_score
+            breakdown["투자자조회수"] = f"{read_score}점 (열람 {read_cnt}회)"
+
+            # 4. 발행 증권사 공신력 (Tier 1: 15점, 전문사: 10점)
             is_tier1 = any(t in c["broker"] for t in TIER_1_BROKERS)
-            broker_score = 30 if is_tier1 else 20
+            broker_score = 15 if is_tier1 else 10
             score += broker_score
-            breakdown["기관공신력"] = f"{broker_score}점 ({'Tier 1 대형사' if is_tier1 else '전문 증권사'})"
+            breakdown["기관공신력"] = f"{broker_score}점 ({'Tier 1 대형사' if is_tier1 else '전문사'})"
 
-            # 2. 정량 데이터 명확성 (목표주가 유무: 25점)
+            # 5. 정량 목표주가 및 모멘텀 (최대 15점)
             tp = c.get("target_price")
             has_tp = False
             try:
@@ -174,43 +223,29 @@ class ResearchManager:
             except Exception:
                 has_tp = bool(tp)
 
-            tp_score = 25 if has_tp else 10
-            score += tp_score
-            breakdown["정량수치"] = f"{tp_score}점 ({'공인 목표가 명시' if has_tp else '정성 분석'})"
-
-            # 3. 목표가 변동 모멘텀 (상향: 15점, 유지/신규: 10점, 하향: 5점)
-            action_score = 10
-            action_desc = "목표가 유지/신규"
+            tp_score = 10 if has_tp else 5
             title_text = c["title"]
-            if any(w in title_text for w in ["상향", "호조", "서프라이즈", "성장 가속", "최고 실적", "BUY"]):
-                action_score = 15
-                action_desc = "목표가 상향/호실적 모멘텀"
-            elif any(w in title_text for w in ["하향", "부진", "우려", "눈높이 낮춤"]):
-                action_score = 5
-                action_desc = "목표가 하향/보수적 전망"
+            if any(w in title_text for w in ["상향", "호조", "서프라이즈", "성장", "최고 실적", "호실적", "신고가"]):
+                tp_score += 5
+            elif any(w in title_text for w in ["하향", "부진", "우려", "눈높이 낮춤", "적자"]):
+                tp_score -= 5
+            score += tp_score
+            breakdown["목표가모멘텀"] = f"{tp_score}점"
 
-            score += action_score
-            breakdown["변동모멘텀"] = f"{action_score}점 ({action_desc})"
+            # 6. 소외 비인기주 감점 필터 (-20점)
+            # 조회수가 300회 미만이고 시장 주도주도 아니며 언론 보도도 없는 경우
+            if read_cnt < 300 and not is_market_leader and not is_in_news:
+                score -= 20
+                breakdown["소외주필터"] = "-20점 (비인기·소외 종목 감점)"
 
-            # 4. 시장 및 투자자 검증도 (조회수 정규화 최대 20점)
-            read_ratio = min(c["read_count"] / max_reads, 1.0)
-            read_score = int(read_ratio * 15) + (5 if c["read_count"] > 10 else 0)
-            score += read_score
-            breakdown["시장조회수"] = f"{read_score}점 (조회 {c['read_count']}회)"
-
-            # 5. 기관 동시 집중도 (동일 종목 복수 커버리지 시 10점)
-            overlap = item_counts.get(c["item_name"], 1)
-            overlap_score = 10 if overlap >= 2 else 5
-            score += overlap_score
-            breakdown["기관집중도"] = f"{overlap_score}점 ({overlap}개사 동시 커버)"
-
-            # PDF 직링크 가산점
+            # PDF 원문 첨부 가산점
             if c.get("attach_url"):
                 score += 5
 
             c["credibility_score"] = score
             c["score_breakdown"] = breakdown
             c["is_tier1"] = is_tier1
+            c["is_market_leader"] = is_market_leader
             scored.append(c)
 
         # 점수 높은 순 정렬
@@ -321,7 +356,7 @@ class ResearchManager:
             return default_res
 
 
-    def collect_and_process(self, date_str: str = None, top_n: int = 10) -> dict:
+    def collect_and_process(self, date_str: str = None, top_n: int = 10, active_news: list = None) -> dict:
         """
         후보 수집 ➔ 신뢰도 점수 산출 ➔ Top 10 엄선 ➔ PDF 다운로드 일괄 실행
         """
@@ -330,12 +365,12 @@ class ResearchManager:
 
         month_str = date_str[:7]  # '2026-10'
 
-        print(f"\n[리서치 관리자] 🔍 증권사 공식 리포트 후보 수집 중...")
-        candidates = self.fetch_candidate_reports()
+        print(f"\n[리서치 관리자] 🔍 증권사 공식 리포트 후보 수집 중 (2개 페이지 전수 조사)...")
+        candidates = self.fetch_candidate_reports(max_pages=2)
         print(f" - 수집된 공식 리포트 후보: {len(candidates)}건")
 
-        print(f"[리서치 관리자] 🧮 5대 지표 신뢰도 점수 산출 및 Top {top_n} 선별 중...")
-        scored_reports = self.score_credibility(candidates)
+        print(f"[리서치 관리자] 🧮 시장 주도주/뉴스 집중도/실투자자 조회수 다차원 점수 산출 및 Top {top_n} 선별 중...")
+        scored_reports = self.score_credibility(candidates, active_news=active_news)
         top_reports = scored_reports[:top_n]
 
         print(f"[리서치 관리자] 📥 공식 원본 PDF 다운로드 진행 중 (월별 폴더: {month_str}/공식_리서치_PDF)...")
