@@ -66,8 +66,10 @@ class GoogleDriveSync:
                 with open(file_path, "rb") as f:
                     file_b64 = base64.b64encode(f.read()).decode("utf-8")
 
+                filename_b64 = base64.b64encode(filename.encode("utf-8")).decode("utf-8")
                 payload = {
                     "filename": filename,
+                    "filename_b64": filename_b64,
                     "content_base64": file_b64,
                     "folder_name": "데일리_브리핑_수집",
                     "subfolder": subfolder,

@@ -21,13 +21,24 @@ function doGet(e) {
 function doPost(e) {
   try {
     const data = JSON.parse(e.postData.contents);
-    const filename = data.filename || "daily_report.xlsx";
+    
+    // 1. 파일명 한글 깨짐 원천 방지 (Base64 우선 디코딩)
+    let filename = data.filename || "daily_report.xlsx";
+    if (data.filename_b64) {
+      try {
+        const decodedBytes = Utilities.base64Decode(data.filename_b64);
+        filename = Utilities.newBlob(decodedBytes).getDataAsString("UTF-8");
+      } catch (err) {
+        filename = data.filename;
+      }
+    }
+    
     const base64Data = data.content_base64;
     const folderName = data.folder_name || "데일리_브리핑_수집";
     const subfolderPath = data.subfolder || "";
     const isMaster = data.is_master || false;
     
-    // 1. 대상 최상위 폴더 찾기 또는 생성 ('데일리_브리핑_수집')
+    // 2. 대상 최상위 폴더 찾기 또는 생성 ('데일리_브리핑_수집')
     let targetFolder;
     const folders = DriveApp.getFoldersByName(folderName);
     if (folders.hasNext()) {
@@ -36,7 +47,7 @@ function doPost(e) {
       targetFolder = DriveApp.createFolder(folderName);
     }
     
-    // 2. 월별 서브폴더(예: '2026-10' 또는 '2026-10/공식_리서치_PDF') 경로 처리
+    // 3. 월별 서브폴더(예: '2026-10' 또는 '2026-10/공식_리서치_PDF') 계층별 경로 처리
     if (subfolderPath && !isMaster) {
       const parts = subfolderPath.split("/").map(function(s) { return s.trim(); }).filter(function(s) { return s.length > 0; });
       for (let i = 0; i < parts.length; i++) {
@@ -50,13 +61,14 @@ function doPost(e) {
       }
     }
     
-    // 3. 파일 유형별 Content-Type 설정
+    // 4. 파일 유형별 Content-Type 설정 (구글 드라이브 PDF 뷰어 정상 작동 보장)
     let contentType = "application/octet-stream";
-    if (filename.endsWith(".xlsx")) {
-      contentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
-    } else if (filename.endsWith(".pdf")) {
+    const lowerName = filename.toLowerCase();
+    if (lowerName.endsWith(".pdf")) {
       contentType = "application/pdf";
-    } else if (filename.endsWith(".md") || filename.endsWith(".txt")) {
+    } else if (lowerName.endsWith(".xlsx")) {
+      contentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+    } else if (lowerName.endsWith(".md") || lowerName.endsWith(".txt")) {
       contentType = "text/plain; charset=utf-8";
     }
 
@@ -87,3 +99,23 @@ function doPost(e) {
     })).setMimeType(ContentService.MimeType.JSON);
   }
 }
+
+/**
+ * [유틸 함수] 루트 폴더 청소
+ * 이전에 루트 폴더에 잘못 올라간 깨진 파일이나 임시 파일들을 한번에 정리하고 싶을 때
+ * 스크립트 편집기 상단에서 'cleanupRootFolder' 함수를 선택하고 [실행]을 누르면
+ * 마스터 파일('일자별_누적_데일리_이슈_및_주식_브리핑_마스터.xlsx')을 제외한 루트의 파일들을 안전하게 정리합니다.
+ */
+function cleanupRootFolder() {
+  const folders = DriveApp.getFoldersByName("데일리_브리핑_수집");
+  if (!folders.hasNext()) return;
+  const root = folders.next();
+  const files = root.getFiles();
+  while (files.hasNext()) {
+    const file = files.next();
+    if (file.getName() !== "일자별_누적_데일리_이슈_및_주식_브리핑_마스터.xlsx") {
+      file.setTrashed(true);
+    }
+  }
+}
+
