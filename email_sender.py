@@ -6,6 +6,7 @@ email_sender.py
 """
 
 import os
+import re
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -44,9 +45,10 @@ class EmailSender:
                     ft_box = f"""
                     <div style="margin: 6px 0; background: #DCFCE7; border: 1px dashed #16A34A; padding: 6px 10px; border-radius: 4px; font-size: 11px; color: #14532D;">
                         📊 <b>PDF 핵심 실적 표:</b> 2026F 매출 {ft.get('rev_2026', '-')} / 영익 {ft.get('op_2026', '-')} &nbsp;|&nbsp; 2027F 매출 {ft.get('rev_2027', '-')} / 영익 {ft.get('op_2027', '-')}
-                        <div style="color: #166534; margin-top: 3px;">📈 <i>{ft.get('yoy_summary', '')[:95]}</i></div>
+                        <div style="color: #166534; margin-top: 3px;">📈 <i>{ft.get('yoy_summary', '')}</i></div>
                     </div>
                     """
+                summary_val = rep.get('summary_text', '').strip()
                 reports_cards_html += f"""
                 <div style="background: #F0FDF4; border-left: 4px solid #16A34A; padding: 12px 14px; margin-bottom: 10px; border-radius: 6px;">
                     <div style="font-weight: bold; color: #15803D; font-size: 14px;">
@@ -61,8 +63,8 @@ class EmailSender:
                         👀 <b>시장 조회수:</b> {rep.get('read_count', 0)}회
                     </div>
                     {ft_box}
-                    <div style="color: #374151; font-size: 12px; margin-top: 4px; line-height: 1.4;">
-                        💡 <b>핵심 요지:</b> {rep.get('summary_text', '')[:140]}...
+                    <div style="color: #374151; font-size: 12px; margin-top: 4px; line-height: 1.5;">
+                        💡 <b>핵심 요지:</b> {summary_val}
                     </div>
                     <div style="font-size: 11px; color: #6B7280; margin-top: 4px;">
                         📁 <i>구글 드라이브(공식_리서치_PDF) 원본 보관: {rep.get('pdf_filename', '')}</i>
@@ -197,20 +199,32 @@ class EmailSender:
             items = top_picks.get(cat_key, [])
             if items:
                 cat_items_html = ""
-                for it in items[:3]:
+                display_items = items[:5]
+                for idx, it in enumerate(display_items):
                     it_link = it.get("링크") or it.get("link", "")
-                    tag = f" <span style='background: #FEE2E2; color: #DC2626; padding: 1px 5px; border-radius: 3px; font-size: 11px;'>{it['상태']}</span>" if "집중" in it['상태'] else ""
-                    cat_items_html += f"""
-                    <div style="margin-bottom: 8px; font-size: 13px; line-height: 1.4;">
-                        • <a href="{it_link}" style="color: #1E40AF; text-decoration: none; font-weight: 500;">{it['기사제목']}</a>
-                        <span style="font-size: 11px; color: #6B7280;">({it['언론사']})</span>{tag}
-                    </div>
-                    """
+                    tag = f" <span style='background: #FEE2E2; color: #DC2626; padding: 1px 5px; border-radius: 3px; font-size: 11px;'>{it.get('상태', '')}</span>" if "집중" in str(it.get('상태', '')) else ""
+                    if idx == 0:
+                        summary_snippet = it.get("요약내용", "").strip()
+                        summary_div = f"<div style='font-size: 12px; color: #475569; margin-top: 3px; padding-left: 10px; border-left: 2px solid #3B82F6;'>{summary_snippet}</div>" if summary_snippet else ""
+                        cat_items_html += f"""
+                        <div style="margin-bottom: 8px; font-size: 13px; line-height: 1.4;">
+                            <span style="font-weight: bold; color: #1D4ED8;">[TOP]</span> <a href="{it_link}" style="color: #1D4ED8; text-decoration: none; font-weight: 600;">{it.get('기사제목', '')}</a>
+                            <span style="font-size: 11px; color: #6B7280;">({it.get('언론사', '')})</span>{tag}
+                            {summary_div}
+                        </div>
+                        """
+                    else:
+                        cat_items_html += f"""
+                        <div style="margin-bottom: 5px; font-size: 12px; line-height: 1.4;">
+                            • <a href="{it_link}" style="color: #334155; text-decoration: none;">{it.get('기사제목', '')}</a>
+                            <span style="font-size: 11px; color: #94A3B8;">({it.get('언론사', '')})</span>{tag}
+                        </div>
+                        """
 
                 headlines_html += f"""
                 <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 14px; margin-bottom: 16px;">
                     <div style="font-size: 14px; font-weight: bold; color: #1E293B; margin-bottom: 10px; border-bottom: 2px solid #E2E8F0; padding-bottom: 4px;">
-                        {icon_title} <span style="font-size: 12px; color: #64748B; font-weight: normal;">(주요 뉴스 {len(items[:3])}건)</span>
+                        {icon_title} <span style="font-size: 12px; color: #64748B; font-weight: normal;">(주요 뉴스 {len(display_items)}건)</span>
                     </div>
                     {cat_items_html}
                 </div>
@@ -349,7 +363,7 @@ class EmailSender:
             """
 
         # ---------------------------------------------------------
-        # 🎙️ 유튜브 슈카월드 스타일 '투 트랙 딥다이브 스토리' 카드 섹션
+        # 📌 오늘의 심층 테마 리포트 (Deep Theme Report) 카드 섹션
         # ---------------------------------------------------------
         story_dive_html = ""
         if story_dive_data and story_dive_data.get("stories"):
@@ -364,26 +378,48 @@ class EmailSender:
                 link_url = st.get('link') or '#'
                 source_name = st.get('source') or '심층분석'
 
+                if is_econ:
+                    s1_label = "📋 <b>이슈 개요 및 현황:</b>"
+                    s2_label = "⏳ <b>발단과 누적 타임라인:</b>"
+                    s3_label = "⚖️ <b>이면의 구조와 이해관계:</b>"
+                    s4_label = "🔮 <b>시장 파장과 향후 관전 포인트:</b>"
+                else:
+                    s1_label = "🛍️ <b>트렌드 현황 및 화제:</b>"
+                    s2_label = "🚀 <b>유행의 시초와 바이럴 계기:</b>"
+                    s3_label = "🧠 <b>소비 심리와 마케팅 구조:</b>"
+                    s4_label = "📊 <b>유통가 파장 및 지속 가능성:</b>"
+
+                term_html = ""
+                term_tip = st.get("term_tip", "")
+                if term_tip:
+                    clean_term = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', term_tip)
+                    term_html = f"""
+                    <div style="margin-top: 10px; background: #FEF9C3; border: 1px solid #FDE047; padding: 8px 12px; border-radius: 6px; font-size: 12px; color: #713F12; line-height: 1.5;">
+                        💡 <b>1분 핵심 용어 사전:</b> {clean_term}
+                    </div>
+                    """
+
                 cards_inner += f"""
-                <div style="background: #FFFFFF; border: 1px solid #E2E8F0; border-top: 4px solid {theme_color}; border-radius: 8px; padding: 14px 16px; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-                    <div style="margin-bottom: 6px;">
-                        <span style="background: {badge_bg}; color: {badge_text}; font-size: 11px; font-weight: bold; padding: 2px 8px; border-radius: 10px; display: inline-block;">
+                <div style="background: #FFFFFF; border: 1px solid #E2E8F0; border-top: 4px solid {theme_color}; border-radius: 8px; padding: 14px 16px; margin-bottom: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+                    <div style="margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center;">
+                        <span style="background: {badge_bg}; color: {badge_text}; font-size: 11px; font-weight: bold; padding: 2px 8px; border-radius: 10px;">
                             {icon} {st.get('track_name')} | {st.get('badge')}
                         </span>
-                        <span style="font-size: 11px; color: #64748B; margin-left: 6px;">출처: {source_name}</span>
+                        <span style="font-size: 11px; color: #64748B;">출처: {source_name}</span>
                     </div>
                     <div style="font-size: 15px; font-weight: bold; color: #0F172A; margin-bottom: 8px; line-height: 1.4;">
                         <a href="{link_url}" style="color: #0F172A; text-decoration: none;">{st.get('title')}</a>
                     </div>
-                    <div style="background: {theme_bg}; border-left: 3px solid {theme_color}; padding: 8px 12px; border-radius: 4px; font-size: 12px; color: #1E293B; margin-bottom: 10px; line-height: 1.5;">
+                    <div style="background: {theme_bg}; border-left: 3px solid {theme_color}; padding: 8px 12px; border-radius: 4px; font-size: 12px; color: #1E293B; margin-bottom: 12px; line-height: 1.5;">
                         💬 <i>"{st.get('hook')}"</i>
                     </div>
                     <div style="font-size: 12px; color: #334155; line-height: 1.6;">
-                        <div style="margin-bottom: 5px;">🎬 <b>1막 (발단/현상):</b> {st.get('stage1')}</div>
-                        <div style="margin-bottom: 5px;">⏳ <b>2막 (비하인드/시초):</b> {st.get('stage2')}</div>
-                        <div style="margin-bottom: 5px;">🕵️ <b>3막 (이면의 속셈/소비심리):</b> {st.get('stage3')}</div>
-                        <div>🔮 <b>4막 (파장과 변화):</b> {st.get('stage4')}</div>
+                        <div style="margin-bottom: 8px;">{s1_label} {st.get('stage1')}</div>
+                        <div style="margin-bottom: 8px;">{s2_label} {st.get('stage2')}</div>
+                        <div style="margin-bottom: 8px;">{s3_label} {st.get('stage3')}</div>
+                        <div style="margin-bottom: 4px;">{s4_label} {st.get('stage4')}</div>
                     </div>
+                    {term_html}
                 </div>
                 """
 
@@ -391,10 +427,10 @@ class EmailSender:
             <div style="margin-bottom: 24px;">
                 <div style="border-bottom: 2px solid #8B5CF6; padding-bottom: 6px; margin-bottom: 12px;">
                     <h2 style="font-size: 17px; color: #1E293B; margin: 0;">
-                        🎙️ 오늘의 슈카식 투 트랙 딥다이브 (지식 & 트렌드)
+                        📌 오늘의 심층 테마 리포트 (경제·사회 & 트렌드)
                     </h2>
                     <div style="font-size: 11px; color: #6D28D9; margin-top: 3px;">
-                        단순 뉴스 요약을 넘어 <b>"아! 이래서 그런 거였어"</b>(경제·사회) & <b>"요즘 왜 이게 유행할까?"</b>(트렌드·유행)의 숨은 비하인드 스토리
+                        단순 단신 뉴스를 넘어 배경 역사, 이면의 구조, 시장 파장까지 입체적으로 분석한 데일리 심층 보고서
                     </div>
                 </div>
                 {cards_inner}
@@ -416,7 +452,7 @@ class EmailSender:
                 <div style="background: linear-gradient(135deg, #1E3A8A 0%, #2563EB 100%); color: #FFFFFF; padding: 24px; text-align: center;">
                     <div style="font-size: 13px; letter-spacing: 1px; opacity: 0.9; text-transform: uppercase;">Daily Morning 07:00 Briefing</div>
                     <h1 style="margin: 8px 0 0; font-size: 22px;">☕ 아침 7시 모닝 브리핑 ({date_str})</h1>
-                    <p style="margin: 6px 0 0; font-size: 13px; opacity: 0.85;">🎙️ 슈카식 딥다이브 & 주식·코인(BTC/ETH/SOL) 추천가 & 공식 리포트 & DART 특수공시</p>
+                    <p style="margin: 6px 0 0; font-size: 13px; opacity: 0.85;">📌 오늘의 심층 테마 리포트 & 주식·코인(BTC/ETH/SOL) 추천가 & 공식 리포트 & DART 특수공시</p>
                 </div>
 
                 <div style="padding: 24px;">
@@ -424,7 +460,7 @@ class EmailSender:
                     <!-- 🔥 메가 핫토픽 -->
                     {mega_html}
 
-                    <!-- 🎙️ 슈카식 투 트랙 딥다이브 스토리 섹션 -->
+                    <!-- 📌 오늘의 심층 테마 리포트 섹션 -->
                     {story_dive_html}
 
                     <!-- 🎯 AI 추천 종목 사후 검증 (Backtesting) 섹션 -->
@@ -680,7 +716,7 @@ class EmailSender:
 
         try:
             msg = MIMEMultipart("mixed")
-            msg["Subject"] = f"☕ [07시 모닝 브리핑] {date_str} 슈카식 투트랙 딥다이브 & 주식·코인(BTC/ETH/SOL) & 공식리포트 & DART 특수공시"
+            msg["Subject"] = f"☕ [07시 모닝 브리핑] {date_str} 심층 테마 리포트 & 주식·코인(BTC/ETH/SOL) & 공식리포트 & DART 특수공시"
             msg["From"] = f"{self.naver_user}@naver.com"
             msg["To"] = self.receiver_email
 

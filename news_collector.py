@@ -33,9 +33,34 @@ class NewsCollector:
         words = [w for w in t.split() if len(w) >= 2 and w not in stopwords]
         return words
 
+    @staticmethod
+    def _is_similar_headline(title1: str, title2: str, threshold: float = 0.5) -> bool:
+        """두 기사 제목 간의 키워드 자카드 유사도(Jaccard Similarity) 계산하여 겹치는 뉴스 판별"""
+        if not title1 or not title2:
+            return False
+        # [단독], [속보] 등 말머리 및 특수문자 정제
+        clean1 = re.sub(r"\[.*?\]|\(.*?\)|<.*?>|['\"“”‘’]", " ", title1)
+        clean2 = re.sub(r"\[.*?\]|\(.*?\)|<.*?>|['\"“”‘’]", " ", title2)
+
+        stopwords = {"오늘", "결국", "왜", "논란", "충격", "발표", "주장", "전망", "최근", "올해", "지난해"}
+        words1 = set([w for w in clean1.split() if len(w) >= 2 and w not in stopwords])
+        words2 = set([w for w in clean2.split() if len(w) >= 2 and w not in stopwords])
+
+        if not words1 or not words2:
+            return False
+
+        intersection = words1.intersection(words2)
+        union = words1.union(words2)
+        similarity = len(intersection) / len(union)
+
+        # 교집합 단어가 3개 이상이거나 자카드 유사도가 임계치 이상이면 동일 이슈/중복 기사로 판정
+        if len(intersection) >= 3 or similarity >= threshold:
+            return True
+        return False
+
     def collect_all_categories(self, limit_per_feed=15, top_n_per_category=8) -> dict:
         """
-        7대 분야별 뉴스 수집 (분야별 최소 3~10건 수집 보장)
+        7대 분야별 뉴스 수집 (분야별 최소 3~10건 수집 보장 및 중복 기사 필터링)
         """
         raw_articles = []
         collected_links = set()
@@ -121,11 +146,26 @@ class NewsCollector:
         for art in filtered_articles:
             categorized_articles[art["분야"]].append(art)
 
-        # 분야별 상위 3~10건 리스트 추출
+        # 분야별 상위 N건 리스트 추출 (제목 유사도 중복 기사 전면 제거)
         category_top_picks = {}
+        all_picked_titles = []
         for cat, items in categorized_articles.items():
             items.sort(key=lambda x: (x["media_count"], -x["feed_rank"]), reverse=True)
-            category_top_picks[cat] = items[:top_n_per_category]
+            unique_items = []
+            for item in items:
+                t = item["기사제목"]
+                # 1) 현재 분야 내 이미 선별된 기사와 겹치는지 검사
+                if any(self._is_similar_headline(t, picked["기사제목"]) for picked in unique_items):
+                    continue
+                # 2) 타 분야에 이미 메인으로 선정된 기사와 중복인지 검사
+                if any(self._is_similar_headline(t, prev_t) for prev_t in all_picked_titles):
+                    continue
+
+                unique_items.append(item)
+                all_picked_titles.append(t)
+                if len(unique_items) >= top_n_per_category:
+                    break
+            category_top_picks[cat] = unique_items
 
         all_sorted = sorted(filtered_articles, key=lambda x: x["media_count"], reverse=True)
         mega_issue = all_sorted[0] if (all_sorted and all_sorted[0]["media_count"] >= 3) else None

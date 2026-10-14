@@ -126,8 +126,8 @@ def main():
         {"title": m["기사제목"], "link": m["링크"], "category": m["구분"]} for m in market_news
     ])
 
-    # 6. 🎙️ 유튜브 슈카월드 스타일 투 트랙 딥다이브 스토리텔링 엔진 (경제·사회 & 트렌드·유행)
-    print("\n[6/10] 🎙️ 유튜브 슈카월드 스타일 투 트랙 딥다이브(경제·사회 & 트렌드·유행) 작성 중...")
+    # 6. 📌 오늘의 심층 테마 리포트 엔진 (경제·사회 & 트렌드·유행)
+    print("\n[6/10] 📌 오늘의 심층 테마 리포트(경제·사회 & 트렌드·유행) 작성 중...")
     story_engine = StoryDiveEngine(history_mgr=history_mgr)
     story_dive_data = story_engine.generate_two_track_stories(general_news=general_news, mega_issue=mega_issue)
 
@@ -255,7 +255,7 @@ def main():
 
     # 최종 요약 콘솔 출력
     print("\n" + "=" * 70)
-    print("🎙️ [유튜브 슈카월드 스타일 투 트랙 딥다이브 하이라이트]")
+    print("📌 [오늘의 심층 테마 리포트 하이라이트]")
     for st in story_dive_data.get("stories", []):
         icon = "🌐" if st.get("track") == "ECONOMY" else "🔥"
         print(f" • {icon} {st.get('track_name')} [{st.get('badge')}]: {st.get('title')}")
@@ -292,7 +292,7 @@ def main():
         print(f" • 🔴 {s['name']} ({s['ticker']}) | 현재가: {s['cur_price']} ➔ 권고 매도가: {s['sell_price']} [{s['type']}]")
 
     print("=" * 70)
-    print("🎉 6대 기능(슈카식 투트랙 딥다이브, 사후검증, 쿨다운, DART특수공시, 빅테크4대장, 실적표발췌) 적용 및 구글 드라이브 동기화가 완료되었습니다!")
+    print("🎉 6대 기능(심층 테마 리포트, 사후검증, 쿨다운, DART특수공시, 빅테크4대장, 실적표발췌) 적용 및 구글 드라이브 동기화가 완료되었습니다!")
 
 
 

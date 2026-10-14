@@ -45,6 +45,35 @@ class ResearchManager:
         # 불필요한 연속 공백 축소
         return re.sub(r'\s+', ' ', text)
 
+    @staticmethod
+    def _extract_complete_sentences(raw_text: str, max_sentences: int = 3, max_chars: int = 350) -> str:
+        """글자 수 임의 절단(...) 없이 완결된 문장 단위로 마침표가 찍히는 완성형 요약문 추출"""
+        if not raw_text:
+            return ""
+        # 문장 단위 분리 (. ! ? 또는 다. 함. 음. 기준)
+        sentences = re.split(r'(?<=[.!?다함음])\s+', raw_text.strip())
+        complete = []
+        cur_chars = 0
+        for s in sentences:
+            s_clean = s.strip()
+            # 너무 짧거나 의미 없는 표 헤더 등 제외
+            if len(s_clean) < 15 or any(s_clean.startswith(prefix) for prefix in ["목표주가", "투자의견", "작성일", "발행일", "자료:"]):
+                continue
+            # 마침표 보정
+            if not s_clean.endswith(('.', '!', '?')):
+                s_clean += '.'
+            complete.append(s_clean)
+            cur_chars += len(s_clean)
+            if len(complete) >= max_sentences or cur_chars >= max_chars:
+                break
+
+        if complete:
+            return " ".join(complete)
+        trimmed = raw_text[:250].strip()
+        if trimmed and not trimmed.endswith('.'):
+            trimmed += '.'
+        return trimmed
+
     def fetch_candidate_reports(self) -> list:
         """최신 30개 후보 리포트 목록 및 세부 정보 수집"""
         candidates = []
@@ -82,6 +111,9 @@ class ResearchManager:
                     attach_url = content_info.get("attachUrl", "")
                     raw_content = content_info.get("content", "")
                     clean_content = self._clean_html(raw_content)
+                    complete_summary = self._extract_complete_sentences(clean_content)
+                    if not complete_summary:
+                        complete_summary = f"{broker}에서 발행한 {item_name} 관련 공식 기업 분석 리포트입니다."
 
                     # 목표주가 및 투자의견
                     target_price = content_info.get("targetPrice") or item.get("targetPrice")
@@ -95,7 +127,7 @@ class ResearchManager:
                         "write_date": write_date,
                         "read_count": read_count,
                         "attach_url": attach_url,
-                        "summary_text": clean_content[:300] if clean_content else f"{broker} 공식 분석 리포트",
+                        "summary_text": complete_summary,
                         "target_price": target_price,
                         "opinion": opinion or "BUY",
                     })

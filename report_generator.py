@@ -148,25 +148,26 @@ class ReportGenerator:
                 disc_cols = [c for c in ["공시구분", "공시배지", "관련기업", "공시제목", "영향전망", "언론사", "공시일시", "링크"] if c in df_disc.columns]
                 df_disc[disc_cols].to_excel(writer, sheet_name="특수공시_DART_KIND", index=False)
 
-            # 시트 8: 🎙️ 오늘의 투 트랙 딥다이브 (경제·사회 & 트렌드·유행)
+            # 시트 8: 📌 오늘의 심층 테마 리포트 (경제·사회 & 트렌드·소비)
             if story_dive_data and story_dive_data.get("stories"):
                 story_rows = []
                 for s in story_dive_data["stories"]:
                     story_rows.append({
                         "트랙구분": s.get("track_name", ""),
                         "배지": s.get("badge", ""),
-                        "스토리제목": s.get("title", ""),
+                        "리포트제목": s.get("title", ""),
                         "핵심키워드": s.get("entity", ""),
-                        "도입부훅": s.get("hook", ""),
-                        "1막_발단현상": s.get("stage1", ""),
-                        "2막_과거시초타임라인": s.get("stage2", ""),
-                        "3막_이면의속셈과심리": s.get("stage3", ""),
-                        "4막_파장과미래변화": s.get("stage4", ""),
+                        "핵심요약": s.get("hook", ""),
+                        "1_이슈개요_및_현황": s.get("stage1", ""),
+                        "2_발단_및_누적타임라인": s.get("stage2", ""),
+                        "3_이면의구조_및_이해관계": s.get("stage3", ""),
+                        "4_시장파장_및_향후전망": s.get("stage4", ""),
+                        "핵심용어사전": s.get("term_tip", ""),
                         "언론사/출처": s.get("source", ""),
                         "원문링크": s.get("link", ""),
                     })
                 df_story = pd.DataFrame(story_rows)
-                df_story.to_excel(writer, sheet_name="오늘의_스토리_딥다이브", index=False)
+                df_story.to_excel(writer, sheet_name="오늘의_심층_리포트", index=False)
 
             self._style_workbook(writer.book)
 
@@ -322,7 +323,7 @@ class ReportGenerator:
                 old_df = master_dfs["시장지표_누적"]
                 old_df = old_df[old_df["일자"] != date_str]
                 master_dfs["시장지표_누적"] = pd.concat([old_df, today_market_df], ignore_index=True)
-        # 8. 스토리 딥다이브 누적
+        # 8. 심층 테마 리포트 누적
         if story_dive_data and story_dive_data.get("stories"):
             s_rows = []
             for s in story_dive_data["stories"]:
@@ -330,23 +331,24 @@ class ReportGenerator:
                     "수집일자": date_str,
                     "트랙구분": s.get("track_name", ""),
                     "배지": s.get("badge", ""),
-                    "스토리제목": s.get("title", ""),
+                    "리포트제목": s.get("title", ""),
                     "핵심키워드": s.get("entity", ""),
-                    "도입부훅": s.get("hook", ""),
-                    "1막_발단현상": s.get("stage1", ""),
-                    "2막_과거시초타임라인": s.get("stage2", ""),
-                    "3막_이면의속셈과심리": s.get("stage3", ""),
-                    "4막_파장과미래변화": s.get("stage4", ""),
+                    "핵심요약": s.get("hook", ""),
+                    "1_이슈개요_및_현황": s.get("stage1", ""),
+                    "2_발단_및_누적타임라인": s.get("stage2", ""),
+                    "3_이면의구조_및_이해관계": s.get("stage3", ""),
+                    "4_시장파장_및_향후전망": s.get("stage4", ""),
+                    "핵심용어사전": s.get("term_tip", ""),
                     "언론사/출처": s.get("source", ""),
                     "원문링크": s.get("link", ""),
                 })
             today_story_df = pd.DataFrame(s_rows)
-            if "스토리딥다이브_누적" in master_dfs:
-                old_df = master_dfs["스토리딥다이브_누적"]
+            if "심층리포트_누적" in master_dfs:
+                old_df = master_dfs["심층리포트_누적"]
                 old_df = old_df[old_df["수집일자"] != date_str]
-                master_dfs["스토리딥다이브_누적"] = pd.concat([old_df, today_story_df], ignore_index=True)
+                master_dfs["심층리포트_누적"] = pd.concat([old_df, today_story_df], ignore_index=True)
             else:
-                master_dfs["스토리딥다이브_누적"] = today_story_df
+                master_dfs["심층리포트_누적"] = today_story_df
 
         with pd.ExcelWriter(self.master_file, engine="openpyxl") as writer:
             for sheet_name, df in master_dfs.items():
@@ -420,11 +422,11 @@ class ReportGenerator:
                 "",
             ])
 
-        # 🎙️ 오늘의 슈카식 투 트랙 딥다이브 (경제·사회 & 트렌드·유행)
+        # 📌 오늘의 심층 테마 리포트 (경제·사회 & 트렌드·소비)
         if story_dive_data and story_dive_data.get("stories"):
             lines.extend([
-                "## 🎙️ 오늘의 슈카식 투 트랙 딥다이브 (경제·사회 & 트렌드·유행)",
-                "> 단순한 뉴스 요약이 아닌, \"아! 이래서 그런 거였어\"와 \"요즘 왜 이게 유행할까?\"의 깊은 비하인드 스토리입니다.",
+                "## 📌 오늘의 심층 테마 리포트 (경제·사회 & 트렌드·소비)",
+                "> 단편적인 뉴스 요약이 아닌, 사건의 배경과 타임라인, 이면의 구조와 소비 심리를 짚어주는 미니 보고서입니다.",
                 "",
             ])
             for st in story_dive_data["stories"]:
@@ -434,10 +436,11 @@ class ReportGenerator:
                     f"#### **{st.get('title')}**",
                     f"> 💡 **핵심 관전 포인트**: {st.get('hook')}",
                     "",
-                    f"- 🎬 **1막 (발단/현상)**: {st.get('stage1')}",
-                    f"- ⏳ **2막 (과거/시초 타임라인)**: {st.get('stage2')}",
-                    f"- 🕵️ **3막 (이면의 속셈/소비심리)**: {st.get('stage3')}",
-                    f"- 🔮 **4막 (파장과 미래 변화)**: {st.get('stage4')}",
+                    f"- 📌 **1. [이슈 개요 및 현황]**: {st.get('stage1')}",
+                    f"- ⏳ **2. [발단과 누적 타임라인]**: {st.get('stage2')}",
+                    f"- 🕵️ **3. [이면의 구조와 이해관계 분석]**: {st.get('stage3')}",
+                    f"- 🔮 **4. [시장 파장과 향후 관전 포인트]**: {st.get('stage4')}",
+                    f"- 💡 **5. [1분 핵심 용어 사전]**: {st.get('term_tip', '')}",
                     f"- 🔗 **관련 출처 및 원문**: [{st.get('source')}]({st.get('link')})",
                     "",
                 ])
@@ -517,7 +520,7 @@ class ReportGenerator:
                 lines.append(
                     f"| **{r.get('item_name', '')}**<br>({r.get('broker', '')}) | **{tp_str}** | "
                     f"`{r.get('opinion', 'BUY')}` | {f_2026} | {f_2027} | "
-                    f"{ft.get('yoy_summary', '')[:50]}... | ⭐ {r.get('credibility_score', 0)}점 |"
+                    f"{ft.get('yoy_summary', '')} | ⭐ {r.get('credibility_score', 0)}점 |"
                 )
             lines.extend(["", "---", ""])
 
@@ -635,13 +638,17 @@ class ReportGenerator:
 
         category_picks = news_result.get("category_top_picks", {})
         for cat_name, items in category_picks.items():
-            lines.append(f"### 📌 [{cat_name}] ({len(items)}건)")
-            for it in items:
+            disp_items = items[:5]
+            lines.append(f"### 📌 [{cat_name}] (주요 뉴스 {len(disp_items)}건)")
+            for idx, it in enumerate(disp_items, 1):
                 link = it.get("링크") or it.get("link", "")
                 tag = f"`{it['상태']}` " if "집중" in it["상태"] else ""
-                lines.append(f"- {tag}**[{it['기사제목']}]({link})** ({it['언론사']})")
-                if it.get("요약내용") and "집중" in it["상태"]:
-                    lines.append(f"  > {it['요약내용']}")
+                if idx == 1:
+                    lines.append(f"- 🥇 {tag}**[{it['기사제목']}]({link})** ({it['언론사']})")
+                    if it.get("요약내용"):
+                        lines.append(f"  > 💡 {it['요약내용']}")
+                else:
+                    lines.append(f"- {idx}. {tag}[{it['기사제목']}]({link}) ({it['언론사']})")
             lines.append("")
 
         with open(file_path, "w", encoding="utf-8") as f:
