@@ -11,6 +11,13 @@
  *    매일 아침 일자별 데이터가 구글 드라이브 '데일리_브리핑_수집' 폴더에 누적/축적되어 저장됩니다!
  */
 
+function doGet(e) {
+  return ContentService.createTextOutput(JSON.stringify({
+    status: "online",
+    message: "구글 드라이브 동기화 웹앱이 정상 작동 중입니다!"
+  })).setMimeType(ContentService.MimeType.JSON);
+}
+
 function doPost(e) {
   try {
     const data = JSON.parse(e.postData.contents);
