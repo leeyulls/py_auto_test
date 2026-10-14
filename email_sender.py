@@ -255,43 +255,57 @@ class EmailSender:
         perf_html = ""
         if performance_data and performance_data.get("summary"):
             s = performance_data["summary"]
-            rec_rows = ""
-            for r in performance_data.get("records", [])[:5]:
-                res_col = "#16A34A" if "달성" in r.get("검증결과", "") else ("#DC2626" if "손절" in r.get("검증결과", "") else "#2563EB")
-                rec_rows += f"""
-                <tr style="border-bottom: 1px solid #E2E8F0;">
-                    <td style="padding: 6px 8px; font-size: 11px;">{r.get('추천일자')}</td>
-                    <td style="padding: 6px 8px; font-size: 12px; font-weight: bold;">{r.get('종목명')}</td>
-                    <td style="padding: 6px 8px; font-size: 11px; color: #475569;">{r.get('매수추천가')} ➔ {r.get('목표매도가')}</td>
-                    <td style="padding: 6px 8px; font-size: 11px; font-weight: bold; color: {res_col};">{r.get('검증결과')}</td>
-                    <td style="padding: 6px 8px; font-size: 11px; font-weight: bold; text-align: right; color: {res_col};">{r.get('실현수익률')}</td>
-                    <td style="padding: 6px 8px; font-size: 11px; color: #64748B; text-align: center;">{r.get('소요일수')}</td>
-                </tr>
+            rec_cards = ""
+            for r in performance_data.get("records", [])[:6]:
+                res = r.get("검증결과", "")
+                if "달성" in res:
+                    badge_bg = "#DCFCE7"
+                    badge_fg = "#166534"
+                    res_col = "#16A34A"
+                elif "손절" in res:
+                    badge_bg = "#FEE2E2"
+                    badge_fg = "#991B1B"
+                    res_col = "#DC2626"
+                else:
+                    badge_bg = "#DBEAFE"
+                    badge_fg = "#1E40AF"
+                    res_col = "#2563EB"
+
+                rec_cards += f"""
+                <div style="background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 6px; padding: 10px 12px; margin-bottom: 8px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                        <div style="font-size: 13px; font-weight: bold; color: #0F172A;">
+                            🟢 {r.get('종목명')} <span style="font-size: 11px; color: #64748B; font-weight: normal;">({r.get('티커')})</span>
+                        </div>
+                        <span style="background: {badge_bg}; color: {badge_fg}; font-size: 11px; font-weight: bold; padding: 2px 8px; border-radius: 10px;">
+                            {res}
+                        </span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: #334155;">
+                        <div>👉 <b>추천:</b> {r.get('매수추천가')} ➔ <b>목표:</b> <span style="color: #1E40AF; font-weight: bold;">{r.get('목표매도가')}</span></div>
+                        <div style="font-weight: bold; color: {res_col}; font-size: 13px;">{r.get('실현수익률')}</div>
+                    </div>
+                    <div style="font-size: 11px; color: #94A3B8; margin-top: 4px;">
+                        📅 추천일: {r.get('추천일자')} &nbsp;|&nbsp; ⏱️ {r.get('소요일수')} &nbsp;|&nbsp; 📈 최고도달가: {r.get('최고도달가')}
+                    </div>
+                </div>
                 """
             perf_html = f"""
             <div style="background: #F8FAFC; border: 2px solid #3B82F6; border-radius: 8px; padding: 14px; margin-bottom: 24px;">
                 <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #CBD5E1; padding-bottom: 8px; margin-bottom: 10px;">
-                    <div style="font-size: 15px; font-weight: bold; color: #1E3A8A;">🎯 AI 추천 종목 사후 검증(Backtesting) & 누적 적중률</div>
+                    <div style="font-size: 15px; font-weight: bold; color: #1E3A8A;">🎯 AI 추천 종목 사후 검증(Backtesting) & 누적 승률</div>
                     <div style="background: #1E3A8A; color: #FFFFFF; font-weight: bold; padding: 3px 10px; border-radius: 12px; font-size: 12px;">누적 승률: {s.get('win_rate', 0)}%</div>
                 </div>
                 <div style="margin-bottom: 10px; font-size: 12px; color: #334155; line-height: 1.6;">
                     📊 <b>검증 총계:</b> {s.get('total_picks', 0)}건 &nbsp;|&nbsp; 
                     🎯 <b>목표가 달성:</b> <span style="color: #16A34A; font-weight: bold;">{s.get('success_count', 0)}건</span> &nbsp;|&nbsp; 
                     🛑 <b>손절:</b> <span style="color: #DC2626; font-weight: bold;">{s.get('stoploss_count', 0)}건</span> &nbsp;|&nbsp; 
-                    ⏳ <b>진행 중:</b> {s.get('holding_count', 0)}건 &nbsp;|&nbsp; 
+                    ⏳ <b>목표가 추적 중:</b> {s.get('holding_count', 0)}건 &nbsp;|&nbsp; 
                     💰 <b>평균 수익률:</b> <span style="color: #2563EB; font-weight: bold;">{s.get('avg_return', 0.0):+.2f}%</span>
                 </div>
-                <table style="width: 100%; border-collapse: collapse; background: #FFFFFF; border-radius: 4px; overflow: hidden;">
-                    <tr style="background: #F1F5F9; color: #475569; font-size: 11px; font-weight: bold; text-align: left;">
-                        <th style="padding: 6px 8px;">추천일</th>
-                        <th style="padding: 6px 8px;">종목</th>
-                        <th style="padding: 6px 8px;">추천가 ➔ 목표가</th>
-                        <th style="padding: 6px 8px;">검증 상태</th>
-                        <th style="padding: 6px 8px; text-align: right;">수익률</th>
-                        <th style="padding: 6px 8px; text-align: center;">소요</th>
-                    </tr>
-                    {rec_rows}
-                </table>
+                <div style="margin-top: 8px;">
+                    {rec_cards}
+                </div>
             </div>
             """
 
@@ -305,16 +319,25 @@ class EmailSender:
                 badge = d.get("공시배지", "")
                 badge_bg = "#DCFCE7" if "자사주" in badge else ("#DBEAFE" if "내부자" in badge else ("#FEF3C7" if "수주" in badge else "#F3E8FF"))
                 badge_fg = "#166534" if "자사주" in badge else ("#1E40AF" if "내부자" in badge else ("#92400E" if "수주" in badge else "#6B21A8"))
+                action_badge = d.get("액션배지", "")
                 corp = d.get("관련기업") or "상장사"
+                strategy_html = ""
+                if d.get("투자전략"):
+                    strategy_html = f"""
+                    <div style="margin-top: 6px; background: #F8FAFC; border: 1px dashed #CBD5E1; padding: 6px 10px; border-radius: 4px; font-size: 11px; color: #0F172A; line-height: 1.5;">
+                        🎯 <b>투자자 실전 대응 전략:</b> <span style="background: {badge_bg}; color: {badge_fg}; font-weight: bold; padding: 1px 6px; border-radius: 3px; font-size: 10px; margin-right: 4px;">{action_badge}</span> {d.get('투자전략')}
+                    </div>
+                    """
                 d_cards += f"""
-                <div style="background: #FFFFFF; border: 1px solid #E2E8F0; border-left: 4px solid {badge_fg}; padding: 10px 12px; margin-bottom: 8px; border-radius: 6px;">
+                <div style="background: #FFFFFF; border: 1px solid #E2E8F0; border-left: 4px solid {badge_fg}; padding: 12px 14px; margin-bottom: 10px; border-radius: 6px;">
                     <div style="font-size: 13px; font-weight: bold; color: #1E293B;">
                         <span style="background: {badge_bg}; color: {badge_fg}; padding: 1px 6px; border-radius: 4px; font-size: 11px; margin-right: 6px;">{badge}</span>
                         <b>{corp}</b> | <a href="{d.get('링크')}" style="color: #1E293B; text-decoration: none;">{d.get('공시제목')}</a>
                     </div>
                     <div style="font-size: 12px; color: #475569; margin-top: 4px;">
-                        💡 <b>투자 시사점:</b> {d.get('영향전망')} <span style="color: #94A3B8; font-size: 11px;">({d.get('언론사')})</span>
+                        💡 <b>공시 영향:</b> {d.get('영향전망')} <span style="color: #94A3B8; font-size: 11px;">({d.get('언론사')})</span>
                     </div>
+                    {strategy_html}
                 </div>
                 """
             disclosures_html = f"""

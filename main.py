@@ -135,7 +135,7 @@ def main():
     print("\n[7/10] 🧠 주가 분석, 쿨다운 주기(동일종목 연속추천 방지) 및 미국 빅테크 4대장 산출 중...")
     advisor = StockAdvisor(usd_krw_rate=usd_rate)
     combined_news_for_analysis = general_news + market_news
-    stock_advice = advisor.analyze_universe(combined_news_for_analysis, usd_krw_rate=usd_rate)
+    stock_advice = advisor.analyze_universe(combined_news_for_analysis, usd_krw_rate=usd_rate, official_reports=official_reports)
 
     eval_count = len(stock_advice["all_evaluations"])
     today_buys = len(stock_advice["today_buy_picks"])
@@ -262,7 +262,7 @@ def main():
         print(f"    └─ 💡 {st.get('hook')}")
 
     print(f"\n🎯 [AI 추천 종목 사후 검증 결과 (Backtesting)]")
-    print(f" • 누적 승률: {p_sum.get('win_rate', 0)}% | 검증 건수: {p_sum.get('total_picks', 0)}건 (성공: {p_sum.get('success_count', 0)}건 / 손절: {p_sum.get('stoploss_count', 0)}건 / 보유: {p_sum.get('holding_count', 0)}건)")
+    print(f" • 누적 승률: {p_sum.get('win_rate', 0)}% | 검증 건수: {p_sum.get('total_picks', 0)}건 (성공: {p_sum.get('success_count', 0)}건 / 손절: {p_sum.get('stoploss_count', 0)}건 / 추적 중: {p_sum.get('holding_count', 0)}건)")
 
     print("\n🏛️ [금융감독원(DART) & KIND 핵심 특수 공시 하이라이트]")
     for d in special_disclosures[:3]:

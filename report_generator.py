@@ -454,7 +454,7 @@ class ReportGenerator:
                 "> 과거 시스템 추천 종목의 목표가 달성 및 손절 여부를 전수 추적한 사후 검증 결과입니다.",
                 "",
                 f"- 🏆 **누적 적중률 (Win Rate)**: **{s.get('win_rate', 0)}%**",
-                f"- 📊 **검증 모수**: 총 {s.get('total_picks', 0)}건 (목표가 달성: **{s.get('success_count', 0)}건** | 손절 터치: {s.get('stoploss_count', 0)}건 | 보유 진행 중: {s.get('holding_count', 0)}건)",
+                f"- 📊 **검증 모수**: 총 {s.get('total_picks', 0)}건 (목표가 달성: **{s.get('success_count', 0)}건** | 손절 터치: {s.get('stoploss_count', 0)}건 | 목표가 추적 중: {s.get('holding_count', 0)}건)",
                 f"- 💰 **평균 수익률**: **{s.get('avg_return', 0.0):+.2f}%**",
                 "",
                 "| 추천일자 | 종목명 (티커) | 매수 추천가 | 목표 매도가 | 검증 결과 | 실현 수익률 | 소요 일수 |",
@@ -471,16 +471,18 @@ class ReportGenerator:
         if special_disclosures:
             lines.extend([
                 "## 🏛️ 2. 금융감독원(DART) & KIND 기업 핵심 특수 공시 실시간 연동",
-                "> 자사주 취득/소각, 대주주 장내매수, 대규모 수주계약, 무상증자 등 기업 가치 급변 요인 공시입니다.",
+                "> 자사주 취득/소각, 대주주 장내매수, 대규모 수주계약, 무상증자 등 기업 가치 급변 요인 공시 및 투자자 실전 대응 전략입니다.",
                 "",
-                "| 공시 분류 | 기업명 | 공시 핵심 내용 | 시장 영향 및 시사점 | 출처 |",
+                "| 공시 분류 | 기업명 | 공시 핵심 내용 | 투자자 실전 대응 전략 | 출처 |",
                 "| :--- | :--- | :--- | :--- | :--- |",
             ])
             for d in special_disclosures[:6]:
                 corp = d.get('관련기업') or "주요상장사"
+                act_badge = f"`{d.get('액션배지')}` " if d.get('액션배지') else ""
+                strat = f"{act_badge}{d.get('투자전략', d.get('영향전망', ''))}"
                 lines.append(
                     f"| `{d.get('공시배지')}` | **{corp}** | [{d.get('공시제목')}]({d.get('링크')}) | "
-                    f"{d.get('영향전망')} | {d.get('언론사')} |"
+                    f"{strat} | {d.get('언론사')} |"
                 )
             lines.extend(["", "---", ""])
 

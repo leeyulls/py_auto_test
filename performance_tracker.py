@@ -131,7 +131,7 @@ class PerformanceTracker:
                     "매수추천가": str(row.get("매수_추천금액")),
                     "목표매도가": str(row.get("목표_매도금액")),
                     "손절기준가": str(row.get("손절_기준가")),
-                    "검증결과": "⏳ 진행 중 (당일 포지션 구축)",
+                    "검증결과": "⏳ 목표가 추적 중 (신규 진입)",
                     "실현수익률": f"{cur_return:+.1f}%",
                     "최고도달가": close_str,
                     "소요일수": "1일차",
@@ -170,7 +170,7 @@ class PerformanceTracker:
                 realized_return = ((stop_loss - buy_price) / buy_price) * 100
                 days_str = f"{stop_day_idx}일차"
             else:
-                status = "⏳ 진행 중 (보유 중)"
+                status = "⏳ 목표가 추적 중"
                 status_code = "HOLDING"
                 realized_return = ((latest_close - buy_price) / buy_price) * 100
                 days_str = f"{len(eval_candles)}일 경과"

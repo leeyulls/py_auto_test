@@ -73,8 +73,8 @@ class StockAdvisor:
             rounded = round(price)
         return f"{int(rounded):,}원"
 
-    def analyze_universe(self, news_list: list, usd_krw_rate: float = None) -> dict:
-        """관심 유니버스 전체를 대상으로 기술적 지표, 뉴스 모멘텀, 쿨다운 주기 결합 분석 및 매수가/매도가 산출"""
+    def analyze_universe(self, news_list: list, usd_krw_rate: float = None, official_reports: list = None) -> dict:
+        """관심 유니버스 + 증권사 공식 Top 리포트 종목을 결합하여 기술적 지표, 뉴스 모멘텀, 쿨다운 주기 결합 분석 및 매수가/매도가 산출"""
         if usd_krw_rate:
             self.usd_krw_rate = usd_krw_rate
         matched_news_dict = match_stocks_from_news(news_list)
@@ -85,7 +85,30 @@ class StockAdvisor:
         longterm_buy_list = []
         sell_warning_list = []
 
-        for stock in STOCK_UNIVERSE:
+        # 1. 기본 유니버스 + 공식 증권사 리포트 추천주 동적 결합
+        candidate_universe = list(STOCK_UNIVERSE)
+        existing_tickers = {s["ticker"] for s in candidate_universe}
+        report_map = {}
+
+        if official_reports:
+            for rep in official_reports:
+                r_ticker = rep.get("ticker")
+                if not r_ticker and rep.get("item_code"):
+                    r_ticker = f"{rep['item_code']}.KS"
+                if not r_ticker:
+                    continue
+                report_map[r_ticker] = rep
+                if r_ticker not in existing_tickers:
+                    candidate_universe.append({
+                        "ticker": r_ticker,
+                        "name": rep.get("item_name", "기업"),
+                        "sector": "증권사 공식리서치",
+                        "keywords": [rep.get("item_name", "")],
+                        "from_report": True
+                    })
+                    existing_tickers.add(r_ticker)
+
+        for stock in candidate_universe:
             ticker = stock["ticker"]
             tech = self.analyzer.fetch_stock_data(ticker)
             if not tech:
@@ -110,8 +133,15 @@ class StockAdvisor:
             recent_high = tech["recent_high"]
             recent_low = tech["recent_low"]
 
+            # 증권사 공식 리포트 메타데이터 확인
+            rep_meta = report_map.get(ticker)
+            target_p = rep_meta.get("target_price") if rep_meta else None
+            rep_broker = rep_meta.get("broker", "증권사") if rep_meta else ""
+            rep_opinion = str(rep_meta.get("opinion", "BUY")).upper() if rep_meta else "BUY"
+            rep_upside = ((target_p - cur_p) / cur_p * 100) if (target_p and cur_p) else 0.0
+
             # -------------------------------------------------------------
-            # 1. 단기 매매 판정 (오늘의 매수 vs 매도)
+            # 1. 단기 매매 판정 (오늘의 매수 vs 매도 - 하이브리드 매트릭스)
             # -------------------------------------------------------------
             short_signal = "관망 (HOLD)"
             short_reason = "중립 구간 유지 중"
@@ -121,28 +151,43 @@ class StockAdvisor:
             calc_sell_price = cur_p * 1.05
             calc_stop_loss = cur_p * 0.96
 
-            # 단기 매수 조건
-            if (rsi <= 38 or disp <= -5.0) and sentiment >= 0:
-                short_signal = "🟢 오늘 단기 매수 (저점 반등)"
-                short_reason = f"RSI {rsi}로 단기 과매도 구간 진입, 기술적 반등 노림"
-                # 매수 추천가: 현재가 ~ -1.5% 분할 매수선
-                calc_buy_price = cur_p * 0.99
-                # 목표 매도가: 20일선 복귀 또는 +6~8% 목표
-                calc_sell_price = max(cur_p * 1.06, ma20 * 0.98)
-                calc_stop_loss = cur_p * 0.965
-            elif (disp >= -2.0 and disp <= 3.0) and sentiment >= 1:
-                short_signal = "🟢 오늘 단기 매수 (뉴스 모멘텀)"
-                short_reason = "20일선 안착 중 호재성 뉴스 모멘텀 발생"
-                calc_buy_price = cur_p
-                calc_sell_price = cur_p * 1.07
-                calc_stop_loss = cur_p * 0.96
-            # 단기 매도/익절 조건
-            elif rsi >= 70 or disp >= 7.0:
-                short_signal = "🔴 오늘 단기 매도 (과열 차익실현)"
-                short_reason = f"RSI {rsi}, 20일선 이격도 {disp:+.1f}%로 단기 과열권, 분할 차익 실현 권고"
-                calc_buy_price = ma20  # 매수 보류, 20일선까지 조정 시 매수
-                calc_sell_price = cur_p  # 즉시 분할 매도
-                calc_stop_loss = cur_p * 0.98
+            # A. 증권사 공식 리포트 결합 하이브리드 판정
+            if rep_meta and target_p and rep_upside >= 10.0 and ("BUY" in rep_opinion or "매수" in rep_opinion):
+                if rsi <= 62 and disp <= 5.0:
+                    # 건전한 눌림목 / 안정적 진입 구간 ➔ 적극 추천!
+                    short_signal = "🟢 오늘 단기 매수 (공식 리포트 + 기술적 눌림목)"
+                    short_reason = f"[{rep_broker}] 공인 목표가 {int(target_p):,}원(상승여력 +{rep_upside:.1f}%) 제시 및 RSI {rsi}로 과열 없는 건전한 매수 구간"
+                    calc_buy_price = cur_p * 0.99
+                    calc_sell_price = min(cur_p * 1.09, target_p * 0.95)
+                    calc_stop_loss = cur_p * 0.96
+                elif rsi >= 70 or disp >= 7.0:
+                    # 리포트는 매수이나 주가가 이미 단기 폭등한 상태 ➔ 과열 경고 (고점 매수 함정 방지)
+                    short_signal = "🔴 단기 과열 주의 (리포트 호재 선반영)"
+                    short_reason = f"[{rep_broker}] 목표가 {int(target_p):,}원 제시되었으나 RSI {rsi}, 이격도 {disp:+.1f}%로 단기 과열권. 고점 추격매수 금지 및 눌림목(20일선) 조정 시 접근 권고"
+                    calc_buy_price = ma20
+                    calc_sell_price = cur_p
+                    calc_stop_loss = cur_p * 0.98
+
+            # B. 기술적 지표 & 뉴스 모멘텀 판정 (리포트 신호 미발생 시)
+            if short_signal == "관망 (HOLD)":
+                if (rsi <= 38 or disp <= -5.0) and sentiment >= 0:
+                    short_signal = "🟢 오늘 단기 매수 (저점 반등)"
+                    short_reason = f"RSI {rsi}로 단기 과매도 구간 진입, 기술적 반등 노림"
+                    calc_buy_price = cur_p * 0.99
+                    calc_sell_price = max(cur_p * 1.06, ma20 * 0.98)
+                    calc_stop_loss = cur_p * 0.965
+                elif (disp >= -2.0 and disp <= 3.0) and sentiment >= 1:
+                    short_signal = "🟢 오늘 단기 매수 (뉴스 모멘텀)"
+                    short_reason = "20일선 안착 중 호재성 뉴스 모멘텀 발생"
+                    calc_buy_price = cur_p
+                    calc_sell_price = cur_p * 1.07
+                    calc_stop_loss = cur_p * 0.96
+                elif rsi >= 70 or disp >= 7.0:
+                    short_signal = "🔴 오늘 단기 매도 (과열 차익실현)"
+                    short_reason = f"RSI {rsi}, 20일선 이격도 {disp:+.1f}%로 단기 과열권, 분할 차익 실현 권고"
+                    calc_buy_price = ma20
+                    calc_sell_price = cur_p
+                    calc_stop_loss = cur_p * 0.98
             elif sentiment <= -1 and ret5 <= -4.0:
                 short_signal = "🔴 단기 비중 축소 (악재 주의)"
                 short_reason = "악재 보도 및 5일 연속 약세로 단기 추가 하락 위험"

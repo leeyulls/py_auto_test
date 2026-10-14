@@ -16,6 +16,13 @@ class NewsCollector:
     def __init__(self, history_mgr=None):
         self.history_mgr = history_mgr
 
+    COMMON_STOPWORDS = {
+        "속보", "단독", "종합", "포토", "영상", "오늘", "내일", "결국", "최근", "올해", "지난해",
+        "이유", "이후", "왜", "논란", "충격", "발표", "주장", "전망", "시장", "정부", "국내",
+        "기업", "글로벌", "대표", "개최", "특강", "사진", "게시판", "행사", "인사", "부고", "동정",
+        "관련", "대해", "통해", "위해", "이번", "다시", "주요", "진행", "예정"
+    }
+
     @staticmethod
     def _clean_html(text: str) -> str:
         """HTML 태그 및 특수문자 엔티티 정리"""
@@ -24,27 +31,78 @@ class NewsCollector:
         clean = re.sub(r"<.*?>", "", text)
         return html.unescape(clean).strip()
 
-    @staticmethod
-    def _extract_keywords(title: str) -> list:
+    @classmethod
+    def _extract_keywords(cls, title: str) -> list:
         """기사 제목에서 핵심 2음절 이상 명사/키워드 추출"""
         t = re.sub(r"\[.*?\]|\(.*?\)|<.*?>", " ", title)
         t = re.sub(r"[^가-힣a-zA-Z0-9\s]", " ", t)
-        stopwords = {"속보", "단독", "종합", "포토", "영상", "오늘", "내일", "결국", "최근", "올해", "지난해", "이유", "이후"}
-        words = [w for w in t.split() if len(w) >= 2 and w not in stopwords]
+        words = [w for w in t.split() if len(w) >= 2 and w not in cls.COMMON_STOPWORDS]
         return words
 
-    @staticmethod
-    def _is_similar_headline(title1: str, title2: str, threshold: float = 0.5) -> bool:
-        """두 기사 제목 간의 키워드 자카드 유사도(Jaccard Similarity) 계산하여 겹치는 뉴스 판별"""
+    @classmethod
+    def _extract_distinct_entities(cls, title: str) -> list:
+        """기사 제목에서 인물명(3음절), 특정 기업/핵심 고유명사 엔티티 추출"""
+        clean = re.sub(r"\[.*?\]|\(.*?\)|<.*?>|['\"“”‘’]", " ", title)
+        tokens = [w for w in re.split(r"[\s,·…]+", clean) if len(w) >= 2 and w not in cls.COMMON_STOPWORDS]
+        entities = []
+        for tok in tokens:
+            # 3글자 한국인 인명 패턴 (예: 김지용, 이재명, 윤석열, 한동훈, 최태원, 정의선 등)
+            if re.fullmatch(r"[가-힣]{3}", tok) and tok not in ["대통령", "국정원", "검찰청", "금리인", "반도체", "현대차", "위원장", "총괄장", "사무관"]:
+                entities.append(tok)
+            # 4글자 이상의 명확한 고유명사 (예: 포스코홀딩스, 오픈AI 등)
+            elif len(tok) >= 4:
+                entities.append(tok)
+        return list(set(entities))
+
+    @classmethod
+    def _clean_informative_summary(cls, raw_summary: str, title: str) -> str:
+        """기사 요약에서 언론사/기자/특수문자 잡음을 완벽히 제거하고 유의미한 완결 문장 생성"""
+        if not raw_summary:
+            return f"{title}에 대한 현황과 주요 쟁점을 다룬 보도입니다."
+
+        text = cls._clean_html(raw_summary)
+        # 잡음 패턴 정규식 제거
+        text = re.sub(r"\[.*?\]|\(.*?\)", " ", text)
+        text = re.sub(r"^[가-힣a-zA-Z\s]+기자\s*=\s*", "", text)
+        text = re.sub(r"[가-힣a-zA-Z\s]+기자\s*", "", text)
+        text = re.sub(r"\b(서울|세종|부산|뉴욕|워싱턴|도쿄|베이징)=뉴스[1원]|뉴시스|연합뉴스|이데일리|머니투데이|헤럴드경제|한국경제|매일경제\b", "", text)
+        text = re.sub(r"무단전재.*", "", text)
+        text = re.sub(r"\s+", " ", text).strip()
+
+        # 온전한 20자 이상 문장 탐색
+        raw_sentences = re.split(r'(?<=[.!?다함음])\s+', text)
+        good_sentences = []
+        for s in raw_sentences:
+            s_clean = s.strip()
+            if len(s_clean) >= 20 and not any(junk in s_clean for junk in ["기자", "포토", "무단", "저작권"]):
+                if not s_clean.endswith(('.', '!', '?')):
+                    s_clean += '.'
+                good_sentences.append(s_clean)
+
+        if good_sentences:
+            return " ".join(good_sentences[:2])
+        if len(text) >= 20:
+            return text if text.endswith('.') else text + '.'
+        return f"{title}의 핵심 내용과 시장 반응을 분석한 보도입니다."
+
+    @classmethod
+    def _is_similar_headline(cls, title1: str, title2: str, threshold: float = 0.4) -> bool:
+        """두 기사 제목 간의 키워드 및 고유명사(엔티티) 공유 여부 판별"""
         if not title1 or not title2:
             return False
-        # [단독], [속보] 등 말머리 및 특수문자 정제
+
+        # 1. 특정 인명/핵심 엔티티(예: 김지용)가 둘 다 포함되어 있으면 동일 이슈로 판정
+        ent1 = set(cls._extract_distinct_entities(title1))
+        ent2 = set(cls._extract_distinct_entities(title2))
+        if ent1 and ent2 and ent1.intersection(ent2):
+            return True
+
+        # 2. 키워드 자카드 유사도 검사
         clean1 = re.sub(r"\[.*?\]|\(.*?\)|<.*?>|['\"“”‘’]", " ", title1)
         clean2 = re.sub(r"\[.*?\]|\(.*?\)|<.*?>|['\"“”‘’]", " ", title2)
 
-        stopwords = {"오늘", "결국", "왜", "논란", "충격", "발표", "주장", "전망", "최근", "올해", "지난해"}
-        words1 = set([w for w in clean1.split() if len(w) >= 2 and w not in stopwords])
-        words2 = set([w for w in clean2.split() if len(w) >= 2 and w not in stopwords])
+        words1 = set([w for w in clean1.split() if len(w) >= 2 and w not in cls.COMMON_STOPWORDS])
+        words2 = set([w for w in clean2.split() if len(w) >= 2 and w not in cls.COMMON_STOPWORDS])
 
         if not words1 or not words2:
             return False
@@ -53,14 +111,14 @@ class NewsCollector:
         union = words1.union(words2)
         similarity = len(intersection) / len(union)
 
-        # 교집합 단어가 3개 이상이거나 자카드 유사도가 임계치 이상이면 동일 이슈/중복 기사로 판정
-        if len(intersection) >= 3 or similarity >= threshold:
+        # 2개 이상 중요 단어가 겹치거나 자카드 유사도 충족 시 중복
+        if len(intersection) >= 2 or similarity >= threshold:
             return True
         return False
 
     def collect_all_categories(self, limit_per_feed=15, top_n_per_category=8) -> dict:
         """
-        7대 분야별 뉴스 수집 (분야별 최소 3~10건 수집 보장 및 중복 기사 필터링)
+        7대 분야별 뉴스 수집 (Global Entity Cap 및 뉴스 임팩트 스코어링 적용)
         """
         raw_articles = []
         collected_links = set()
@@ -83,19 +141,18 @@ class NewsCollector:
                             clean_title = parts[0].strip()
                             source = parts[1].strip()
 
-                        summary = self._clean_html(entry.get("summary", ""))
-                        if not summary:
-                            summary = clean_title
+                        summary = self._clean_informative_summary(entry.get("summary", ""), clean_title)
 
                         collected_links.add(link)
                         raw_articles.append({
                             "분야": category,
                             "기사제목": clean_title,
-                            "요약내용": summary[:160] + "..." if len(summary) > 160 else summary,
+                            "요약내용": summary,
                             "언론사": source,
                             "링크": link,
                             "발행일시": entry.get("published", datetime.datetime.now().strftime("%Y-%m-%d")),
                             "keywords": self._extract_keywords(clean_title),
+                            "entities": self._extract_distinct_entities(clean_title),
                             "feed_rank": rank_idx,
                         })
                 except Exception as e:
@@ -106,6 +163,11 @@ class NewsCollector:
         for art in raw_articles:
             for kw in art["keywords"]:
                 keyword_media_map[kw].add(art["언론사"])
+
+        # 뉴스 임팩트 스코어링 (Impact Scoring Model)
+        major_media = {"한국경제", "매일경제", "연합뉴스", "조선일보", "중앙일보", "동아일보", "KBS", "SBS", "MBC", "YTN", "JTBC", "서울경제"}
+        hard_news_terms = {"금리", "관세", "환율", "수출", "물가", "실적", "영업이익", "M&A", "인수", "공급계약", "수주", "제재", "법안", "정책", "규제", "긴급"}
+        gossip_terms = {"포토", "인터뷰", "결혼", "이혼", "열애", "부고", "인사", "동정", "화보", "출국", "입국", "패션"}
 
         for art in raw_articles:
             max_media_count = 1
@@ -120,6 +182,16 @@ class NewsCollector:
             art["media_count"] = max_media_count
             art["is_clustered"] = (max_media_count >= 3)
             art["clustered_kws"] = list(set(clustered_kws))
+
+            # 임팩트 스코어 계산
+            score = max_media_count * 10
+            if any(term in art["기사제목"] for term in hard_news_terms):
+                score += 30
+            if any(media in art["언론사"] for media in major_media):
+                score += 15
+            if any(term in art["기사제목"] for term in gossip_terms):
+                score -= 40
+            art["impact_score"] = score
 
         # 중복 및 연결 이슈 필터링
         filtered_articles = []
@@ -141,33 +213,45 @@ class NewsCollector:
             art["연결된전일이슈"] = conn_title
             filtered_articles.append(art)
 
-        # 분야별 정렬 (1순위 언론사 집중도, 2순위 랭킹순)
+        # 분야별 정렬 (임팩트 스코어 ➔ 언론사 집중도 ➔ 피드 순위)
         categorized_articles = collections.defaultdict(list)
         for art in filtered_articles:
             categorized_articles[art["분야"]].append(art)
 
-        # 분야별 상위 N건 리스트 추출 (제목 유사도 중복 기사 전면 제거)
+        # 분야별 상위 N건 리스트 추출 (Global Entity Cap & 유사도 중복 전면 제거)
         category_top_picks = {}
         all_picked_titles = []
+        global_entity_counts = collections.defaultdict(int)
+
         for cat, items in categorized_articles.items():
-            items.sort(key=lambda x: (x["media_count"], -x["feed_rank"]), reverse=True)
+            items.sort(key=lambda x: (x["impact_score"], x["media_count"], -x["feed_rank"]), reverse=True)
             unique_items = []
             for item in items:
                 t = item["기사제목"]
-                # 1) 현재 분야 내 이미 선별된 기사와 겹치는지 검사
+                ents = item.get("entities", [])
+
+                # 1) Global Entity Cap: 특정 인물/엔티티가 전체 브리핑에서 이미 노출된 경우 배제 (최대 1건)
+                if any(global_entity_counts[e] >= 1 for e in ents):
+                    continue
+
+                # 2) 현재 분야 내 이미 선별된 기사와 유사도 검사
                 if any(self._is_similar_headline(t, picked["기사제목"]) for picked in unique_items):
                     continue
-                # 2) 타 분야에 이미 메인으로 선정된 기사와 중복인지 검사
+
+                # 3) 타 분야에 이미 메인으로 선정된 기사와 중복 여부 검사
                 if any(self._is_similar_headline(t, prev_t) for prev_t in all_picked_titles):
                     continue
 
                 unique_items.append(item)
                 all_picked_titles.append(t)
+                for e in ents:
+                    global_entity_counts[e] += 1
+
                 if len(unique_items) >= top_n_per_category:
                     break
             category_top_picks[cat] = unique_items
 
-        all_sorted = sorted(filtered_articles, key=lambda x: x["media_count"], reverse=True)
+        all_sorted = sorted(filtered_articles, key=lambda x: (x["impact_score"], x["media_count"]), reverse=True)
         mega_issue = all_sorted[0] if (all_sorted and all_sorted[0]["media_count"] >= 3) else None
 
         return {

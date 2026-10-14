@@ -118,11 +118,14 @@ class ResearchManager:
                     # 목표주가 및 투자의견
                     target_price = content_info.get("targetPrice") or item.get("targetPrice")
                     opinion = content_info.get("opinion") or item.get("opinion")
+                    item_code = item.get("itemCode", "").strip()
 
                     candidates.append({
                         "id": r_id,
                         "broker": broker,
                         "item_name": item_name,
+                        "item_code": item_code,
+                        "ticker": f"{item_code}.KS" if item_code else "",
                         "title": title,
                         "write_date": write_date,
                         "read_count": read_count,

@@ -16,11 +16,12 @@ class StoryDiveEngine:
     """오늘의 심층 테마 리포트 생성 엔진 (구 StoryDiveEngine)"""
     def __init__(self, history_mgr=None):
         self.history_mgr = history_mgr
-        self.trend_feed_url = (
-            "https://news.google.com/rss/search?q="
-            + quote("품절대란 OR 오픈런 OR \"유행 열풍\" OR \"신상품 화제\" OR \"소비 트렌드\" OR 팝업스토어")
-            + "&hl=ko&gl=KR&ceid=KR:ko"
-        )
+        # 트렌드 검색 범위를 라이프스타일, F&B, 팝업, 역주행, 디토소비, 숏폼 등 전방위로 대폭 확장
+        self.trend_feeds = [
+            "https://news.google.com/rss/search?q=" + quote("품절대란 OR 오픈런 OR \"유행 열풍\" OR \"신상품 화제\" OR \"소비 트렌드\" OR 팝업스토어") + "&hl=ko&gl=KR&ceid=KR:ko",
+            "https://news.google.com/rss/search?q=" + quote('"MZ세대" OR "핫플" OR "입소문" OR "신드롬" OR "대세" OR "SNS 화제" OR "역주행" OR "디토 소비"') + "&hl=ko&gl=KR&ceid=KR:ko",
+            "https://news.google.com/rss/search?q=" + quote('"소비자 열광" OR "완판" OR "품귀" OR "줄서는" OR "인기 폭발" OR "바이럴 마케팅" OR "디저트 열풍"') + "&hl=ko&gl=KR&ceid=KR:ko"
+        ]
 
     @staticmethod
     def _clean_text(raw_html: str) -> str:
@@ -46,32 +47,58 @@ class StoryDiveEngine:
                 sentences.append(s_clean)
         return sentences
 
-    def fetch_trend_candidates(self) -> list:
-        """트렌드/유행/신상품 특화 뉴스 후보 수집"""
-        candidates = []
-        try:
-            parsed = feedparser.parse(self.trend_feed_url)
-            for entry in parsed.entries[:15]:
-                raw_title = self._clean_text(entry.get("title", ""))
-                summary = self._clean_text(entry.get("summary", ""))
-                link = entry.get("link", "")
-                source = "트렌드포커스"
-                if " - " in raw_title:
-                    parts = raw_title.rsplit(" - ", 1)
-                    clean_title = parts[0].strip()
-                    source = parts[1].strip()
-                else:
-                    clean_title = raw_title
+    @classmethod
+    def _synthesize_clean_context(cls, raw_items: list) -> str:
+        """잡음을 완벽히 배제하고 매끄러운 한국어 문맥 추출"""
+        clean_sentences = []
+        for item in raw_items:
+            summary = item.get("summary", "") if isinstance(item, dict) else str(item)
+            text = cls._clean_text(summary)
+            text = re.sub(r"\[.*?\]|\(.*?\)", " ", text)
+            text = re.sub(r"^[가-힣a-zA-Z\s]+기자\s*=\s*", "", text)
+            text = re.sub(r"\s+", " ", text).strip()
+            sents = cls._split_into_sentences(text)
+            for s in sents:
+                if len(s) >= 20 and not any(j in s for j in ["기자", "무단", "저작권", "연합뉴스"]):
+                    clean_sentences.append(s)
+                    break
+            if len(clean_sentences) >= 2:
+                break
+        return " ".join(clean_sentences)
 
-                candidates.append({
-                    "title": clean_title,
-                    "summary": summary,
-                    "link": link,
-                    "source": source,
-                    "category": "트렌드/유행"
-                })
-        except Exception as e:
-            print(f"[경고] 트렌드 후보 수집 오류: {e}")
+    def fetch_trend_candidates(self) -> list:
+        """확장된 3대 트렌드 피드로부터 광범위한 트렌드/유행 후보 수집 및 중복 제거"""
+        candidates = []
+        seen_titles = set()
+        for feed_url in self.trend_feeds:
+            try:
+                parsed = feedparser.parse(feed_url)
+                for entry in parsed.entries[:10]:
+                    raw_title = self._clean_text(entry.get("title", ""))
+                    summary = self._clean_text(entry.get("summary", ""))
+                    link = entry.get("link", "")
+                    source = "트렌드포커스"
+                    if " - " in raw_title:
+                        parts = raw_title.rsplit(" - ", 1)
+                        clean_title = parts[0].strip()
+                        source = parts[1].strip()
+                    else:
+                        clean_title = raw_title
+
+                    simp_title = re.sub(r"[\s\W_]+", "", clean_title)[:20]
+                    if simp_title in seen_titles:
+                        continue
+                    seen_titles.add(simp_title)
+
+                    candidates.append({
+                        "title": clean_title,
+                        "summary": summary,
+                        "link": link,
+                        "source": source,
+                        "category": "트렌드/유행"
+                    })
+            except Exception as e:
+                print(f"[경고] 트렌드 후보 수집 오류 ({feed_url[:40]}...): {e}")
         return candidates
 
     def search_deep_context(self, keyword: str, aspect: str = "배경") -> list:
@@ -156,54 +183,48 @@ class StoryDiveEngine:
         deep_backgrounds = self.search_deep_context(entity, aspect="배경")
         deep_stakes = self.search_deep_context(entity, aspect="쟁점")
 
-        # 1. 이슈 개요 및 현황 (구체적 사건 기술)
-        stage1_sentences = [
-            f"오늘 주요 언론을 통해 집중 조명된 핵심 사안은 바로 **[{raw_title}]** 입니다.",
-            raw_summary if raw_summary.endswith('.') else raw_summary + '.',
-            f"이번 사건은 단순한 단발성 해프닝이 아니라 관련 정책 당국과 글로벌 기업 간의 실질적 조치가 맞물려 시장에 직접적인 파장을 일으키고 있습니다."
-        ]
-        stage1 = " ".join(stage1_sentences)
+        # 1. 이슈 개요 및 현황 (누구나 이해하기 쉬운 직관적 상황 설명)
+        stage1 = (
+            f"오늘 주요 언론을 통해 집중 조명된 핵심 사안은 바로 **[{raw_title}]** 입니다.<br>"
+            f"• <b>핵심 현황:</b> {raw_summary if raw_summary.endswith('.') else raw_summary + '.'}<br>"
+            f"• <b>왜 중요한가:</b> 단순한 단발성 소식이 아니라 정부 정책, 규제 환경, 기업들의 실질적 손익과 직결되어 시장 전반에 큰 파장을 일으키고 있기 때문입니다."
+        )
 
         # 2. 발단과 누적 타임라인 (왜, 언제부터 시작되었나?)
-        if deep_backgrounds:
-            bg_snippets = []
-            for bg in deep_backgrounds[:3]:
-                sents = self._split_into_sentences(bg["summary"])
-                if sents:
-                    bg_snippets.append(sents[0])
-            bg_context = " ".join(bg_snippets)
+        bg_synth = self._synthesize_clean_context(deep_backgrounds)
+        if bg_synth:
             stage2 = (
-                f"이 문제는 오늘 갑자기 촉발된 사안이 아닙니다. 과거 전개 과정과 축적된 타임라인을 살펴보면: {bg_context} "
-                f"즉, 과거 수년간 누적되어 온 구조적 요인과 정책적 이해관계가 특정한 정책 계기나 시장 환경을 맞아 본격적으로 수면 위로 표출된 것입니다."
+                f"이 문제는 오늘 갑자기 발생한 사안이 아니라, 과거부터 축적되어 온 구조적 원인이 있습니다.<br>"
+                f"• <b>과거 배경:</b> {bg_synth}<br>"
+                f"• <b>결정적 계기:</b> 잠재되어 있던 제도적 갈등과 시장 환경의 변화가 맞물리면서, 이번 계기를 통해 본격적으로 수면 위로 표출되었습니다."
             )
         else:
             stage2 = (
-                f"이 사안은 과거 수년간 시장과 정책 당국 간에 누적되어 온 제도적 과제가 특정 계기를 맞아 수면 위로 표출된 결과입니다. "
-                f"국내외 정책 기조의 급격한 전환과 이해관계자들의 상반된 입장이 누적되면서, 이번 사안을 기점으로 피할 수 없는 정면 승부 국면에 접어들었습니다."
+                f"이 사안은 과거 수년간 시장과 정책 당국 간에 누적되어 온 구조적 과제가 수면 위로 표출된 결과입니다.<br>"
+                f"• <b>과거 배경:</b> 글로벌 공급망 재편과 정책 기조의 전환이 이어지며 시장의 압력이 누적되어 왔습니다.<br>"
+                f"• <b>결정적 계기:</b> 최근의 제도적 변화와 주요 이해관계자들의 입장 차이가 정면으로 맞닥뜨리면서 본격적인 쟁점으로 급부상했습니다."
             )
 
-        # 3. 이면의 구조와 이해관계 (누가 왜 움직이는가?)
-        if deep_stakes:
-            stk_snippets = []
-            for st in deep_stakes[:2]:
-                sents = self._split_into_sentences(st["summary"])
-                if sents:
-                    stk_snippets.append(sents[0])
-            stk_context = " ".join(stk_snippets)
+        # 3. 이면의 구조와 이해관계 (누가 왜 움직이는가? 쉬운 원리 풀이)
+        stk_synth = self._synthesize_clean_context(deep_stakes)
+        if stk_synth:
             stage3 = (
-                f"표면적인 명분 뒤에 숨겨진 본질적인 득실 계산을 들여다볼 필요가 있습니다. {stk_context} "
-                f"겉으로는 원칙과 공공성을 앞세우고 있지만, 실제로는 각국 정부의 주도권 확보 수싸움과 기업들의 실익 지키기가 치열하게 격돌하고 있습니다."
+                f"겉으로 보이는 명분 뒤에는 각 주체들의 아주 명확한 '실질적 손익 계산'이 숨어 있습니다.<br>"
+                f"• <b>이해관계 분석:</b> {stk_synth}<br>"
+                f"• <b>핵심 구조:</b> 규제 당국은 시장 통제력과 정책 주도권을 강화하려 하고, 관련 기업들은 비용 부담을 줄이고 수익성을 지키기 위해 치열한 수싸움을 벌이고 있는 구도입니다."
             )
         else:
             stage3 = (
-                f"언론 헤드라인 이면에는 각 주체들의 치열한 손익 계산이 숨겨져 있습니다. "
-                f"정부 및 규제 당국은 시장 통제권과 정책 레버리지를 확보하려 하고, 관련 산업계는 수익성 방어와 규제 비용 최소화를 위해 치밀한 수싸움을 벌이고 있는 구조입니다."
+                f"언론 헤드라인 이면에는 각 주체들의 치열한 손익 계산이 숨겨져 있습니다.<br>"
+                f"• <b>이해관계 분석:</b> 정책 당국은 거시적 안정과 공공성을 명분으로 내세우고 있으나, 산업계는 규제 비용과 수익성 방어에 비상이 걸렸습니다.<br>"
+                f"• <b>핵심 구조:</b> 결국 누가 비용을 부담하고 누가 장기적인 주도권을 쥐느냐를 둘러싼 치열한 헤게모니 싸움으로 해석할 수 있습니다."
             )
 
         # 4. 시장 파장과 향후 관전 포인트
         stage4 = (
-            f"향후 시장 참여자들은 이번 사태가 가져올 제도적 변화와 주요 일정에 주목해야 합니다. "
-            f"단기적인 가격 변동성을 넘어 중장기 산업 지형도를 재편하는 기폭제가 될 것이며, 관련 기업들의 실적과 주주가치에 미칠 영향을 면밀히 모니터링할 필요가 있습니다."
+            f"앞으로 시장과 투자자 관점에서 눈여겨보아야 할 핵심 체크포인트입니다.<br>"
+            f"• <b>시장 파장:</b> 단기적인 주가 출렁임을 넘어, 관련 산업의 밸류체인과 지형도를 재편하는 기폭제가 될 수 있습니다.<br>"
+            f"• <b>관전 포인트:</b> 향후 발표될 세부 가이드라인과 주요 일정에 따라 관련 기업들의 실적 희비가 크게 엇갈릴 전망이므로 면밀한 추적이 필요합니다."
         )
 
         term_tip = self._infer_term_explanation(entity, raw_title, raw_summary, is_trend=False)
@@ -259,53 +280,47 @@ class StoryDiveEngine:
         deep_psychology = self.search_deep_context(entity, aspect="쟁점")
 
         # 1. 트렌드 현상 및 화제
-        stage1_sentences = [
-            f"지금 오프라인 거리와 온라인 커뮤니티에서 가장 뜨거운 화두는 단연 **[{raw_title}]** 입니다.",
-            raw_summary if raw_summary.endswith('.') else raw_summary + '.',
-            f"매장 오픈 전부터 길게 늘어선 줄과 온라인 쇼핑몰의 연이은 품절 사태는 단순한 일시적 인기를 넘어 하나의 강력한 문화적 현상으로 자리 잡았습니다."
-        ]
-        stage1 = " ".join(stage1_sentences)
+        stage1 = (
+            f"지금 거리와 SNS에서 소비자들이 가장 열광하고 있는 화제의 중심은 단연 **[{raw_title}]** 입니다.<br>"
+            f"• <b>트렌드 현황:</b> {raw_summary if raw_summary.endswith('.') else raw_summary + '.'}<br>"
+            f"• <b>열풍의 온도:</b> 매장 문이 열리기 전부터 줄을 서는 '오픈런'과 온라인 품절 사태가 잇따르며, 단순한 유행을 넘어 하나의 강력한 문화적 현상으로 자리 잡았습니다."
+        )
 
         # 2. 유행의 시초와 바이럴 계기
-        if deep_backgrounds:
-            bg_snippets = []
-            for bg in deep_backgrounds[:3]:
-                sents = self._split_into_sentences(bg["summary"])
-                if sents:
-                    bg_snippets.append(sents[0])
-            bg_context = " ".join(bg_snippets)
+        bg_synth = self._synthesize_clean_context(deep_backgrounds)
+        if bg_synth:
             stage2 = (
-                f"이 유행의 발단을 추적해 보면 숏폼 콘텐츠와 인플루언서의 체험 인증이 결정적 기폭제 역할을 했습니다: {bg_context} "
-                f"초기에는 특정 마니아층 사이에서 소비되던 아이템이었으나, 시각적 호기심을 자극하는 리뷰 영상이 알고리즘을 타며 대중적인 열풍으로 급격히 번져나갔습니다."
+                f"이 유행은 과연 어디서부터 시작되었을까요? 시작점을 추적해 보면 아주 흥미로운 바이럴 계기가 있습니다.<br>"
+                f"• <b>시작 비화:</b> {bg_synth}<br>"
+                f"• <b>확산 과정:</b> 초기에는 특정 매니아층 사이의 호기심으로 시작되었으나, 틱톡·릴스 등 숏폼 영상 알고리즘을 타며 '나도 경험해봐야 한다'는 대중적 열풍으로 급격히 번져나갔습니다."
             )
         else:
             stage2 = (
-                f"이 유행은 초기에 소수의 얼리어답터들 사이에서 자발적으로 시작되었습니다. "
-                f"이후 틱톡, 릴스 등 숏폼 플랫폼을 통해 짧고 강렬한 시각적 후기가 공유되면서, '나도 경험해 보지 않으면 안 된다'는 입소문이 전국 단위의 오픈런으로 확산되었습니다."
+                f"이 유행은 초기에 소수의 얼리어답터들 사이에서 자발적인 호기심으로 시작되었습니다.<br>"
+                f"• <b>시작 비화:</b> 기존의 평범한 제품에 색다른 재미와 스토리텔링이 더해지며 시각적 호기심을 강하게 자극했습니다.<br>"
+                f"• <b>확산 과정:</b> 인플루언서들의 자발적 후기와 숏폼 알고리즘이 결합되면서 단숨에 전국적인 오픈런과 품절 대란으로 확산되었습니다."
             )
 
-        # 3. 소비 심리와 마케팅 구조
-        if deep_psychology:
-            psy_snippets = []
-            for ps in deep_psychology[:2]:
-                sents = self._split_into_sentences(ps["summary"])
-                if sents:
-                    psy_snippets.append(sents[0])
-            psy_context = " ".join(psy_snippets)
+        # 3. 소비 심리와 마케팅 구조 (왜 사람들은 지갑을 열까?)
+        psy_synth = self._synthesize_clean_context(deep_psychology)
+        if psy_synth:
             stage3 = (
-                f"사람들이 열광하며 지갑을 여는 진짜 심리적 기제는 무엇일까요? {psy_context} "
-                f"단순한 제품의 기능성이나 맛을 넘어, '희소한 트렌드를 직접 경험하고 인증했다'는 심리적 만족감과 소속감이 핵심 소비 동기로 작용하고 있습니다."
+                f"소비자들이 기꺼이 시간과 비용을 들여 줄을 서는 심리적 이유를 쉽게 풀어보았습니다.<br>"
+                f"• <b>소비 심리:</b> {psy_synth}<br>"
+                f"• <b>심리적 기제:</b> 단순히 제품의 기능 때문이 아니라, '희소한 트렌드를 남들보다 빠르게 경험하고 인증했다'는 심리적 만족감과 소속감(디토 소비 및 포모 심리)이 지갑을 열게 만드는 핵심 동기입니다."
             )
         else:
             stage3 = (
-                f"사람들이 지갑을 여는 진짜 이유는 단순한 제품 구매를 넘어선 '소속감'과 '성취감'입니다. "
-                f"한정된 수량과 시간이라는 희소성 마케팅에, '나도 이 트렌드에 동참했다'는 인증 문화(디토 소비)가 결합되면서 강력한 자발적 바이럴 루프를 만들어냈습니다."
+                f"사람들이 열광하며 지갑을 여는 진짜 이유는 단순한 소비 이상의 '경험과 인증'에 있습니다.<br>"
+                f"• <b>소비 심리:</b> '한정된 수량, 지금이 아니면 못 산다'는 희소성 마케팅이 소비자의 소장 욕구를 극대화했습니다.<br>"
+                f"• <b>심리적 기제:</b> SNS에 인증샷을 올리며 트렌드에 뒤처지지 않았다는 안도감과 성취감을 얻는 현대인의 소비 패턴이 깊게 반영되어 있습니다."
             )
 
-        # 4. 향후 전망과 비즈니스 시사점
+        # 4. 유통가 파장 및 지속 가능성
         stage4 = (
-            f"관련 업계는 이 열풍이 일회성 유행에 그칠지, 아니면 새로운 일상의 표준으로 안착할지 예의주시하고 있습니다. "
-            f"유행 주기가 극도로 짧아진 현대 소비 시장에서 발 빠른 브랜드 협업과 희소성 관리가 향후 유통·소비재 기업들의 핵심 경쟁력으로 부각되고 있습니다."
+            f"이 열풍이 유통업계에 미친 영향과 향후 지속 가능성에 대한 전망입니다.<br>"
+            f"• <b>유통가 파장:</b> 편의점, 백화점, 패션·식음료 브랜드들이 앞다퉈 컬래버레이션 팝업스토어를 유치하며 고객 유입에 사활을 걸고 있습니다.<br>"
+            f"• <b>지속 가능성:</b> 반짝 유행(Fad)에 그치지 않고 장기적인 메가 트렌드로 안착하려면, 일회성 화제성을 넘어 본질적인 품질 만족도와 지속적인 팬덤 관리가 뒷받침되어야 합니다."
         )
 
         term_tip = self._infer_term_explanation(entity, raw_title, raw_summary, is_trend=True)

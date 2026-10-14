@@ -41,6 +41,8 @@ class DisclosureCollector:
                 "category": "💎 자사주 소각 (주주환원 극대화)",
                 "impact": "발행주식 총수 감소로 주당순이익(EPS) 및 주주가치 대폭 상승",
                 "badge": "자사주 소각",
+                "action_badge": "💎 중장기 비중확대",
+                "strategy": "주식수가 영구 소멸되는 가장 강력한 호재입니다. 단기 차익 매물 소화 후 전고점 돌파 시 중장기 비중 확대 전략이 유리합니다.",
                 "score": 95,
             }
         elif any(w in combined for w in ["자사주 취득", "자기주식 취득", "자사주 매입", "자기주식 매수"]):
@@ -48,6 +50,8 @@ class DisclosureCollector:
                 "category": "💎 자사주 취득 (주가 부양)",
                 "impact": "기업 자금 투입으로 유통 물량 흡수 및 강력한 주가 바닥 지지 신호",
                 "badge": "자사주 취득",
+                "action_badge": "🟢 눌림목 분할매수",
+                "strategy": "공시 직후 당일 장초반 갭상승 추격매수는 피하고, 3~6개월간 회사의 실제 매수 창구 유입을 확인하며 20일 이동평균선 지지 시 분할 매수로 접근하십시오.",
                 "score": 90,
             }
 
@@ -57,6 +61,8 @@ class DisclosureCollector:
                 "category": "🏛️ 대주주/임원 장내매수 (책임경영)",
                 "impact": "내부 사정을 가장 잘 아는 경영진의 직접 매수로 기업가치 저평가 방증",
                 "badge": "내부자 매수",
+                "action_badge": "🛡️ 바닥 지지선 매수",
+                "strategy": "경영진 매수 단가는 강력한 심리적 '바닥 지지선' 역할을 합니다. 주가가 해당 매수가 부근까지 밀릴 때 안전마진을 확보한 분할 매수 타점으로 활용하십시오.",
                 "score": 88,
             }
 
@@ -66,6 +72,8 @@ class DisclosureCollector:
                 "category": "📈 대규모 단일판매·공급계약",
                 "impact": "매출액 직결 확정 계약으로 향후 분기 실적 퀀텀점프 기대",
                 "badge": "대규모 수주",
+                "action_badge": "⚡ 급등 시 단기익절 / 조정 시 재진입",
+                "strategy": "계약 총액이 최근 매출액의 10% 이상인지 확인하십시오. 공시 당일 5~10% 이상 급등 시 1차 단기 익절하고, 이후 잔여 수주잔고와 실적 반영 분기를 체크하며 눌림목 재진입을 권고합니다.",
                 "score": 85,
             }
 
@@ -75,6 +83,8 @@ class DisclosureCollector:
                 "category": "🎁 무상증자 / 주식배당",
                 "impact": "주주 보상 정책 및 유통 주식 활성화로 시장 유동성 증대",
                 "badge": "무상증자",
+                "action_badge": "🎯 권리락 전 분할매도",
+                "strategy": "권리락 발생일까지는 단기 변동성 확대를 활용한 트레이딩이 유효하나, 권리락 이후 신주 상장일 전후 물량 출회 리스크가 있으므로 권리락 전 분할 매도로 수익을 확정하는 것이 안전합니다.",
                 "score": 82,
             }
 
@@ -122,9 +132,11 @@ class DisclosureCollector:
                     collected.append({
                         "공시구분": cls_info["category"],
                         "공시배지": cls_info["badge"],
+                        "액션배지": cls_info.get("action_badge", ""),
                         "관련기업": corp_name,
                         "공시제목": clean_title,
                         "영향전망": cls_info["impact"],
+                        "투자전략": cls_info.get("strategy", ""),
                         "언론사": source,
                         "링크": link,
                         "공시일시": pub_date,
