@@ -29,6 +29,7 @@ from google_drive_sync import GoogleDriveSync
 from email_sender import EmailSender
 from performance_tracker import PerformanceTracker
 from disclosure_collector import DisclosureCollector
+from story_dive_engine import StoryDiveEngine
 
 
 def load_env(env_path):
@@ -125,8 +126,13 @@ def main():
         {"title": m["기사제목"], "link": m["링크"], "category": m["구분"]} for m in market_news
     ])
 
-    # 6. 주가 기술적 지표, 쿨다운(Cool-down) 주기 적용 & 미국 빅테크 4대장 매수/매도 추천금액 산출
-    print("\n[6/9] 🧠 주가 분석, 쿨다운 주기(동일종목 연속추천 방지) 및 미국 빅테크 4대장 산출 중...")
+    # 6. 🎙️ 유튜브 슈카월드 스타일 투 트랙 딥다이브 스토리텔링 엔진 (경제·사회 & 트렌드·유행)
+    print("\n[6/10] 🎙️ 유튜브 슈카월드 스타일 투 트랙 딥다이브(경제·사회 & 트렌드·유행) 작성 중...")
+    story_engine = StoryDiveEngine(history_mgr=history_mgr)
+    story_dive_data = story_engine.generate_two_track_stories(general_news=general_news, mega_issue=mega_issue)
+
+    # 7. 주가 기술적 지표, 쿨다운(Cool-down) 주기 적용 & 미국 빅테크 4대장 매수/매도 추천금액 산출
+    print("\n[7/10] 🧠 주가 분석, 쿨다운 주기(동일종목 연속추천 방지) 및 미국 빅테크 4대장 산출 중...")
     advisor = StockAdvisor(usd_krw_rate=usd_rate)
     combined_news_for_analysis = general_news + market_news
     stock_advice = advisor.analyze_universe(combined_news_for_analysis, usd_krw_rate=usd_rate)
@@ -139,23 +145,23 @@ def main():
     cd_count = len(stock_advice.get("cooldown_map", {}))
     print(f" - 총 분석 종목: {eval_count}개 | 단기 매수: {today_buys}개 | 쿨다운 적용: {cd_count}개 | 미국 빅테크: {us_count}개 | 장기 적립: {long_buys}개 | 과열 주의: {sells}개")
 
-    # 7. 🎯 추천 종목 사후 검증(Backtesting) 및 누적 적중률 산출 (Feature 1)
-    print("\n[7/9] 🎯 추천 종목 사후 검증(Backtesting) 및 누적 승률 트래킹 중...")
+    # 8. 🎯 추천 종목 사후 검증(Backtesting) 및 누적 적중률 산출 (Feature 1)
+    print("\n[8/10] 🎯 추천 종목 사후 검증(Backtesting) 및 누적 승률 트래킹 중...")
     perf_tracker = PerformanceTracker()
     performance_data = perf_tracker.evaluate_performance(current_date_str=today_str)
     p_sum = performance_data.get("summary", {})
     print(f" - 🏆 누적 승률: {p_sum.get('win_rate', 0)}% (총 {p_sum.get('total_picks', 0)}건 검증, 목표가 달성 {p_sum.get('success_count', 0)}건, 손절 {p_sum.get('stoploss_count', 0)}건, 진행 중 {p_sum.get('holding_count', 0)}건 | 평균 수익률: {p_sum.get('avg_return', 0):+.2f}%)")
 
-    # 8. 가상자산 3대장(BTC, ETH, SOL) 시세 분석 및 추천금액 산출
-    print("\n[8/9] 🪙 가상자산 3대장(BTC, ETH, SOL) 실시간 시세 및 매매 추천금액 산출 중...")
+    # 9. 가상자산 3대장(BTC, ETH, SOL) 시세 분석 및 추천금액 산출
+    print("\n[9/10] 🪙 가상자산 3대장(BTC, ETH, SOL) 실시간 시세 및 매매 추천금액 산출 중...")
     crypto_advisor = CryptoAdvisor()
     crypto_advice = crypto_advisor.analyze_coins()
     coins_list = crypto_advice.get("coins", [])
     for c in coins_list:
         print(f"   • {c['icon']} {c['name']} ({c['symbol']}): 현재가 {c['cur_price']} ➔ 매수가: {c['buy_price']} | 목표가: {c['sell_price']} ({c['expected_yield']})")
 
-    # 9. 리포트 생성 (월별 폴더 적재 YYYY-MM + 누적 마스터 + 7개 시트 엑셀)
-    print("\n[9/9] 📊 7개 시트 엑셀 리포트, 마크다운 브리핑 및 마스터 파일 업데이트 중...")
+    # 10. 리포트 생성 (월별 폴더 적재 YYYY-MM + 누적 마스터 + 8개 시트 엑셀)
+    print("\n[10/10] 📊 8개 시트 엑셀 리포트, 마크다운 브리핑 및 마스터 파일 업데이트 중...")
     report_gen = ReportGenerator()
     excel_paths = report_gen.generate_excel(
         general_news=general_news,
@@ -168,6 +174,7 @@ def main():
         date_str=today_str,
         performance_data=performance_data,
         special_disclosures=special_disclosures,
+        story_dive_data=story_dive_data,
     )
     daily_excel_path = excel_paths["daily_path"]
     master_excel_path = excel_paths["master_path"]
@@ -184,6 +191,7 @@ def main():
         date_str=today_str,
         performance_data=performance_data,
         special_disclosures=special_disclosures,
+        story_dive_data=story_dive_data,
     )
     print(f" - 📁 당일 엑셀 리포트: {daily_excel_path}")
     print(f" - 📚 일자별 누적 마스터: {master_excel_path}")
@@ -242,11 +250,18 @@ def main():
             attachment_path=daily_excel_path,
             performance_data=performance_data,
             special_disclosures=special_disclosures,
+            story_dive_data=story_dive_data,
         )
 
     # 최종 요약 콘솔 출력
     print("\n" + "=" * 70)
-    print(f"🎯 [AI 추천 종목 사후 검증 결과 (Backtesting)]")
+    print("🎙️ [유튜브 슈카월드 스타일 투 트랙 딥다이브 하이라이트]")
+    for st in story_dive_data.get("stories", []):
+        icon = "🌐" if st.get("track") == "ECONOMY" else "🔥"
+        print(f" • {icon} {st.get('track_name')} [{st.get('badge')}]: {st.get('title')}")
+        print(f"    └─ 💡 {st.get('hook')}")
+
+    print(f"\n🎯 [AI 추천 종목 사후 검증 결과 (Backtesting)]")
     print(f" • 누적 승률: {p_sum.get('win_rate', 0)}% | 검증 건수: {p_sum.get('total_picks', 0)}건 (성공: {p_sum.get('success_count', 0)}건 / 손절: {p_sum.get('stoploss_count', 0)}건 / 보유: {p_sum.get('holding_count', 0)}건)")
 
     print("\n🏛️ [금융감독원(DART) & KIND 핵심 특수 공시 하이라이트]")
@@ -277,7 +292,7 @@ def main():
         print(f" • 🔴 {s['name']} ({s['ticker']}) | 현재가: {s['cur_price']} ➔ 권고 매도가: {s['sell_price']} [{s['type']}]")
 
     print("=" * 70)
-    print("🎉 5대 신규 기능(사후검증, 쿨다운, DART특수공시, 빅테크4대장, 실적표발췌) 적용 및 구글 드라이브 동기화가 완료되었습니다!")
+    print("🎉 6대 기능(슈카식 투트랙 딥다이브, 사후검증, 쿨다운, DART특수공시, 빅테크4대장, 실적표발췌) 적용 및 구글 드라이브 동기화가 완료되었습니다!")
 
 
 

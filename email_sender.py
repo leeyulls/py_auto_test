@@ -24,7 +24,7 @@ class EmailSender:
         """이메일 발송 계정 정보가 설정되어 있는지 확인"""
         return bool(self.naver_user and self.naver_password)
 
-    def build_html_body(self, date_str: str, stock_indices: list, exchange_rates: list, stock_advice: dict, crypto_advice: dict, official_reports: list, news_result: dict, top_research_list: list = None, performance_data: dict = None, special_disclosures: list = None) -> str:
+    def build_html_body(self, date_str: str, stock_indices: list, exchange_rates: list, stock_advice: dict, crypto_advice: dict, official_reports: list, news_result: dict, top_research_list: list = None, performance_data: dict = None, special_disclosures: list = None, story_dive_data: dict = None) -> str:
         """스마트폰과 PC에서 가독성 극대화된 모던 카드형 데일리 HTML 이메일 템플릿 생성"""
         today_buys = stock_advice.get("today_buy_picks", [])
         long_buys = stock_advice.get("longterm_buy_picks", [])
@@ -348,6 +348,59 @@ class EmailSender:
             </div>
             """
 
+        # ---------------------------------------------------------
+        # 🎙️ 유튜브 슈카월드 스타일 '투 트랙 딥다이브 스토리' 카드 섹션
+        # ---------------------------------------------------------
+        story_dive_html = ""
+        if story_dive_data and story_dive_data.get("stories"):
+            cards_inner = ""
+            for st in story_dive_data["stories"]:
+                is_econ = (st.get("track") == "ECONOMY")
+                theme_color = "#2563EB" if is_econ else "#DB2777"
+                theme_bg = "#EFF6FF" if is_econ else "#FDF2F8"
+                badge_bg = "#DBEAFE" if is_econ else "#FCE7F3"
+                badge_text = "#1E40AF" if is_econ else "#9D174D"
+                icon = "🌐" if is_econ else "🔥"
+                link_url = st.get('link') or '#'
+                source_name = st.get('source') or '심층분석'
+
+                cards_inner += f"""
+                <div style="background: #FFFFFF; border: 1px solid #E2E8F0; border-top: 4px solid {theme_color}; border-radius: 8px; padding: 14px 16px; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+                    <div style="margin-bottom: 6px;">
+                        <span style="background: {badge_bg}; color: {badge_text}; font-size: 11px; font-weight: bold; padding: 2px 8px; border-radius: 10px; display: inline-block;">
+                            {icon} {st.get('track_name')} | {st.get('badge')}
+                        </span>
+                        <span style="font-size: 11px; color: #64748B; margin-left: 6px;">출처: {source_name}</span>
+                    </div>
+                    <div style="font-size: 15px; font-weight: bold; color: #0F172A; margin-bottom: 8px; line-height: 1.4;">
+                        <a href="{link_url}" style="color: #0F172A; text-decoration: none;">{st.get('title')}</a>
+                    </div>
+                    <div style="background: {theme_bg}; border-left: 3px solid {theme_color}; padding: 8px 12px; border-radius: 4px; font-size: 12px; color: #1E293B; margin-bottom: 10px; line-height: 1.5;">
+                        💬 <i>"{st.get('hook')}"</i>
+                    </div>
+                    <div style="font-size: 12px; color: #334155; line-height: 1.6;">
+                        <div style="margin-bottom: 5px;">🎬 <b>1막 (발단/현상):</b> {st.get('stage1')}</div>
+                        <div style="margin-bottom: 5px;">⏳ <b>2막 (비하인드/시초):</b> {st.get('stage2')}</div>
+                        <div style="margin-bottom: 5px;">🕵️ <b>3막 (이면의 속셈/소비심리):</b> {st.get('stage3')}</div>
+                        <div>🔮 <b>4막 (파장과 변화):</b> {st.get('stage4')}</div>
+                    </div>
+                </div>
+                """
+
+            story_dive_html = f"""
+            <div style="margin-bottom: 24px;">
+                <div style="border-bottom: 2px solid #8B5CF6; padding-bottom: 6px; margin-bottom: 12px;">
+                    <h2 style="font-size: 17px; color: #1E293B; margin: 0;">
+                        🎙️ 오늘의 슈카식 투 트랙 딥다이브 (지식 & 트렌드)
+                    </h2>
+                    <div style="font-size: 11px; color: #6D28D9; margin-top: 3px;">
+                        단순 뉴스 요약을 넘어 <b>"아! 이래서 그런 거였어"</b>(경제·사회) & <b>"요즘 왜 이게 유행할까?"</b>(트렌드·유행)의 숨은 비하인드 스토리
+                    </div>
+                </div>
+                {cards_inner}
+            </div>
+            """
+
         html = f"""
         <!DOCTYPE html>
         <html>
@@ -363,13 +416,16 @@ class EmailSender:
                 <div style="background: linear-gradient(135deg, #1E3A8A 0%, #2563EB 100%); color: #FFFFFF; padding: 24px; text-align: center;">
                     <div style="font-size: 13px; letter-spacing: 1px; opacity: 0.9; text-transform: uppercase;">Daily Morning 07:00 Briefing</div>
                     <h1 style="margin: 8px 0 0; font-size: 22px;">☕ 아침 7시 모닝 브리핑 ({date_str})</h1>
-                    <p style="margin: 6px 0 0; font-size: 13px; opacity: 0.85;">주식 & 코인(BTC/ETH/SOL) 추천가 & 증권사 공식 Top 10 리포트 & DART 특수공시</p>
+                    <p style="margin: 6px 0 0; font-size: 13px; opacity: 0.85;">🎙️ 슈카식 딥다이브 & 주식·코인(BTC/ETH/SOL) 추천가 & 공식 리포트 & DART 특수공시</p>
                 </div>
 
                 <div style="padding: 24px;">
                     
                     <!-- 🔥 메가 핫토픽 -->
                     {mega_html}
+
+                    <!-- 🎙️ 슈카식 투 트랙 딥다이브 스토리 섹션 -->
+                    {story_dive_html}
 
                     <!-- 🎯 AI 추천 종목 사후 검증 (Backtesting) 섹션 -->
                     {perf_html}
@@ -616,7 +672,7 @@ class EmailSender:
         """
         return html
 
-    def send_report(self, date_str: str, stock_indices: list, exchange_rates: list, stock_advice: dict, crypto_advice: dict, official_reports: list, news_result: dict, top_research_list: list = None, attachment_path: str = None, performance_data: dict = None, special_disclosures: list = None) -> bool:
+    def send_report(self, date_str: str, stock_indices: list, exchange_rates: list, stock_advice: dict, crypto_advice: dict, official_reports: list, news_result: dict, top_research_list: list = None, attachment_path: str = None, performance_data: dict = None, special_disclosures: list = None, story_dive_data: dict = None) -> bool:
         """평일/토요일 데일리 모닝 브리핑 이메일 발송"""
         if not self.is_configured():
             print("\n⚠️ [이메일 발송 건너뜀] NAVER_USER 또는 NAVER_PASSWORD가 설정되지 않았습니다.")
@@ -624,7 +680,7 @@ class EmailSender:
 
         try:
             msg = MIMEMultipart("mixed")
-            msg["Subject"] = f"☕ [07시 모닝 브리핑] {date_str} 주식·코인(BTC/ETH/SOL)·글로벌 빅테크 & 공식리포트 & DART 특수공시"
+            msg["Subject"] = f"☕ [07시 모닝 브리핑] {date_str} 슈카식 투트랙 딥다이브 & 주식·코인(BTC/ETH/SOL) & 공식리포트 & DART 특수공시"
             msg["From"] = f"{self.naver_user}@naver.com"
             msg["To"] = self.receiver_email
 
@@ -639,6 +695,7 @@ class EmailSender:
                 top_research_list=top_research_list,
                 performance_data=performance_data,
                 special_disclosures=special_disclosures,
+                story_dive_data=story_dive_data,
             )
             msg.attach(MIMEText(html_content, "html", "utf-8"))
 

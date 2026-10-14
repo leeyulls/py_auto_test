@@ -21,8 +21,8 @@ class ReportGenerator:
         os.makedirs(self.output_dir, exist_ok=True)
         self.master_file = os.path.join(self.output_dir, "일자별_누적_데일리_이슈_및_주식_브리핑_마스터.xlsx")
 
-    def generate_excel(self, general_news: list, market_news: list, exchange_rates: list, stock_indices: list, stock_advice: dict, crypto_advice: dict, official_reports: list, date_str: str, performance_data: dict = None, special_disclosures: list = None) -> dict:
-        """7개 시트(7대분야_종합이슈, 시장지표_및_환율, 종목분석_매매추천, 코인분석_매매추천, 증권사_공식리포트_Top10, 추천성과_사후검증, 특수공시_DART_KIND) 엑셀 생성"""
+    def generate_excel(self, general_news: list, market_news: list, exchange_rates: list, stock_indices: list, stock_advice: dict, crypto_advice: dict, official_reports: list, date_str: str, performance_data: dict = None, special_disclosures: list = None, story_dive_data: dict = None) -> dict:
+        """8개 시트(7대분야_종합이슈, 시장지표_및_환율, 종목분석_매매추천, 코인분석_매매추천, 증권사_공식리포트_Top10, 추천성과_사후검증, 특수공시_DART_KIND, 오늘의_스토리_딥다이브) 엑셀 생성"""
         month_str = date_str[:7]
         month_dir = os.path.join(self.output_dir, month_str)
         os.makedirs(month_dir, exist_ok=True)
@@ -148,6 +148,26 @@ class ReportGenerator:
                 disc_cols = [c for c in ["공시구분", "공시배지", "관련기업", "공시제목", "영향전망", "언론사", "공시일시", "링크"] if c in df_disc.columns]
                 df_disc[disc_cols].to_excel(writer, sheet_name="특수공시_DART_KIND", index=False)
 
+            # 시트 8: 🎙️ 오늘의 투 트랙 딥다이브 (경제·사회 & 트렌드·유행)
+            if story_dive_data and story_dive_data.get("stories"):
+                story_rows = []
+                for s in story_dive_data["stories"]:
+                    story_rows.append({
+                        "트랙구분": s.get("track_name", ""),
+                        "배지": s.get("badge", ""),
+                        "스토리제목": s.get("title", ""),
+                        "핵심키워드": s.get("entity", ""),
+                        "도입부훅": s.get("hook", ""),
+                        "1막_발단현상": s.get("stage1", ""),
+                        "2막_과거시초타임라인": s.get("stage2", ""),
+                        "3막_이면의속셈과심리": s.get("stage3", ""),
+                        "4막_파장과미래변화": s.get("stage4", ""),
+                        "언론사/출처": s.get("source", ""),
+                        "원문링크": s.get("link", ""),
+                    })
+                df_story = pd.DataFrame(story_rows)
+                df_story.to_excel(writer, sheet_name="오늘의_스토리_딥다이브", index=False)
+
             self._style_workbook(writer.book)
 
         # ---------------------------------------------------------
@@ -163,11 +183,12 @@ class ReportGenerator:
             date_str=date_str,
             performance_data=performance_data,
             special_disclosures=special_disclosures,
+            story_dive_data=story_dive_data,
         )
 
         return {"daily_path": daily_path, "master_path": self.master_file, "month_str": month_str}
 
-    def _update_master_accumulation(self, general_news: list, stock_advice: dict, crypto_advice: dict, official_reports: list, stock_indices: list, exchange_rates: list, date_str: str, performance_data: dict = None, special_disclosures: list = None):
+    def _update_master_accumulation(self, general_news: list, stock_advice: dict, crypto_advice: dict, official_reports: list, stock_indices: list, exchange_rates: list, date_str: str, performance_data: dict = None, special_disclosures: list = None, story_dive_data: dict = None):
         """기존 마스터 엑셀에 오늘의 주식/코인/공식리포트/뉴스/성과검증/특수공시 데이터를 누적으로 덧붙여 저장"""
         master_dfs = {}
         if os.path.exists(self.master_file):
@@ -301,8 +322,31 @@ class ReportGenerator:
                 old_df = master_dfs["시장지표_누적"]
                 old_df = old_df[old_df["일자"] != date_str]
                 master_dfs["시장지표_누적"] = pd.concat([old_df, today_market_df], ignore_index=True)
+        # 8. 스토리 딥다이브 누적
+        if story_dive_data and story_dive_data.get("stories"):
+            s_rows = []
+            for s in story_dive_data["stories"]:
+                s_rows.append({
+                    "수집일자": date_str,
+                    "트랙구분": s.get("track_name", ""),
+                    "배지": s.get("badge", ""),
+                    "스토리제목": s.get("title", ""),
+                    "핵심키워드": s.get("entity", ""),
+                    "도입부훅": s.get("hook", ""),
+                    "1막_발단현상": s.get("stage1", ""),
+                    "2막_과거시초타임라인": s.get("stage2", ""),
+                    "3막_이면의속셈과심리": s.get("stage3", ""),
+                    "4막_파장과미래변화": s.get("stage4", ""),
+                    "언론사/출처": s.get("source", ""),
+                    "원문링크": s.get("link", ""),
+                })
+            today_story_df = pd.DataFrame(s_rows)
+            if "스토리딥다이브_누적" in master_dfs:
+                old_df = master_dfs["스토리딥다이브_누적"]
+                old_df = old_df[old_df["수집일자"] != date_str]
+                master_dfs["스토리딥다이브_누적"] = pd.concat([old_df, today_story_df], ignore_index=True)
             else:
-                master_dfs["시장지표_누적"] = today_market_df
+                master_dfs["스토리딥다이브_누적"] = today_story_df
 
         with pd.ExcelWriter(self.master_file, engine="openpyxl") as writer:
             for sheet_name, df in master_dfs.items():
@@ -347,7 +391,7 @@ class ReportGenerator:
                         max_len = max(max_len, length)
                 sheet.column_dimensions[col_letter].width = min(max(max_len + 3, 12), 65)
 
-    def generate_markdown(self, general_news: list, market_news: list, exchange_rates: list, stock_indices: list, stock_advice: dict, crypto_advice: dict, official_reports: list, news_result: dict, date_str: str, performance_data: dict = None, special_disclosures: list = None) -> str:
+    def generate_markdown(self, general_news: list, market_news: list, exchange_rates: list, stock_indices: list, stock_advice: dict, crypto_advice: dict, official_reports: list, news_result: dict, date_str: str, performance_data: dict = None, special_disclosures: list = None, story_dive_data: dict = None) -> str:
         """구글 문서/마크다운 뷰어용 종합 브리핑 리포트 생성 (월별 폴더에 저장)"""
         month_str = date_str[:7]
         month_dir = os.path.join(self.output_dir, month_str)
@@ -375,6 +419,29 @@ class ReportGenerator:
                 "---",
                 "",
             ])
+
+        # 🎙️ 오늘의 슈카식 투 트랙 딥다이브 (경제·사회 & 트렌드·유행)
+        if story_dive_data and story_dive_data.get("stories"):
+            lines.extend([
+                "## 🎙️ 오늘의 슈카식 투 트랙 딥다이브 (경제·사회 & 트렌드·유행)",
+                "> 단순한 뉴스 요약이 아닌, \"아! 이래서 그런 거였어\"와 \"요즘 왜 이게 유행할까?\"의 깊은 비하인드 스토리입니다.",
+                "",
+            ])
+            for st in story_dive_data["stories"]:
+                track_icon = "🌐" if st.get("track") == "ECONOMY" else "🔥"
+                lines.extend([
+                    f"### {track_icon} [{st.get('track_name')}] \"{st.get('badge')}\": {st.get('entity')}",
+                    f"#### **{st.get('title')}**",
+                    f"> 💡 **핵심 관전 포인트**: {st.get('hook')}",
+                    "",
+                    f"- 🎬 **1막 (발단/현상)**: {st.get('stage1')}",
+                    f"- ⏳ **2막 (과거/시초 타임라인)**: {st.get('stage2')}",
+                    f"- 🕵️ **3막 (이면의 속셈/소비심리)**: {st.get('stage3')}",
+                    f"- 🔮 **4막 (파장과 미래 변화)**: {st.get('stage4')}",
+                    f"- 🔗 **관련 출처 및 원문**: [{st.get('source')}]({st.get('link')})",
+                    "",
+                ])
+            lines.extend(["---", ""])
 
         # 🎯 1. AI 추천 종목 사후 검증 (Backtesting) & 누적 적중률
         if performance_data and performance_data.get("summary"):
