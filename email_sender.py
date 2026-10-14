@@ -17,6 +17,11 @@ try:
 except ImportError:
     IntelligenceDossierEngine = None
 
+try:
+    from real_estate_advisor import RealEstateAdvisor
+except ImportError:
+    RealEstateAdvisor = None
+
 
 class EmailSender:
     def __init__(self, smtp_server="smtp.naver.com", smtp_port=465):
@@ -30,8 +35,15 @@ class EmailSender:
         """이메일 발송 계정 정보가 설정되어 있는지 확인"""
         return bool(self.naver_user and self.naver_password)
 
-    def build_html_body(self, date_str: str, stock_indices: list, exchange_rates: list, stock_advice: dict, crypto_advice: dict, official_reports: list, news_result: dict, top_research_list: list = None, performance_data: dict = None, special_disclosures: list = None, story_dive_data: dict = None) -> str:
+    def build_html_body(self, date_str: str, stock_indices: list, exchange_rates: list, stock_advice: dict, crypto_advice: dict, official_reports: list, news_result: dict, top_research_list: list = None, performance_data: dict = None, special_disclosures: list = None, story_dive_data: dict = None, real_estate_data: dict = None) -> str:
         """나만의 프리미엄 인텔리전스 신문(The Executive Intelligence Herald) 모바일/PC 이메일 에디션"""
+        if real_estate_data is None and RealEstateAdvisor:
+            try:
+                real_estate_data = RealEstateAdvisor().analyze_market()
+            except Exception:
+                real_estate_data = {}
+        elif real_estate_data is None:
+            real_estate_data = {}
         today_buys = stock_advice.get("today_buy_picks", [])
         long_buys = stock_advice.get("longterm_buy_picks", [])
         sells = stock_advice.get("sell_warning_picks", [])
@@ -115,24 +127,47 @@ class EmailSender:
                 """
 
         # ---------------------------------------------------------
-        # 2. 🪙 3대 코인(BTC, ETH, SOL) 카드 섹션
+        # 2. 🪙 가상자산 전용 인텔리전스 & 3대 코인(BTC, ETH, SOL) 섹션
         # ---------------------------------------------------------
+        macro_c = crypto_advice.get("macro_indicators", {})
+        fg_val = macro_c.get("fear_greed_val", 60)
+        fg_label = macro_c.get("fear_greed_label", "중립 (Neutral)")
+        kimchi_p = macro_c.get("kimchi_premium", "+0.0%")
+        btc_dom = macro_c.get("btc_dominance", "57.6%")
+
+        upbit_top_chips = ""
+        for idx, tv in enumerate(macro_c.get("top_volume_coins", []), 1):
+            chg = tv.get("change", "0.0%")
+            chg_col = "#16A34A" if "+" in chg else "#DC2626"
+            upbit_top_chips += f"""
+            <div style="background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 4px; padding: 6px 10px; font-size: 11.5px; display: flex; justify-content: space-between; margin-bottom: 4px;">
+                <span><b>{idx}. {tv.get('symbol')}</b> ({tv.get('price')})</span>
+                <span style="color: {chg_col}; font-weight: bold;">{chg}</span>
+                <span style="color: #64748B;">거래대금 {tv.get('volume')}</span>
+            </div>
+            """
+
         coins = crypto_advice.get("coins", [])
         coin_cards_html = ""
         for c in coins:
+            col = "#16A34A" if "+" in c.get('change_rate', '') else "#DC2626"
             coin_cards_html += f"""
-            <div style="background: #FAF5FF; border-left: 4px solid #A855F7; padding: 12px 14px; margin-bottom: 10px; border-radius: 6px;">
-                <div style="font-weight: bold; color: #7E22CE; font-size: 15px;">
-                    {c['icon']} {c['name']} <span style="font-size: 13px; color: #6B7280;">({c['symbol']})</span> - <span style="color: #111827;">현재가: {c['cur_price']}</span> 
-                    <span style="font-size: 12px; color: {'#16A34A' if '+' in c['change_rate'] else '#DC2626'}; font-weight: bold;">({c['change_rate']})</span>
+            <div style="background: #FAF5FF; border: 1px solid #E9D5FF; border-left: 4px solid #7E22CE; padding: 12px 14px; margin-bottom: 10px; border-radius: 6px;">
+                <div style="font-weight: bold; color: #581C87; font-size: 14.5px;">
+                    {c.get('icon')} {c.get('name')} <span style="font-size: 12px; color: #6B7280;">({c.get('symbol')})</span> - <span style="color: #111827;">현재가: {c.get('cur_price')}</span> 
+                    <span style="font-size: 12px; color: {col}; font-weight: bold;">({c.get('change_rate')})</span>
                 </div>
-                <div style="margin: 6px 0; background: #F3E8FF; padding: 6px 10px; border-radius: 4px; font-size: 13px; color: #581C87;">
-                    💰 <b>매수 추천가:</b> <span style="font-weight: bold;">{c['buy_price']}</span> &nbsp;|&nbsp; 
-                    🎯 <b>목표 매도가:</b> <span style="font-weight: bold; color: #7E22CE;">{c['sell_price']}</span> 
-                    <span style="font-size: 12px; background: #E9D5FF; padding: 1px 6px; border-radius: 3px; font-weight: bold;">(기대수익 {c['expected_yield']})</span>
+                <div style="margin: 6px 0; background: #F3E8FF; padding: 6px 10px; border-radius: 4px; font-size: 12.5px; color: #581C87;">
+                    💰 <b>매수 추천가:</b> <span style="font-weight: bold;">{c.get('buy_price')}</span> &nbsp;|&nbsp; 
+                    🎯 <b>목표 매도가:</b> <span style="font-weight: bold; color: #7E22CE;">{c.get('sell_price')}</span> 
+                    <span style="font-size: 11px; background: #E9D5FF; padding: 1px 6px; border-radius: 3px; font-weight: bold;">(기대수익 {c.get('expected_yield')})</span>
                 </div>
-                <div style="color: #374151; font-size: 12px; margin-top: 4px;">
-                    💡 <b>전망 및 근거:</b> {c['outlook']} &nbsp;|&nbsp; 🛑 <b>손절가:</b> {c['stop_loss']} &nbsp;|&nbsp; 📊 <b>RSI:</b> {c['rsi']}
+                <div style="font-size: 11.5px; color: #475569; margin-bottom: 4px;">
+                    🛡️ <b>지지선:</b> 1차 {c.get('sup1')} / 2차 {c.get('sup2')} &nbsp;|&nbsp; ⚔️ <b>저항선:</b> 1차 {c.get('res1')} / 2차 {c.get('res2')}
+                </div>
+                <div style="color: #374151; font-size: 11.5px; background: #FFFFFF; border: 1px solid #E2E8F0; padding: 6px 8px; border-radius: 4px; line-height: 1.45;">
+                    🐋 <b>온체인·ETF 수급:</b> {c.get('onchain_desc')}<br>
+                    💡 <b>트레이딩 관점:</b> {c.get('outlook')} [{c.get('signal')}] &nbsp;|&nbsp; 🛑 <b>손절가:</b> {c.get('stop_loss')} &nbsp;|&nbsp; 📊 <b>RSI:</b> {c.get('rsi')}
                 </div>
             </div>
             """
@@ -140,7 +175,100 @@ class EmailSender:
         crypto_news_html = ""
         c_news = crypto_advice.get("crypto_news", [])
         if c_news:
-            crypto_news_html = "<div style='font-size: 12px; color: #6B7280; margin-top: 8px;'><b>📰 코인 시장 헤드라인:</b> " + " | ".join([f"<a href='{cn['link']}' style='color: #4B5563; text-decoration: none;'>{cn['title']}</a>" for cn in c_news[:2]]) + "</div>"
+            crypto_news_html = "<div style='font-size: 12px; color: #6B7280; margin-top: 8px;'><b>📰 코인 시장 주요 뉴스:</b> " + " | ".join([f"<a href='{cn['link']}' style='color: #4B5563; text-decoration: none;'>{cn['title']}</a>" for cn in c_news[:2]]) + "</div>"
+
+        crypto_section_html = f"""
+        <div style="margin-bottom: 24px;">
+            <h2 style="font-size: 17px; color: #1E293B; border-bottom: 2px solid #7E22CE; padding-bottom: 6px; margin-top: 0;">
+                🪙 [가상자산 인텔리전스] 공포·탐욕 지수, 김프 & 3대 코인 정밀 분석
+            </h2>
+            <div style="display: flex; gap: 8px; margin: 12px 0; text-align: center;">
+                <div style="flex: 1; background: #FAF5FF; border: 1px solid #E9D5FF; border-radius: 6px; padding: 8px;">
+                    <div style="font-size: 11px; color: #6B21A8;">공포 & 탐욕 지수</div>
+                    <div style="font-size: 17px; font-weight: bold; color: #7E22CE;">{fg_val}점</div>
+                    <div style="font-size: 10px; font-weight: bold; color: #581C87;">{fg_label}</div>
+                </div>
+                <div style="flex: 1; background: #FAF5FF; border: 1px solid #E9D5FF; border-radius: 6px; padding: 8px;">
+                    <div style="font-size: 11px; color: #6B21A8;">실시간 김치 프리미엄</div>
+                    <div style="font-size: 17px; font-weight: bold; color: #16A34A;">{kimchi_p}</div>
+                    <div style="font-size: 10px; color: #475569;">바이낸스 대비</div>
+                </div>
+                <div style="flex: 1; background: #FAF5FF; border: 1px solid #E9D5FF; border-radius: 6px; padding: 8px;">
+                    <div style="font-size: 11px; color: #6B21A8;">비트코인 도미넌스</div>
+                    <div style="font-size: 17px; font-weight: bold; color: #1E40AF;">{btc_dom}</div>
+                    <div style="font-size: 10px; color: #475569;">전체 시장 점유율</div>
+                </div>
+            </div>
+
+            <div style="margin-bottom: 12px;">
+                <div style="font-size: 12px; font-weight: bold; color: #581C87; margin-bottom: 6px;">⚡ 업비트 24시간 거래대금 최상위 코인 Top 5</div>
+                {upbit_top_chips}
+            </div>
+
+            <div style="margin-top: 10px;">
+                <div style="font-size: 12px; font-weight: bold; color: #581C87; margin-bottom: 6px;">🎯 비트코인·이더리움·솔라나 매매 추천가 & 온체인 수급</div>
+                {coin_cards_html}
+            </div>
+            {crypto_news_html}
+        </div>
+        """
+
+        # ---------------------------------------------------------
+        # 🏢 대한민국 부동산 시장 주간 동향 & 금융 규제 섹션
+        # ---------------------------------------------------------
+        re_rows_html = ""
+        for r in real_estate_data.get("regional_trends", []):
+            sc = r.get("sale_change", "0.00%")
+            jc = r.get("jeonse_change", "0.00%")
+            sc_col = "#16A34A" if "+" in sc else ("#DC2626" if "-" in sc else "#64748B")
+            jc_col = "#16A34A" if "+" in jc else ("#DC2626" if "-" in jc else "#64748B")
+            re_rows_html += f"""
+            <tr style="border-bottom: 1px solid #E2E8F0;">
+                <td style="padding: 6px 8px; font-weight: bold; color: #0F172A;">{r.get('region')}</td>
+                <td style="padding: 6px 8px; text-align: right; color: {sc_col}; font-weight: bold;">{sc}</td>
+                <td style="padding: 6px 8px; text-align: right; color: {jc_col}; font-weight: bold;">{jc}</td>
+                <td style="padding: 6px 8px; text-align: center;"><span style="background: #F1F5F9; color: {r.get('status_color', '#334155')}; font-weight: bold; font-size: 10px; padding: 2px 6px; border-radius: 4px;">{r.get('status')}</span></td>
+            </tr>
+            """
+
+        mi = real_estate_data.get("mortgage_info", {})
+        mm = real_estate_data.get("market_metrics", {})
+        re_ag_html = ""
+        for ag in real_estate_data.get("action_guides", []):
+            re_ag_html += f"""
+            <div style="background: #FFFFFF; border: 1px solid #CBD5E1; border-left: 4px solid #0284C7; border-radius: 4px; padding: 6px 10px; margin-bottom: 6px; font-size: 11.5px;">
+                <b>🎯 {ag.get('target')}:</b> {ag.get('tip')}
+            </div>
+            """
+
+        real_estate_section_html = f"""
+        <div style="margin-bottom: 24px;">
+            <h2 style="font-size: 17px; color: #1E293B; border-bottom: 2px solid #0284C7; padding-bottom: 6px; margin-top: 0;">
+                🏢 [부동산 인텔리전스] 주요 권역별 아파트 시세 & 주담대 금리·규제
+            </h2>
+            <table style="width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 10px; margin-bottom: 12px;">
+                <tr style="background: #F0F9FF; color: #0369A1;">
+                    <th style="padding: 6px 8px; text-align: left; border: 1px solid #E2E8F0;">주요 권역</th>
+                    <th style="padding: 6px 8px; text-align: right; border: 1px solid #E2E8F0;">매매</th>
+                    <th style="padding: 6px 8px; text-align: right; border: 1px solid #E2E8F0;">전세</th>
+                    <th style="padding: 6px 8px; text-align: center; border: 1px solid #E2E8F0;">시장 국면</th>
+                </tr>
+                {re_rows_html}
+            </table>
+
+            <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 6px; padding: 10px 12px; font-size: 11.5px; margin-bottom: 10px;">
+                <div style="font-weight: bold; color: #0369A1; margin-bottom: 4px;">🏦 주택담보대출 금리 밴드 & 대출 규제</div>
+                <div>• <b>5년 고정 혼합형:</b> {mi.get('fixed_rate_band')} &nbsp;|&nbsp; <b>변동금리:</b> {mi.get('variable_rate_band')}</div>
+                <div>• <b>규제 현황:</b> {mi.get('dsr_status')}</div>
+                <div style="color: #64748B; font-size: 11px; margin-top: 3px;">• <b>서울 월간 거래량:</b> {mm.get('monthly_volume')} (매물 {mm.get('listing_inventory')})</div>
+            </div>
+
+            <div style="margin-top: 6px;">
+                <div style="font-size: 12px; font-weight: bold; color: #0369A1; margin-bottom: 6px;">🧭 실수요자 실전 행동 요령</div>
+                {re_ag_html}
+            </div>
+        </div>
+        """
 
         # ---------------------------------------------------------
         # 3. 🎯 주식 매매 추천 카드
@@ -628,7 +756,7 @@ class EmailSender:
                     <!-- 📄 3면 기업 심층 해부: 증권사 공식 애널리스트 리포트 -->
                     <div style="margin-bottom: 24px;">
                         <h2 style="font-size: 17px; color: #1E293B; border-bottom: 2px solid #16A34A; padding-bottom: 6px; margin-top: 0;">
-                            📄 [3면] 증권사 공식 애널리스트 Top 리포트 심층 해부 (비즈니스 해자 & 실적 표)
+                            📄 [3면] 증권사 공식 애널리스트 Top 리포트 심층 해부 (비전문가 눈높이 해설)
                         </h2>
                         <div style="margin-top: 14px;">
                             {reports_cards_html}
@@ -665,6 +793,12 @@ class EmailSender:
                             {sell_html}
                         </div>
                     </div>
+
+                    <!-- 🪙 가상자산 전용 인텔리전스 섹션 -->
+                    {crypto_section_html}
+
+                    <!-- 🏢 대한민국 부동산 시장 동향 리포트 섹션 -->
+                    {real_estate_section_html}
 
                     <!-- 4. 시장 지표 요약 섹션 -->
                     <div style="margin-bottom: 24px;">
@@ -854,6 +988,49 @@ class EmailSender:
             </div>
             """
 
+        # 🏢 주간 부동산 섹션
+        re_data_weekly = weekly_data.get("real_estate_data")
+        if not re_data_weekly and RealEstateAdvisor:
+            try:
+                re_data_weekly = RealEstateAdvisor().analyze_market()
+            except Exception:
+                re_data_weekly = {}
+        elif not re_data_weekly:
+            re_data_weekly = {}
+
+        weekly_re_rows = ""
+        for r in re_data_weekly.get("regional_trends", []):
+            sc = r.get("sale_change", "0.00%")
+            jc = r.get("jeonse_change", "0.00%")
+            sc_col = "#16A34A" if "+" in sc else ("#DC2626" if "-" in sc else "#64748B")
+            jc_col = "#16A34A" if "+" in jc else ("#DC2626" if "-" in jc else "#64748B")
+            weekly_re_rows += f"""
+            <tr style="border-bottom: 1px solid #E2E8F0;">
+                <td style="padding: 6px 8px; font-weight: bold; color: #0F172A;">{r.get('region')}</td>
+                <td style="padding: 6px 8px; text-align: right; color: {sc_col}; font-weight: bold;">{sc}</td>
+                <td style="padding: 6px 8px; text-align: right; color: {jc_col}; font-weight: bold;">{jc}</td>
+                <td style="padding: 6px 8px; text-align: center;"><span style="background: #F1F5F9; color: {r.get('status_color', '#334155')}; font-weight: bold; font-size: 10px; padding: 2px 6px; border-radius: 4px;">{r.get('status')}</span></td>
+            </tr>
+            """
+        w_mi = re_data_weekly.get("mortgage_info", {})
+        weekly_re_html = f"""
+        <div style="background: #FFFFFF; border: 1px solid #BAE6FD; border-top: 4px solid #0284C7; border-radius: 8px; padding: 14px 16px;">
+            <div style="font-size: 13.5px; font-weight: bold; color: #0369A1; margin-bottom: 6px;">권역별 아파트 매매·전세 주간 변동률</div>
+            <table style="width: 100%; border-collapse: collapse; font-size: 11.5px; margin-bottom: 10px;">
+                <tr style="background: #F0F9FF; color: #0369A1;">
+                    <th style="padding: 6px 8px; text-align: left; border: 1px solid #E2E8F0;">권역</th>
+                    <th style="padding: 6px 8px; text-align: right; border: 1px solid #E2E8F0;">매매</th>
+                    <th style="padding: 6px 8px; text-align: right; border: 1px solid #E2E8F0;">전세</th>
+                    <th style="padding: 6px 8px; text-align: center; border: 1px solid #E2E8F0;">시장 국면</th>
+                </tr>
+                {weekly_re_rows}
+            </table>
+            <div style="font-size: 11px; color: #334155; line-height: 1.5; background: #F8FAFC; padding: 8px 10px; border-radius: 4px;">
+                🏦 <b>주담대 금리:</b> 5년 고정 {w_mi.get('fixed_rate_band', '-')} / 변동 {w_mi.get('variable_rate_band', '-')} &nbsp;|&nbsp; <b>DSR 규제:</b> {w_mi.get('dsr_status', '-')}
+            </div>
+        </div>
+        """
+
         # 0. 최고경영진 주간 핵심 요약 (Executive Summary Box)
         p_data = weekly_data.get("performance_data", {})
         p_sum = p_data.get("summary", {}) if isinstance(p_data, dict) else {}
@@ -943,10 +1120,20 @@ class EmailSender:
                         </div>
                     </div>
 
+                    <!-- 5. 🏢 대한민국 부동산 시장 주간 총결산 -->
+                    <div style="margin-bottom: 24px;">
+                        <h2 style="font-size: 17px; color: #1E293B; border-bottom: 2px solid #0284C7; padding-bottom: 6px;">
+                            🏢 5. 대한민국 부동산 주간 동향 & 금융 규제 총결산
+                        </h2>
+                        <div style="margin-top: 14px;">
+                            {weekly_re_html}
+                        </div>
+                    </div>
+
                     <!-- 안내 박스 -->
                     <div style="background: #F8FAFC; border: 1px solid #CBD5E1; border-left: 4px solid #1E3A8A; border-radius: 6px; padding: 14px; font-size: 12px; color: #334155; line-height: 1.6;">
                         📁 <b>구글 드라이브 주간 전략 백서 보관함 안내:</b><br>
-                        • <b>주간 종합 백서 PDF:</b> <code>{date_str[:7]}/{date_str}_주간_글로벌_금융_전략_백서.pdf</code> (정식 표지, 목차, 5대 챕터 종합 결산 수록)<br>
+                        • <b>주간 종합 백서 PDF:</b> <code>{date_str[:7]}/{date_str}_주간_글로벌_금융_전략_백서.pdf</code> (정식 표지, 목차, 6대 챕터 종합 결산 수록)<br>
                         📎 <b>첨부 파일 안내:</b> 주간 종합 백서 PDF 및 한 주간의 누적 데이터를 모두 집계한 주간 총결산 엑셀 파일(<code>.xlsx</code>)이 첨부되어 있습니다.
                     </div>
 
@@ -962,7 +1149,7 @@ class EmailSender:
         """
         return html
 
-    def send_report(self, date_str: str, stock_indices: list, exchange_rates: list, stock_advice: dict, crypto_advice: dict, official_reports: list, news_result: dict, top_research_list: list = None, attachment_path: str = None, performance_data: dict = None, special_disclosures: list = None, story_dive_data: dict = None, attachments: list = None) -> bool:
+    def send_report(self, date_str: str, stock_indices: list, exchange_rates: list, stock_advice: dict, crypto_advice: dict, official_reports: list, news_result: dict, top_research_list: list = None, attachment_path: str = None, performance_data: dict = None, special_disclosures: list = None, story_dive_data: dict = None, attachments: list = None, real_estate_data: dict = None) -> bool:
         """평일/토요일 데일리 모닝 브리핑 이메일 발송"""
         if not self.is_configured():
             print("\n⚠️ [이메일 발송 건너뜀] NAVER_USER 또는 NAVER_PASSWORD가 설정되지 않았습니다.")
@@ -986,6 +1173,7 @@ class EmailSender:
                 performance_data=performance_data,
                 special_disclosures=special_disclosures,
                 story_dive_data=story_dive_data,
+                real_estate_data=real_estate_data,
             )
             msg.attach(MIMEText(html_content, "html", "utf-8"))
 

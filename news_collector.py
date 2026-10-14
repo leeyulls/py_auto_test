@@ -56,34 +56,45 @@ class NewsCollector:
 
     @classmethod
     def _clean_informative_summary(cls, raw_summary: str, title: str) -> str:
-        """기사 요약에서 언론사/기자/특수문자 잡음을 완벽히 제거하고 유의미한 완결 문장 생성"""
+        """기사 요약에서 언론사/기자/특수문자 및 '...' 말줄임표 잡음을 완벽히 제거하고 완결된 문장 생성"""
+        clean_title = re.sub(r"\[.*?\]|\(.*?\)|<.*?>", "", title).strip()
         if not raw_summary:
-            return f"{title}에 대한 현황과 주요 쟁점을 다룬 보도입니다."
+            return f"{clean_title}에 대한 현황과 주요 쟁점을 다룬 보도입니다."
 
         text = cls._clean_html(raw_summary)
-        # 잡음 패턴 정규식 제거
+        # 잡음 패턴 및 말줄임표(...) 정규식 제거
         text = re.sub(r"\[.*?\]|\(.*?\)", " ", text)
         text = re.sub(r"^[가-힣a-zA-Z\s]+기자\s*=\s*", "", text)
         text = re.sub(r"[가-힣a-zA-Z\s]+기자\s*", "", text)
-        text = re.sub(r"\b(서울|세종|부산|뉴욕|워싱턴|도쿄|베이징)=뉴스[1원]|뉴시스|연합뉴스|이데일리|머니투데이|헤럴드경제|한국경제|매일경제\b", "", text)
+        text = re.sub(r"\b(서울|세종|부산|뉴욕|워싱턴|도쿄|베이징)=뉴스[1원]|뉴시스|연합뉴스|이데일리|머니투데이|헤럴드경제|한국경제|매일경제|조선일보|중앙일보|동아일보\b", "", text)
         text = re.sub(r"무단전재.*", "", text)
+        text = re.sub(r"\.{2,}|…+", "", text)  # ... 및 … 완전 제거
         text = re.sub(r"\s+", " ", text).strip()
 
-        # 온전한 20자 이상 문장 탐색
+        # 온전한 마침표/종결 어미 문장 분리
         raw_sentences = re.split(r'(?<=[.!?다함음])\s+', text)
         good_sentences = []
         for s in raw_sentences:
             s_clean = s.strip()
-            if len(s_clean) >= 20 and not any(junk in s_clean for junk in ["기자", "포토", "무단", "저작권"]):
+            # 잡음 및 너무 짧은 구절 배제
+            if len(s_clean) >= 20 and not any(junk in s_clean for junk in ["기자", "포토", "무단", "저작권", "사진="]):
+                # 문장 끝 다듬기 (말줄임 흔적 제거)
+                s_clean = re.sub(r'[\s.,·…]+$', '', s_clean)
                 if not s_clean.endswith(('.', '!', '?')):
                     s_clean += '.'
                 good_sentences.append(s_clean)
 
         if good_sentences:
-            return " ".join(good_sentences[:2])
-        if len(text) >= 20:
-            return text if text.endswith('.') else text + '.'
-        return f"{title}의 핵심 내용과 시장 반응을 분석한 보도입니다."
+            # 최대 2문장 결합
+            combined = " ".join(good_sentences[:2])
+            if len(combined) >= 30:
+                return combined
+
+        if len(text) >= 30:
+            cleaned_text = re.sub(r'[\s.,·…]+$', '', text)
+            return cleaned_text + '.'
+
+        return f"{clean_title}과 관련하여 주요 정책 및 시장 이해관계자들의 입장과 향후 파급 효과를 전했습니다."
 
     @classmethod
     def _is_similar_headline(cls, title1: str, title2: str, threshold: float = 0.4) -> bool:

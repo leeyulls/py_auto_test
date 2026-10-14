@@ -17,6 +17,11 @@ try:
 except ImportError:
     IntelligenceDossierEngine = None
 
+try:
+    from real_estate_advisor import RealEstateAdvisor
+except ImportError:
+    RealEstateAdvisor = None
+
 # Windows cp949 인코딩 에러 방지
 if hasattr(sys.stdout, "reconfigure"):
     try:
@@ -126,11 +131,21 @@ class PdfReportGenerator:
     def generate_daily_pdf(self, date_str: str, stock_indices: list, exchange_rates: list,
                            stock_advice: dict, crypto_advice: dict, official_reports: list,
                            news_result: dict, performance_data: dict, special_disclosures: list,
-                           story_dive_data: dict, output_pdf_path: str) -> str:
+                           story_dive_data: dict, output_pdf_path: str, real_estate_data: dict = None) -> str:
         """
-        [경영진 보고용] 8페이지 규모 The Executive Intelligence Herald (나만의 심층 인텔리전스 신문) A4 PDF 편찬
+        [경영진 보고용] 10~11페이지 규모 The Executive Intelligence Herald (나만의 심층 인텔리전스 신문) A4 PDF 편찬
         """
         html_path = output_pdf_path.replace(".pdf", "_temp.html")
+
+        # 부동산 데이터 확보 (없을 시 자동 분석)
+        if real_estate_data is None and RealEstateAdvisor:
+            try:
+                real_estate_data = RealEstateAdvisor().analyze_market()
+            except Exception as e:
+                safe_print(f"[경고] 부동산 데이터 수집 실패: {e}")
+                real_estate_data = {}
+        elif real_estate_data is None:
+            real_estate_data = {}
 
         # 도시에 데이터 확보 (기존 데이터 없으면 온디맨드 심층 탐색)
         nd = story_dive_data.get("newspaper_dossier") if isinstance(story_dive_data, dict) else None
@@ -216,23 +231,85 @@ class PdfReportGenerator:
             </tr>
             """
 
-        # 4. 가상자산 3대장 표
-        coin_rows = ""
-        for c in crypto_advice.get("coins", []):
-            col = "#16A34A" if "+" in c.get('change_rate', '') else "#DC2626"
-            coin_rows += f"""
+        # 4. 가상자산 전용 데이터 (독립 7면)
+        macro_c = crypto_advice.get("macro_indicators", {})
+        fg_val = macro_c.get("fear_greed_val", 60)
+        fg_label = macro_c.get("fear_greed_label", "중립 (Neutral)")
+        kimchi_p = macro_c.get("kimchi_premium", "+0.0%")
+        btc_dom = macro_c.get("btc_dominance", "57.6%")
+
+        upbit_top_rows = ""
+        for idx, tv in enumerate(macro_c.get("top_volume_coins", []), 1):
+            chg = tv.get("change", "0.0%")
+            chg_col = "#16A34A" if "+" in chg else "#DC2626"
+            upbit_top_rows += f"""
             <tr style="border-bottom: 1px solid #E2E8F0;">
-                <td style="padding: 7px 8px; font-weight: bold;">{c.get('icon', '🪙')} {c.get('name')} <span style="font-size: 10px; color: #64748B;">({c.get('symbol')})</span></td>
-                <td style="padding: 7px 8px; text-align: right; font-weight: bold;">{c.get('cur_price')}</td>
-                <td style="padding: 7px 8px; text-align: right; color: {col}; font-weight: bold;">{c.get('change_rate')}</td>
-                <td style="padding: 7px 8px; text-align: right; color: #7E22CE; font-weight: bold;">{c.get('buy_price')}</td>
-                <td style="padding: 7px 8px; text-align: right; color: #1E40AF; font-weight: bold;">{c.get('sell_price')}</td>
-                <td style="padding: 7px 8px; text-align: center; color: #16A34A; font-weight: bold;">{c.get('expected_yield')}</td>
-                <td style="padding: 7px 8px; font-size: 11px; color: #475569;">{c.get('outlook')}</td>
+                <td style="padding: 6px 8px; text-align: center; font-weight: bold; color: #475569;">{idx}</td>
+                <td style="padding: 6px 8px; font-weight: bold; color: #0F172A;">{tv.get('symbol')}</td>
+                <td style="padding: 6px 8px; text-align: right; font-weight: bold;">{tv.get('price')}</td>
+                <td style="padding: 6px 8px; text-align: right; color: {chg_col}; font-weight: bold;">{chg}</td>
+                <td style="padding: 6px 8px; text-align: right; color: #64748B;">{tv.get('volume')}</td>
             </tr>
             """
 
-        # 5. 사후 검증(Backtesting) 테이블
+        coin_cards_detailed = ""
+        for c in crypto_advice.get("coins", []):
+            sparkline = self.generate_svg_sparkline(c.get("recent_closes", []))
+            col = "#16A34A" if "+" in c.get('change_rate', '') else "#DC2626"
+            coin_cards_detailed += f"""
+            <div style="background: #FFFFFF; border: 1px solid #E2E8F0; border-top: 3px solid #7E22CE; border-radius: 6px; padding: 10px 12px; margin-bottom: 10px; page-break-inside: avoid;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                    <div style="font-size: 13.5px; font-weight: bold; color: #581C87;">
+                        {c.get('icon')} {c.get('name')} <span style="font-size: 11px; color: #64748B;">({c.get('symbol')})</span>
+                        &nbsp;|&nbsp; 현재가: <b>{c.get('cur_price')}</b> <span style="color: {col}; font-size: 12px;">({c.get('change_rate')})</span>
+                    </div>
+                    <div>{sparkline}</div>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 11px; margin-bottom: 6px;">
+                    <div style="background: #FAF5FF; padding: 6px 8px; border-radius: 4px; color: #581C87;">
+                        💰 <b>추천 매수가:</b> {c.get('buy_price')} &nbsp;|&nbsp; 🎯 <b>목표가:</b> {c.get('sell_price')} ({c.get('expected_yield')})<br>
+                        🛑 <b>손절가:</b> {c.get('stop_loss')} &nbsp;|&nbsp; 📊 <b>RSI(14):</b> {c.get('rsi')}
+                    </div>
+                    <div style="background: #F8FAFC; padding: 6px 8px; border-radius: 4px; color: #334155;">
+                        🛡️ <b>지지선:</b> 1차 {c.get('sup1')} / 2차 {c.get('sup2')}<br>
+                        ⚔️ <b>저항선:</b> 1차 {c.get('res1')} / 2차 {c.get('res2')}
+                    </div>
+                </div>
+                <div style="font-size: 10.5px; color: #475569; background: #F1F5F9; padding: 6px 8px; border-radius: 4px; line-height: 1.45;">
+                    🐋 <b>온체인·ETF 수급:</b> {c.get('onchain_desc')}<br>
+                    💡 <b>트레이딩 관점:</b> {c.get('outlook')} [{c.get('signal')}]
+                </div>
+            </div>
+            """
+
+        # 5. 부동산 전용 데이터 (독립 8면)
+        re_rows = ""
+        for r in real_estate_data.get("regional_trends", []):
+            sc = r.get("sale_change", "0.00%")
+            jc = r.get("jeonse_change", "0.00%")
+            sc_col = "#16A34A" if "+" in sc else ("#DC2626" if "-" in sc else "#64748B")
+            jc_col = "#16A34A" if "+" in jc else ("#DC2626" if "-" in jc else "#64748B")
+            re_rows += f"""
+            <tr style="border-bottom: 1px solid #E2E8F0;">
+                <td style="padding: 7px 8px; font-weight: bold; color: #0F172A;">{r.get('region')}</td>
+                <td style="padding: 7px 8px; text-align: right; color: {sc_col}; font-weight: bold;">{sc}</td>
+                <td style="padding: 7px 8px; text-align: right; color: {jc_col}; font-weight: bold;">{jc}</td>
+                <td style="padding: 7px 8px; text-align: center;"><span style="background: #F1F5F9; color: {r.get('status_color', '#334155')}; font-weight: bold; font-size: 10px; padding: 2px 6px; border-radius: 4px;">{r.get('status')}</span></td>
+                <td style="padding: 7px 8px; font-size: 10.5px; color: #475569;">{r.get('summary')}</td>
+            </tr>
+            """
+
+        mi = real_estate_data.get("mortgage_info", {})
+        mm = real_estate_data.get("market_metrics", {})
+        ag_cards = ""
+        for ag in real_estate_data.get("action_guides", []):
+            ag_cards += f"""
+            <div style="background: #FFFFFF; border: 1px solid #CBD5E1; border-left: 4px solid #0284C7; border-radius: 4px; padding: 6px 10px; margin-bottom: 6px; font-size: 11px;">
+                <b>🎯 {ag.get('target')}:</b> {ag.get('tip')}
+            </div>
+            """
+
+        # 6. 사후 검증(Backtesting) 테이블
         backtest_rows = ""
         p_records = performance_data.get("records", []) if isinstance(performance_data, dict) else []
         for r in p_records[:8]:
@@ -255,7 +332,7 @@ class PdfReportGenerator:
             </tr>
             """
 
-        # 6. 3면: 기업 심층 해부 (Equity Research Dossier) HTML
+        # 7. 3면: 기업 심층 해부 (Equity Research Dossier) HTML
         rep_dossier_html = ""
         if exp_reps:
             for r in exp_reps[:2]:
@@ -288,7 +365,7 @@ class PdfReportGenerator:
                 </div>
                 """
 
-        # 7. 4면: DART 특수공시 심층 행간 읽기 (Regulatory & Governance Intelligence) HTML
+        # 8. 4면: DART 특수공시 심층 행간 읽기 (Regulatory & Governance Intelligence) HTML
         disc_dossier_html = ""
         if exp_discs:
             for d in exp_discs[:2]:
@@ -304,15 +381,15 @@ class PdfReportGenerator:
                     </div>
                 </div>
                 """
-        # 특수공시 요약 표
+        # 특수공시 요약 표 (독립 5면 전용)
         disc_table_rows = ""
-        for d in special_disclosures[:5]:
+        for d in special_disclosures[:10]:
             disc_table_rows += f"""
             <tr style="border-bottom: 1px solid #E2E8F0;">
-                <td style="padding: 6px 8px; font-weight: bold; color: #1E40AF;"><span style="background: #DBEAFE; color: #1E40AF; padding: 1px 5px; border-radius: 3px; font-size: 10px;">{d.get('공시배지')}</span> {d.get('관련기업', '상장사')}</td>
-                <td style="padding: 6px 8px; font-size: 11px;"><a href="{d.get('링크')}" style="color: #0F172A; text-decoration: none;">{d.get('공시제목')}</a></td>
-                <td style="padding: 6px 8px; font-size: 11px; color: #475569;">{d.get('영향전망')}</td>
-                <td style="padding: 6px 8px; font-size: 11px; color: #166534; font-weight: bold;">{d.get('투자전략')}</td>
+                <td style="padding: 7px 8px; font-weight: bold; color: #1E40AF;"><span style="background: #DBEAFE; color: #1E40AF; padding: 2px 6px; border-radius: 4px; font-size: 10px;">{d.get('공시배지')}</span> {d.get('관련기업', '상장사')}</td>
+                <td style="padding: 7px 8px; font-size: 11px; font-weight: bold;"><a href="{d.get('링크')}" style="color: #0F172A; text-decoration: none;">{d.get('공시제목')}</a></td>
+                <td style="padding: 7px 8px; font-size: 11px; color: #475569;">{d.get('영향전망')}</td>
+                <td style="padding: 7px 8px; font-size: 11px; color: #166534; font-weight: bold;">{d.get('투자전략')}</td>
             </tr>
             """
 
@@ -564,33 +641,50 @@ class PdfReportGenerator:
   <div class="page-break"></div>
 
   <!-- ============================================================ -->
-  <!-- 🏛️ [Page 4] 4면 DART 특수공시 심층 행간 읽기 (Regulatory Intelligence) -->
+  <!-- 🏛️ [Page 4] 4면 DART 특수공시 심층 행간 읽기 (Top 2 정밀 분석) -->
   <!-- ============================================================ -->
   <div class="sec-banner" style="background: #B45309;">
     <span>🏛️ 4면 공시 행간 읽기 • REGULATORY & GOVERNANCE INTELLIGENCE</span>
-    <span style="font-size: 10px; opacity: 0.9;">금융감독원(DART) 특수공시 이면의 지배구조와 실질 재무 건전성</span>
+    <span style="font-size: 10px; opacity: 0.9;">금융감독원(DART) 특수공시 이면의 지배구조와 실질 재무 체력 심층 해부</span>
   </div>
 
   {disc_dossier_html}
 
-  <div style="font-size: 12px; font-weight: bold; color: #92400E; margin: 12px 0 6px;">📋 당일 금융감독원(DART) & KIND 특수공시 종합 일람표</div>
+  <div class="page-break"></div>
+
+  <!-- ============================================================ -->
+  <!-- 📋 [Page 5] 5면 DART 특수공시 종합 일람표 & 투자전략 캘린더 (독립 전용 페이지) -->
+  <!-- ============================================================ -->
+  <div class="sec-banner" style="background: #92400E;">
+    <span>📋 5면 특수공시 종합 일람표 • DART & KIND REGULATORY MONITOR</span>
+    <span style="font-size: 10px; opacity: 0.9;">당일 금융감독원 & 거래소 공시 전수 분석 및 실전 투자 행동 전략</span>
+  </div>
+
+  <div style="font-size: 12.5px; font-weight: bold; color: #92400E; margin-bottom: 6px;">📋 당일 금융감독원(DART) & KIND 특수공시 종합 일람표</div>
   <table>
     <tr>
-      <th style="width: 22%;">공시 기업</th>
+      <th style="width: 20%;">공시 기업</th>
       <th style="width: 38%;">공시 제목</th>
-      <th style="width: 20%;">영향 전망</th>
+      <th style="width: 22%;">영향 전망</th>
       <th style="width: 20%;">투자 전략</th>
     </tr>
     {disc_table_rows}
   </table>
 
+  <div style="margin-top: 14px; background: #FFFBEB; border: 1px solid #FDE68A; border-radius: 6px; padding: 12px 14px; font-size: 11px; color: #78350F; line-height: 1.6;">
+    💡 <b>DART 특수공시 투자자 핵심 가이드:</b><br>
+    • <b>자사주 취득 후 즉각 소각:</b> 유통 주식 수를 영구 소멸시켜 주당순이익(EPS)을 즉각 향상시키는 최상급 주주환원 호재입니다.<br>
+    • <b>자사주 취득 신탁계약:</b> 증권사에 위탁하여 시장 상황에 따라 분할 취득하므로 실제 공시 집행율(체결율)을 정기 점검해야 합니다.<br>
+    • <b>대규모 공급계약:</b> 최근 매출액 대비 계약금 비중(통상 10% 이상 권고)과 계약 상대방의 신용도 및 대금 지급 조건을 면밀히 확인해야 합니다.
+  </div>
+
   <div class="page-break"></div>
 
   <!-- ============================================================ -->
-  <!-- 📊 [Page 5] 5면 글로벌 매크로 & 퀀트 주식 매트릭스 -->
+  <!-- 📊 [Page 6] 6면 글로벌 매크로 & 퀀트 주식 매트릭스 -->
   <!-- ============================================================ -->
   <div class="sec-banner" style="background: #1E3A8A;">
-    <span>📊 5면 글로벌 매크로 & 퀀트 주식 매트릭스 • QUANTITATIVE SIGNALS</span>
+    <span>📊 6면 글로벌 매크로 & 퀀트 주식 매트릭스 • QUANTITATIVE SIGNALS</span>
     <span style="font-size: 10px; opacity: 0.9;">실시간 지수, 환율 및 20일 주가 추이 SVG 차트</span>
   </div>
 
@@ -636,27 +730,98 @@ class PdfReportGenerator:
     {us_rows}
   </table>
 
-  <div style="font-size: 12px; font-weight: bold; color: #7E22CE; margin-top: 12px; margin-bottom: 6px;">🪙 가상자산 3대장(BTC, ETH, SOL) 실시간 시세 및 매매 추천금액</div>
-  <table>
+  <div class="page-break"></div>
+
+  <!-- ============================================================ -->
+  <!-- 🪙 [Page 7] 7면 가상자산 전용 인텔리전스 (Crypto Intelligence) -->
+  <!-- ============================================================ -->
+  <div class="sec-banner" style="background: #7E22CE;">
+    <span>🪙 7면 가상자산 인텔리전스 • CRYPTO ASSET INTELLIGENCE</span>
+    <span style="font-size: 10px; opacity: 0.9;">공포·탐욕 지수, 실시간 김치프리미엄, 업비트 TOP 5 & 3대 코인 온체인/기술적 분석</span>
+  </div>
+
+  <div style="display: flex; gap: 10px; margin-bottom: 12px; text-align: center;">
+    <div style="flex: 1; background: #FAF5FF; border: 1px solid #E9D5FF; border-radius: 6px; padding: 10px;">
+      <div style="font-size: 11px; color: #6B21A8;">공포 & 탐욕 지수</div>
+      <div style="font-size: 18px; font-weight: bold; color: #7E22CE; margin: 2px 0;">{fg_val}점</div>
+      <div style="font-size: 10.5px; font-weight: bold; color: #581C87;">{fg_label}</div>
+    </div>
+    <div style="flex: 1; background: #FAF5FF; border: 1px solid #E9D5FF; border-radius: 6px; padding: 10px;">
+      <div style="font-size: 11px; color: #6B21A8;">실시간 김치 프리미엄</div>
+      <div style="font-size: 18px; font-weight: bold; color: #16A34A; margin: 2px 0;">{kimchi_p}</div>
+      <div style="font-size: 10.5px; color: #475569;">바이낸스 대비 차이</div>
+    </div>
+    <div style="flex: 1; background: #FAF5FF; border: 1px solid #E9D5FF; border-radius: 6px; padding: 10px;">
+      <div style="font-size: 11px; color: #6B21A8;">비트코인 도미넌스</div>
+      <div style="font-size: 18px; font-weight: bold; color: #1E40AF; margin: 2px 0;">{btc_dom}</div>
+      <div style="font-size: 10.5px; color: #475569;">전체 시장 점유율</div>
+    </div>
+  </div>
+
+  <div style="font-size: 12px; font-weight: bold; color: #581C87; margin-bottom: 6px;">⚡ 업비트 24시간 거래대금 최상위 코인 Top 5</div>
+  <table style="margin-bottom: 12px;">
     <tr>
-      <th>코인명 (심볼)</th>
-      <th style="text-align: right;">현재가</th>
-      <th style="text-align: right;">등락률</th>
-      <th style="text-align: right;">추천 매수가</th>
-      <th style="text-align: right;">목표 매도가</th>
-      <th style="text-align: center;">기대수익</th>
-      <th>시장 전망</th>
+      <th style="width: 10%; text-align: center;">순위</th>
+      <th style="width: 25%;">종목 (심볼)</th>
+      <th style="width: 25%; text-align: right;">현재가</th>
+      <th style="width: 20%; text-align: right;">24시간 변동률</th>
+      <th style="width: 20%; text-align: right;">24시간 거래대금</th>
     </tr>
-    {coin_rows}
+    {upbit_top_rows}
   </table>
+
+  <div style="font-size: 12px; font-weight: bold; color: #581C87; margin-bottom: 6px;">🎯 가상자산 3대장(BTC, ETH, SOL) 온체인 수급 및 지지·저항선 분석</div>
+  {coin_cards_detailed}
 
   <div class="page-break"></div>
 
   <!-- ============================================================ -->
-  <!-- 🎯 [Page 6] 6면 추천 종목 사후 검증(Backtesting) 성과 백서 -->
+  <!-- 🏢 [Page 8] 8면 대한민국 부동산 시장 동향 (Real Estate Intelligence) -->
+  <!-- ============================================================ -->
+  <div class="sec-banner" style="background: #0284C7;">
+    <span>🏢 8면 대한민국 부동산 시장 동향 • REAL ESTATE INTELLIGENCE</span>
+    <span style="font-size: 10px; opacity: 0.9;">권역별 아파트 매매·전세 증감률, 주담대 금리 밴드, DSR 규제 & 실수요자 가이드</span>
+  </div>
+
+  <div style="font-size: 12px; font-weight: bold; color: #0369A1; margin-bottom: 6px;">📊 주요 권역별 아파트 매매·전세 주간 변동률 및 시장 국면</div>
+  <table>
+    <tr>
+      <th style="width: 25%;">주요 권역</th>
+      <th style="width: 13%; text-align: right;">주간 매매</th>
+      <th style="width: 13%; text-align: right;">주간 전세</th>
+      <th style="width: 18%; text-align: center;">시장 국면</th>
+      <th style="width: 31%;">주요 동향 및 특징</th>
+    </tr>
+    {re_rows}
+  </table>
+
+  <div style="display: flex; gap: 10px; margin-bottom: 12px;">
+    <div style="flex: 1; background: #F0F9FF; border: 1px solid #BAE6FD; border-radius: 6px; padding: 10px; font-size: 11px;">
+      <div style="font-weight: bold; color: #0369A1; margin-bottom: 6px;">🏦 주택담보대출 금리 & 금융 규제</div>
+      <div style="margin-bottom: 3px;">• <b>5년 고정(혼합형):</b> {mi.get('fixed_rate_band')}</div>
+      <div style="margin-bottom: 3px;">• <b>변동금리:</b> {mi.get('variable_rate_band')} (COFIX {mi.get('cofix_rate')})</div>
+      <div style="margin-bottom: 3px;">• <b>대출 규제:</b> {mi.get('dsr_status')}</div>
+      <div style="color: #475569; font-size: 10px;">• {mi.get('bank_policy')}</div>
+    </div>
+    <div style="flex: 1; background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 6px; padding: 10px; font-size: 11px;">
+      <div style="font-weight: bold; color: #0F172A; margin-bottom: 6px;">📈 거래량 & 수급 매트릭스</div>
+      <div style="margin-bottom: 3px;">• <b>서울 월간 거래량:</b> {mm.get('monthly_volume')}</div>
+      <div style="margin-bottom: 3px;">• <b>서울 아파트 매물:</b> {mm.get('listing_inventory')}</div>
+      <div style="margin-bottom: 3px;">• <b>서울 평균 전세가율:</b> {mm.get('jeonse_ratio')}</div>
+      <div style="color: #475569; font-size: 10px;">• <b>청약 경쟁률:</b> {mm.get('bidding_ratio')}</div>
+    </div>
+  </div>
+
+  <div style="font-size: 12px; font-weight: bold; color: #0369A1; margin-bottom: 6px;">🧭 실수요자 및 자산관리 실전 행동 요령</div>
+  {ag_cards}
+
+  <div class="page-break"></div>
+
+  <!-- ============================================================ -->
+  <!-- 🎯 [Page 9] 9면 추천 종목 사후 검증(Backtesting) 성과 백서 -->
   <!-- ============================================================ -->
   <div class="sec-banner" style="background: #1E40AF;">
-    <span>🎯 6면 사후 검증(Backtesting) 성과 백서 • AUDIT & PERFORMANCE</span>
+    <span>🎯 9면 사후 검증(Backtesting) 성과 백서 • AUDIT & PERFORMANCE</span>
     <span style="font-size: 10px; opacity: 0.9;">투명한 실전 적중 승률 및 누적 수익률 전수 감사</span>
   </div>
 
@@ -704,11 +869,11 @@ class PdfReportGenerator:
   <div class="page-break"></div>
 
   <!-- ============================================================ -->
-  <!-- 🌐 [Page 7~8] 7~8면 7대 분야별 인텔리전스 헤드라인 아카이브 -->
+  <!-- 🌐 [Page 10~11] 10~11면 7대 분야별 인텔리전스 헤드라인 아카이브 -->
   <!-- ============================================================ -->
   <div class="sec-banner" style="background: #334155;">
-    <span>🌐 7~8면 7대 분야별 인텔리전스 헤드라인 아카이브 • INTELLIGENCE WIRE</span>
-    <span style="font-size: 10px; opacity: 0.9;">언론사 동시집중보도 클러스터링 및 분야별 5선</span>
+    <span>🌐 10~11면 7대 분야별 인텔리전스 헤드라인 아카이브 • INTELLIGENCE WIRE</span>
+    <span style="font-size: 10px; opacity: 0.9;">언론사 동시집중보도 클러스터링 및 분야별 5선 (심층 본문 요약 & 100% 일치 확장 인사이트)</span>
   </div>
 
   {cat_news_html}
@@ -892,6 +1057,42 @@ class PdfReportGenerator:
             </div>
             """
 
+        # 부동산 데이터 확보
+        real_estate_data = weekly_data.get("real_estate_data")
+        if not real_estate_data and RealEstateAdvisor:
+            try:
+                real_estate_data = RealEstateAdvisor().analyze_market()
+            except Exception:
+                real_estate_data = {}
+        elif not real_estate_data:
+            real_estate_data = {}
+
+        # 주간 부동산 테이블 및 카드
+        re_rows_weekly = ""
+        for r in real_estate_data.get("regional_trends", []):
+            sc = r.get("sale_change", "0.00%")
+            jc = r.get("jeonse_change", "0.00%")
+            sc_col = "#16A34A" if "+" in sc else ("#DC2626" if "-" in sc else "#64748B")
+            jc_col = "#16A34A" if "+" in jc else ("#DC2626" if "-" in jc else "#64748B")
+            re_rows_weekly += f"""
+            <tr style="border-bottom: 1px solid #E2E8F0;">
+                <td style="padding: 7px 8px; font-weight: bold; color: #0F172A;">{r.get('region')}</td>
+                <td style="padding: 7px 8px; text-align: right; color: {sc_col}; font-weight: bold;">{sc}</td>
+                <td style="padding: 7px 8px; text-align: right; color: {jc_col}; font-weight: bold;">{jc}</td>
+                <td style="padding: 7px 8px; text-align: center;"><span style="background: #F1F5F9; color: {r.get('status_color', '#334155')}; font-weight: bold; font-size: 10px; padding: 2px 6px; border-radius: 4px;">{r.get('status')}</span></td>
+                <td style="padding: 7px 8px; font-size: 10.5px; color: #475569;">{r.get('summary')}</td>
+            </tr>
+            """
+        re_mi = real_estate_data.get("mortgage_info", {})
+        re_mm = real_estate_data.get("market_metrics", {})
+        re_ag_cards = ""
+        for ag in real_estate_data.get("action_guides", []):
+            re_ag_cards += f"""
+            <div style="background: #FFFFFF; border: 1px solid #CBD5E1; border-left: 4px solid #0284C7; border-radius: 4px; padding: 6px 10px; margin-bottom: 6px; font-size: 11px;">
+                <b>🎯 {ag.get('target')}:</b> {ag.get('tip')}
+            </div>
+            """
+
         # 사후 검증 지표
         win_rate = stats.get('win_rate', 0)
         total_p = stats.get('total_picks', 0)
@@ -1030,8 +1231,12 @@ class PdfReportGenerator:
         <span style="font-weight: bold; color: #1E3A8A;">Section 04</span>
       </div>
       <div class="toc-item">
-        <span><b>Chapter 5. 차주 시장 전망 및 섹터별 자산 배분 전략 가이드</b> (주요 경제 일정 및 포지션 제언)</span>
+        <span><b>Chapter 5. 대한민국 부동산 주간 동향 & 주담대 금리/규제 총결산</b> (권역별 시세 & DSR 분석)</span>
         <span style="font-weight: bold; color: #1E3A8A;">Section 05</span>
+      </div>
+      <div class="toc-item">
+        <span><b>Chapter 6. 차주 시장 전망 및 섹터별 자산 배분 전략 가이드</b> (주요 경제 일정 및 포지션 제언)</span>
+        <span style="font-weight: bold; color: #1E3A8A;">Section 06</span>
       </div>
     </div>
   </div>
@@ -1130,7 +1335,41 @@ class PdfReportGenerator:
   <div class="page-break"></div>
 
   <!-- Chapter 5 -->
-  <div class="sec-h1">🔮 Chapter 5. 차주 시장 전망 및 경영진 투자 전략 제언</div>
+  <div class="sec-h1">🏢 Chapter 5. 대한민국 부동산 주간 동향 & 주담대 금리/규제 총결산</div>
+  <div style="font-size: 12px; color: #475569; margin-bottom: 12px;">
+    한국부동산원 및 KB 통계 기반 전국 주요 권역별 매매·전세 시세 동향 및 주담대 금리 밴드 총결산입니다.
+  </div>
+  <table>
+    <tr>
+      <th style="width: 25%;">주요 권역</th>
+      <th style="width: 13%; text-align: right;">주간 매매</th>
+      <th style="width: 13%; text-align: right;">주간 전세</th>
+      <th style="width: 18%; text-align: center;">시장 국면</th>
+      <th style="width: 31%;">주요 동향 및 특징</th>
+    </tr>
+    {re_rows_weekly}
+  </table>
+
+  <div style="display: flex; gap: 10px; margin-bottom: 12px;">
+    <div style="flex: 1; background: #F0F9FF; border: 1px solid #BAE6FD; border-radius: 6px; padding: 10px; font-size: 11px;">
+      <div style="font-weight: bold; color: #0369A1; margin-bottom: 6px;">🏦 주택담보대출 금리 & 금융 규제</div>
+      <div style="margin-bottom: 3px;">• <b>5년 고정(혼합형):</b> {re_mi.get('fixed_rate_band')}</div>
+      <div style="margin-bottom: 3px;">• <b>변동금리:</b> {re_mi.get('variable_rate_band')} (COFIX {re_mi.get('cofix_rate')})</div>
+      <div style="margin-bottom: 3px;">• <b>대출 규제:</b> {re_mi.get('dsr_status')}</div>
+    </div>
+    <div style="flex: 1; background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 6px; padding: 10px; font-size: 11px;">
+      <div style="font-weight: bold; color: #0F172A; margin-bottom: 6px;">📈 거래량 & 수급 매트릭스</div>
+      <div style="margin-bottom: 3px;">• <b>서울 월간 거래량:</b> {re_mm.get('monthly_volume')}</div>
+      <div style="margin-bottom: 3px;">• <b>서울 평균 전세가율:</b> {re_mm.get('jeonse_ratio')}</div>
+      <div style="margin-bottom: 3px;">• <b>청약 경쟁률:</b> {re_mm.get('bidding_ratio')}</div>
+    </div>
+  </div>
+  {re_ag_cards}
+
+  <div class="page-break"></div>
+
+  <!-- Chapter 6 -->
+  <div class="sec-h1">🔮 Chapter 6. 차주 시장 전망 및 포트폴리오 자산 배분 전략 가이드</div>
   <div style="background: #F8FAFC; border: 1px solid #CBD5E1; border-left: 4px solid #1E3A8A; border-radius: 8px; padding: 18px; font-size: 12px; line-height: 1.8;">
     <div style="font-weight: bold; color: #1E3A8A; font-size: 14px; margin-bottom: 8px;">
       💼 [전략기획실 종합 제언] 최고경영진을 위한 차주 자산배분 및 리스크 가이드
@@ -1138,6 +1377,7 @@ class PdfReportGenerator:
     • <b>거시 매크로 환경:</b> 미 연준 통화정책 기조와 원달러 환율 1,390~1,410원대 밴드를 감안하여, 공격적 레버리지보다는 현금 비중 20~25%의 방어적 유동성을 유지하십시오.<br>
     • <b>핵심 주도 섹터:</b> 공식 리포트상 2026F/2027F 영업이익이 큰 폭으로 턴어라운드하는 AI 반도체 밸류체인 및 수주 잔고가 확정된 K-방산/원전 섹터의 눌림목 분할 매수가 유효합니다.<br>
     • <b>가상자산 포트폴리오:</b> 비트코인은 주요 이동평균선 지지선 안착 여부를 확인하며 분할 적립하고, 솔라나/알트코인은 변동성 확대를 고려해 목표가 도달 시 철저한 분할 익절을 권고합니다.<br>
+    • <b>부동산 자산 전략:</b> 2단계 스트레스 DSR 대출 규제 속에서는 '선 매도 후 매수' 원칙을 철저히 지키며, 서울 핵심지 및 재건축 선도지구 위주의 압축 포트폴리오를 유지하십시오.<br>
     • <b>위험 관리 수칙:</b> 20일선 이격도가 115% 이상 과열된 급등 테마주는 신규 진입을 전면 차단하고, 손절 기준가(-4.5%) 터치 시 즉각적인 기계적 리스크 관리를 실행하십시오.
   </div>
 

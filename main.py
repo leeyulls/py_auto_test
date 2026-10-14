@@ -32,6 +32,7 @@ from disclosure_collector import DisclosureCollector
 from story_dive_engine import StoryDiveEngine
 from pdf_report_generator import PdfReportGenerator
 from intelligence_dossier_engine import IntelligenceDossierEngine
+from real_estate_advisor import RealEstateAdvisor
 
 
 def load_env(env_path):
@@ -184,15 +185,26 @@ def main():
     print(f" - 🏆 누적 승률: {p_sum.get('win_rate', 0)}% (총 {p_sum.get('total_picks', 0)}건 검증, 목표가 달성 {p_sum.get('success_count', 0)}건, 손절 {p_sum.get('stoploss_count', 0)}건, 진행 중 {p_sum.get('holding_count', 0)}건 | 평균 수익률: {p_sum.get('avg_return', 0):+.2f}%)")
 
     # 9. 가상자산 3대장(BTC, ETH, SOL) 시세 분석 및 추천금액 산출
-    print("\n[9/10] 🪙 가상자산 3대장(BTC, ETH, SOL) 실시간 시세 및 매매 추천금액 산출 중...")
+    print("\n[9/11] 🪙 가상자산 3대장(BTC, ETH, SOL) 실시간 시세 및 매매 추천금액 산출 중...")
     crypto_advisor = CryptoAdvisor()
     crypto_advice = crypto_advisor.analyze_coins()
     coins_list = crypto_advice.get("coins", [])
     for c in coins_list:
         print(f"   • {c['icon']} {c['name']} ({c['symbol']}): 현재가 {c['cur_price']} ➔ 매수가: {c['buy_price']} | 목표가: {c['sell_price']} ({c['expected_yield']})")
 
-    # 10. 리포트 생성 (월별 폴더 적재 YYYY-MM + 누적 마스터 + 8개 시트 엑셀)
-    print("\n[10/10] 📊 8개 시트 엑셀 리포트, 마크다운 브리핑 및 마스터 파일 업데이트 중...")
+    # 10. 대한민국 부동산 시장 동향 분석 (KB부동산/한국부동산원 기반 권역별 시세 & 주담대 금리)
+    print("\n[10/11] 🏢 대한민국 부동산 시장 동향 & 대출 규제·청약 지표 분석 중...")
+    real_estate_advisor = RealEstateAdvisor()
+    real_estate_data = real_estate_advisor.analyze_market()
+    re_trends = real_estate_data.get("regional_trends", [])
+    re_mortgage = real_estate_data.get("mortgage_info", {})
+    t0 = re_trends[0] if re_trends else {}
+    t1 = re_trends[1] if len(re_trends) > 1 else {}
+    print(f" - 권역별 동향: {t0.get('region', '서울')}({t0.get('sale_change', '-')}) | {t1.get('region', '경기')}({t1.get('sale_change', '-')})")
+    print(f" - 주담대 금리: 고정({re_mortgage.get('fixed_rate_band', '-')}) | 변동({re_mortgage.get('variable_rate_band', '-')})")
+
+    # 11. 리포트 생성 (월별 폴더 적재 YYYY-MM + 누적 마스터 + 8개 시트 엑셀)
+    print("\n[11/11] 📊 8개 시트 엑셀 리포트, 마크다운 브리핑 및 마스터 파일 업데이트 중...")
     report_gen = ReportGenerator()
     excel_paths = report_gen.generate_excel(
         general_news=general_news,
@@ -228,8 +240,8 @@ def main():
     print(f" - 📚 일자별 누적 마스터: {master_excel_path}")
     print(f" - 📝 마크다운 브리핑: {md_path}")
 
-    # 11. 출판용 초고해상도 A4 데일리 심층 종합분석 보고서 (PDF) 편찬
-    print(f"\n[11/11] 📄 8페이지 규모 나만의 데일리 심층 분석 A4 PDF 보고서 편찬 중...")
+    # 12. 출판용 초고해상도 A4 데일리 심층 종합분석 보고서 (PDF - 11페이지 독립 구성) 편찬
+    print(f"\n📄 11페이지 규모 나만의 데일리 심층 분석 A4 PDF 보고서 편찬 중...")
     pdf_gen = PdfReportGenerator()
     month_dir = os.path.dirname(daily_excel_path)
     daily_pdf_path = os.path.join(month_dir, f"{today_str}_데일리_심층_종합분석_보고서.pdf")
@@ -244,6 +256,7 @@ def main():
         performance_data=performance_data,
         special_disclosures=special_disclosures,
         story_dive_data=story_dive_data,
+        real_estate_data=real_estate_data,
         output_pdf_path=daily_pdf_path
     )
 
@@ -270,7 +283,7 @@ def main():
                 pdf_synced_count += 1
     print(f" - 구글 드라이브 공식 PDF 동기화 완료: {pdf_synced_count}건")
 
-    # 메일링 발송 (일요일: 주간 총결산 스페셜 백서 / 평일: 07시 경영진 데일리 브리핑)
+    # 메일링 발송 (일요일: 주간 총결산 스페셜 백서 / 평일: 07시 나만의 데일리 브리핑)
     sender = EmailSender()
     if is_sunday:
         print("\n🏆 [일요일 주간 총결산 모드] 최근 7일치 데이터 주간 총결산 분석, 백서 PDF 편찬 및 메일링 발송 중...")
@@ -279,6 +292,7 @@ def main():
         weekly_data["performance_data"] = performance_data
         weekly_data["story_dive_data"] = story_dive_data
         weekly_data["newspaper_dossier"] = newspaper_dossier
+        weekly_data["real_estate_data"] = real_estate_data
         weekly_excel_info = report_gen.generate_weekly_excel(weekly_data, today_str)
         weekly_excel_path = weekly_excel_info["weekly_path"]
 
@@ -324,6 +338,7 @@ def main():
             performance_data=performance_data,
             special_disclosures=special_disclosures,
             story_dive_data=story_dive_data,
+            real_estate_data=real_estate_data,
         )
 
     # 최종 요약 콘솔 출력
@@ -364,8 +379,12 @@ def main():
     for s in stock_advice["sell_warning_picks"][:2]:
         print(f" • 🔴 {s['name']} ({s['ticker']}) | 현재가: {s['cur_price']} ➔ 권고 매도가: {s['sell_price']} [{s['type']}]")
 
+    print("\n🏢 [대한민국 부동산 시장 권역별 지표 & 주담대 금리]")
+    for r in re_trends[:3]:
+        print(f" • 🏢 {r.get('region')}: 매매 {r.get('sale_change')} / 전세 {r.get('jeonse_change')} [{r.get('status')}]")
+
     print("=" * 70)
-    print("🎉 6대 기능(심층 테마 리포트, 사후검증, 쿨다운, DART특수공시, 빅테크4대장, 실적표발췌) 적용 및 구글 드라이브 동기화가 완료되었습니다!")
+    print("🎉 7대 개편(DART독립면, 가상자산독립면, 부동산신설, 기사/인사이트문장개선, 비전문가용리포트해설) 적용 및 구글 드라이브 동기화가 완료되었습니다!")
 
 
 
