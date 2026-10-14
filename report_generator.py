@@ -1,8 +1,8 @@
 """
 report_generator.py
-7대 분야별 뉴스, 주식 분석/추천가 및
-비트코인·이더리움·솔라나 3대 코인 매매추천 리포트 생성기
-(당일 단독 리포트 + 일자별 누적 마스터 엑셀 동시 업데이트)
+7대 분야별 뉴스, 주식 분석/추천가, 비트코인·이더리움·솔라나 3대 코인 매매추천,
+증권사 공식 애널리스트 Top 10 리포트 리포트 생성기
+(월별 폴더 적재 YYYY-MM + 일자별 누적 마스터 엑셀 + 일요일 주간 결산 지원)
 """
 
 import datetime
@@ -21,12 +21,16 @@ class ReportGenerator:
         os.makedirs(self.output_dir, exist_ok=True)
         self.master_file = os.path.join(self.output_dir, "일자별_누적_데일리_이슈_및_주식_브리핑_마스터.xlsx")
 
-    def generate_excel(self, general_news: list, market_news: list, exchange_rates: list, stock_indices: list, stock_advice: dict, crypto_advice: dict, date_str: str) -> dict:
-        """4개 시트(7대 분야 종합이슈, 주식/환율, 종목분석/추천가, 코인분석/추천가) 엑셀 생성"""
-        daily_path = os.path.join(self.output_dir, f"{date_str}_데일리_이슈_및_금융동향_브리핑.xlsx")
+    def generate_excel(self, general_news: list, market_news: list, exchange_rates: list, stock_indices: list, stock_advice: dict, crypto_advice: dict, official_reports: list, date_str: str) -> dict:
+        """5개 시트(7대 분야 종합이슈, 주식/환율, 종목분석/추천가, 코인분석/추천가, 증권사_공식리포트_Top10) 엑셀 생성"""
+        month_str = date_str[:7]
+        month_dir = os.path.join(self.output_dir, month_str)
+        os.makedirs(month_dir, exist_ok=True)
+
+        daily_path = os.path.join(month_dir, f"{date_str}_데일리_이슈_및_금융동향_브리핑.xlsx")
 
         # ---------------------------------------------------------
-        # 1. 당일 단독 엑셀 리포트 생성
+        # 1. 당일 단독 엑셀 리포트 생성 (월별 폴더에 저장)
         # ---------------------------------------------------------
         with pd.ExcelWriter(daily_path, engine="openpyxl") as writer:
             # 시트 1: 7대 분야 종합이슈
@@ -59,23 +63,27 @@ class ReportGenerator:
                         "구분": fx["통화명"],
                         "세부내용": fx["변동/기준"],
                         "수치/등락": f"{fx['환율(원)']}원",
-                        "참고": "실시간 외환 데이터"
+                        "참고": "주요 통화 환율"
                     })
                 combined_rows.append({"구분": "", "세부내용": "", "수치/등락": "", "참고": ""})
 
-            df_summary = pd.DataFrame(combined_rows)
-            df_summary.to_excel(writer, sheet_name="주식_환율_경제동향", index=False, startrow=0)
-
-            start_row = len(combined_rows) + 2
             if not df_stock_news.empty:
-                cols = [c for c in ["구분", "상태", "관련기업/기관", "기사제목", "영향/전망", "언론사", "요약", "링크"] if c in df_stock_news.columns]
-                df_stock_clean = df_stock_news[cols]
-                df_stock_clean.to_excel(writer, sheet_name="주식_환율_경제동향", index=False, startrow=start_row)
+                combined_rows.append({"구분": "=== [주요 증시 뉴스] ===", "세부내용": "", "수치/등락": "", "참고": ""})
+                for _, r in df_stock_news.iterrows():
+                    combined_rows.append({
+                        "구분": r.get("구분", "증시뉴스"),
+                        "세부내용": r.get("기사제목", ""),
+                        "수치/등락": r.get("영향/전망", ""),
+                        "참고": r.get("링크", "")
+                    })
 
-            # 시트 3: 주식 종목분석 및 매수/매도 추천금액
+            df_combined = pd.DataFrame(combined_rows)
+            df_combined.to_excel(writer, sheet_name="시장지표_및_환율", index=False)
+
+            # 시트 3: 종목별 기술 분석 & 추천가표
             if stock_advice and "all_evaluations" in stock_advice:
                 df_advice = pd.DataFrame(stock_advice["all_evaluations"])
-                df_advice.to_excel(writer, sheet_name="주식종목_매매추천", index=False)
+                df_advice.to_excel(writer, sheet_name="종목분석_매매추천", index=False)
 
             # 시트 4: 코인 (비트코인, 이더리움, 솔라나) 분석 및 매수/매도 추천금액
             if crypto_advice and "coins" in crypto_advice:
@@ -99,24 +107,45 @@ class ReportGenerator:
                 df_coins = pd.DataFrame(coin_rows)
                 df_coins.to_excel(writer, sheet_name="코인분석_매매추천", index=False)
 
+            # 시트 5: 증권사 공식 애널리스트 리포트 Top 10
+            if official_reports:
+                rep_rows = []
+                for r in official_reports:
+                    tp = r.get("target_price")
+                    tp_str = f"{int(tp):,}원" if tp else "-"
+                    rep_rows.append({
+                        "신뢰도점수": r.get("credibility_score", 0),
+                        "증권사": r.get("broker", ""),
+                        "종목명": r.get("item_name", ""),
+                        "리포트제목": r.get("title", ""),
+                        "공인_목표주가": tp_str,
+                        "투자의견": r.get("opinion", "BUY"),
+                        "시장조회수": r.get("read_count", 0),
+                        "핵심요약": r.get("summary_text", ""),
+                        "PDF파일명": r.get("pdf_filename", ""),
+                    })
+                df_rep = pd.DataFrame(rep_rows)
+                df_rep.to_excel(writer, sheet_name="증권사_공식리포트_Top10", index=False)
+
             self._style_workbook(writer.book)
 
         # ---------------------------------------------------------
-        # 2. 일자별 누적 마스터 엑셀 파일 업데이트
+        # 2. 일자별 누적 마스터 엑셀 파일 업데이트 (루트 reports/ 보관)
         # ---------------------------------------------------------
         self._update_master_accumulation(
             general_news=general_news,
             stock_advice=stock_advice,
             crypto_advice=crypto_advice,
+            official_reports=official_reports,
             stock_indices=stock_indices,
             exchange_rates=exchange_rates,
             date_str=date_str
         )
 
-        return {"daily_path": daily_path, "master_path": self.master_file}
+        return {"daily_path": daily_path, "master_path": self.master_file, "month_str": month_str}
 
-    def _update_master_accumulation(self, general_news: list, stock_advice: dict, crypto_advice: dict, stock_indices: list, exchange_rates: list, date_str: str):
-        """기존 마스터 엑셀에 오늘의 주식/코인/뉴스 데이터를 누적으로 덧붙여 저장"""
+    def _update_master_accumulation(self, general_news: list, stock_advice: dict, crypto_advice: dict, official_reports: list, stock_indices: list, exchange_rates: list, date_str: str):
+        """기존 마스터 엑셀에 오늘의 주식/코인/공식리포트/뉴스 데이터를 누적으로 덧붙여 저장"""
         master_dfs = {}
         if os.path.exists(self.master_file):
             try:
@@ -177,12 +206,37 @@ class ReportGenerator:
             else:
                 master_dfs["코인추천_누적"] = today_coin_df
 
-        # 4. 시장지표 누적
+        # 4. 증권사 공식 리포트 누적
+        if official_reports:
+            rep_rows = []
+            for r in official_reports:
+                tp = r.get("target_price")
+                tp_str = f"{int(tp):,}원" if tp else "-"
+                rep_rows.append({
+                    "수집일자": date_str,
+                    "신뢰도점수": r.get("credibility_score", 0),
+                    "증권사": r.get("broker", ""),
+                    "종목명": r.get("item_name", ""),
+                    "리포트제목": r.get("title", ""),
+                    "목표주가": tp_str,
+                    "투자의견": r.get("opinion", "BUY"),
+                    "핵심요약": r.get("summary_text", ""),
+                    "PDF파일명": r.get("pdf_filename", ""),
+                })
+            today_rep_df = pd.DataFrame(rep_rows)
+            if "공식리포트_누적" in master_dfs:
+                old_df = master_dfs["공식리포트_누적"]
+                old_df = old_df[old_df["수집일자"] != date_str]
+                master_dfs["공식리포트_누적"] = pd.concat([old_df, today_rep_df], ignore_index=True)
+            else:
+                master_dfs["공식리포트_누적"] = today_rep_df
+
+        # 5. 시장지표 누적
         market_rows = []
         for idx in stock_indices:
             market_rows.append({"일자": date_str, "구분": "증시 지수", "항목": idx["지수명"], "수치": idx["현재지수"], "등락": idx["전일대비"]})
         for fx in exchange_rates:
-            market_rows.append({"일자": date_str, "구분": "환율", "항목": fx["통화명"], "수치": f"{fx['환율(원)']}원", "등락": fx["변동/기준"]})
+            market_rows.append({"일자": date_str, "구분": "환율", "항목": fx["통화명"], "수치": fx["환율(원)"], "등락": fx["변동/기준"]})
 
         if market_rows:
             today_market_df = pd.DataFrame(market_rows)
@@ -236,14 +290,18 @@ class ReportGenerator:
                         max_len = max(max_len, length)
                 sheet.column_dimensions[col_letter].width = min(max(max_len + 3, 12), 65)
 
-    def generate_markdown(self, general_news: list, market_news: list, exchange_rates: list, stock_indices: list, stock_advice: dict, crypto_advice: dict, news_result: dict, date_str: str) -> str:
-        """구글 문서/마크다운 뷰어용 종합 브리핑 리포트 생성"""
-        file_path = os.path.join(self.output_dir, f"{date_str}_데일리_이슈_및_금융동향_브리핑.md")
+    def generate_markdown(self, general_news: list, market_news: list, exchange_rates: list, stock_indices: list, stock_advice: dict, crypto_advice: dict, official_reports: list, news_result: dict, date_str: str) -> str:
+        """구글 문서/마크다운 뷰어용 종합 브리핑 리포트 생성 (월별 폴더에 저장)"""
+        month_str = date_str[:7]
+        month_dir = os.path.join(self.output_dir, month_str)
+        os.makedirs(month_dir, exist_ok=True)
+
+        file_path = os.path.join(month_dir, f"{date_str}_데일리_이슈_및_금융동향_브리핑.md")
 
         lines = [
-            f"# 📰 대한민국 데일리 종합 이슈 & 주식·코인(BTC/ETH/SOL) 매매 추천 브리핑 ({date_str})",
+            f"# 📰 대한민국 데일리 종합 이슈 & 주식·코인(BTC/ETH/SOL)·공식리포트 브리핑 ({date_str})",
             "",
-            "> 7대 핵심 분야 헤드라인과 실시간 주가·환율·**3대 코인(비트코인, 이더리움, 솔라나) 매수/매도 추천금액 및 전망**을 분석한 일일 리포트입니다.",
+            "> 7대 핵심 분야 헤드라인과 실시간 주가·환율·**3대 코인 추천가 & 증권사 공식 Top 10 애널리스트 리포트 심층 분석** 일일 리포트입니다.",
             "",
             "---",
             "",
@@ -261,9 +319,28 @@ class ReportGenerator:
                 "",
             ])
 
-        # 🪙 3대 코인 (비트코인, 이더리움, 솔라나) 분석 및 추천금액
+        # 📄 1. 증권사 공식 애널리스트 Top 10 리포트 심층 분석 (공인 목표가 & 팩트)
+        if official_reports:
+            lines.extend([
+                "## 📄 1. 증권사 공식 애널리스트 Top 10 리포트 심층 분석 (공인 목표가 & 팩트)",
+                "> 5대 신뢰도 지표(기관 공신력, 정량 목표가, 변동 모멘텀, 조회수, 집중도)로 엄선된 공식 리포트입니다. 원본 PDF는 구글 드라이브 월별 폴더(`공식_리서치_PDF`)에 자동 보관됩니다.",
+                "",
+                "| 종목명 (증권사) | 공인 목표주가 | 투자의견 | 신뢰도 점수 | 애널리스트 핵심 요약 & 호재 근거 | PDF 파일명 |",
+                "| :--- | :--- | :--- | :--- | :--- | :--- |",
+            ])
+            for r in official_reports:
+                tp = r.get("target_price")
+                tp_str = f"{int(tp):,}원" if tp else "-"
+                lines.append(
+                    f"| **{r.get('item_name', '')}**<br>({r.get('broker', '')}) | **{tp_str}** | "
+                    f"`{r.get('opinion', 'BUY')}` | ⭐ {r.get('credibility_score', 0)}점 | "
+                    f"{r.get('summary_text', '')[:100]}... | `{r.get('pdf_filename', '')}` |"
+                )
+            lines.extend(["", "---", ""])
+
+        # 🪙 2. 3대 코인 (비트코인, 이더리움, 솔라나) 분석 및 추천금액
         lines.extend([
-            "## 🪙 1. 3대 코인(BTC, ETH, SOL) 실시간 시세 & 매매 추천금액",
+            "## 🪙 2. 3대 코인(BTC, ETH, SOL) 실시간 시세 & 매매 추천금액",
             "",
             "| 코인명 (심볼) | 현재가 (24h 등락) | 매수 추천가 | 목표 매도가 | 손절 기준가 | 기대수익 | 투자 신호 | 전망 및 근거 |",
             "| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |",
@@ -284,45 +361,51 @@ class ReportGenerator:
                 lines.append(f"- **[{cn['title']}]({cn['link']})** ({cn['source']})")
         lines.extend(["", "---", ""])
 
-        # 🎯 오늘의 핵심 주식 매매 추천 & 추천금액
-        lines.append("## 🎯 2. 오늘의 핵심 주식 매매 추천 & 추천 금액 (Action Signals)\n")
+        # 🎯 3. 오늘의 핵심 주식 매매 추천 & 추천금액
+        lines.append("## 🎯 3. 오늘의 핵심 주식 매매 추천 & 추천 금액 (Action Signals)\n")
         today_buys = stock_advice.get("today_buy_picks", [])
         lines.append("### 🟢 [오늘 사면 좋을 주식 - 단기 반등 / 모멘텀 매수]")
         if today_buys:
             for b in today_buys:
-                lines.append(f"- **{b['name']}** ({b['ticker']}) - 현재가: `{b['cur_price']}`")
-                lines.append(f"  - 💰 **매수 추천가**: `{b['buy_price']}` | 🎯 **목표 매도가**: `{b['sell_price']}` (기대수익: **{b['expected_yield']}**)")
-                lines.append(f"  - 💡 **추천 근거**: {b['reason']}")
+                lines.append(
+                    f"- **{b.get('name')} ({b.get('ticker')})**: 현재가 **{b.get('cur_price')}** ➔ "
+                    f"**매수 추천가: {b.get('buy_price')}** | **목표 매도가: {b.get('sell_price')}** "
+                    f"(기대수익: **{b.get('expected_yield')}**) | 손절가: {b.get('stop_loss', '-')} [{b.get('type', '매수')}]"
+                )
         else:
-            lines.append("- 현재 기준 극단적 단기 과매도 또는 돌파 종목 없음 (보수적 접근 추천)")
+            lines.append("- 현재 단기 진입 기준(RSI 과매도 등)에 부합하는 종목 없음")
         lines.append("")
 
         long_buys = stock_advice.get("longterm_buy_picks", [])
-        lines.append("### ⭐ [장기적으로 사면 좋을 주식 - 성장 주도주 분할 매수]")
+        lines.append("### 🔵 [장기 모아가면 좋을 주식 - 저평가 / 배당 / 우량주]")
         if long_buys:
             for lb in long_buys:
-                lines.append(f"- **{lb['name']}** ({lb['ticker']}) - 현재가: `{lb['cur_price']}`")
-                lines.append(f"  - 💰 **분할 매수가**: `{lb['buy_price']}` | 🎯 **장기 목표가**: `{lb['sell_price']}` (기대수익: **{lb['expected_yield']}**)")
-                lines.append(f"  - 💡 **선정 근거**: {lb['reason']}")
+                lines.append(
+                    f"- **{lb.get('name')} ({lb.get('ticker')})**: 현재가 **{lb.get('cur_price')}** ➔ "
+                    f"**분할 매수가: {lb.get('buy_price')}** | **장기 목표가: {lb.get('sell_price')}** "
+                    f"(기대수익: **{lb.get('expected_yield')}**) | 성향: {lb.get('type', '장기')}"
+                )
         else:
-            lines.append("- 고점 과열 또는 추세 조정 중인 종목이 많아 관망 추천")
+            lines.append("- 현재 장기 적립 매수 권고 종목 없음")
         lines.append("")
 
         sells = stock_advice.get("sell_warning_picks", [])
-        lines.append("### 🔴 [주의 / 팔면 좋은 주식 - 과열 차익실현 & 리스크 관리]")
+        lines.append("### 🔴 [주의 / 팔면 좋은 주식 - 단기 과열 / 추세 이탈]")
         if sells:
             for s in sells:
-                lines.append(f"- **{s['name']}** ({s['ticker']}) - 현재가: `{s['cur_price']}` `[{s['type']}]`")
-                lines.append(f"  - 🎯 **매도 권고가**: `{s['sell_price']}` | ⚠️ **경고 사유**: {s['reason']}")
+                lines.append(
+                    f"- **{s.get('name')} ({s.get('ticker')})**: 현재가 **{s.get('cur_price')}** ➔ "
+                    f"**권고 매도가: {s.get('sell_price')}** | 경고 사유: {s.get('type', '과열 주의')} ({s.get('disparity', '')})"
+                )
         else:
             lines.append("- 현재 과열권 진입 종목 또는 급격한 악재 종목 없음")
         lines.append("")
 
-        # 3. 주요 종목별 상세 기술 지표 표
+        # 4. 주요 종목별 상세 기술 지표 표
         lines.extend([
             "---",
             "",
-            "## 📊 3. 주요 종목별 상세 기술 지표 및 매수/매도 추천금액 분석표",
+            "## 📊 4. 주요 종목별 상세 기술 지표 및 매수/매도 추천금액 분석표",
             "",
             "| 종목명 (섹터) | 현재가 (등락률) | 매수 추천가 | 목표 매도가 | 손절 기준가 | 기대수익 | 단기 신호 | 장기 신호 |",
             "| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |",
@@ -330,56 +413,88 @@ class ReportGenerator:
 
         for ev in stock_advice.get("all_evaluations", []):
             lines.append(
-                f"| **{ev['종목명']}**<br>({ev['섹터']}) | {ev['현재가']}<br>({ev['전일대비']}) | "
-                f"**{ev['매수_추천금액']}** | **{ev['목표_매도금액']}** | {ev['손절_기준가']} | "
-                f"{ev['기대_수익률']} | {ev['단기신호']} | {ev['장기신호']} |"
+                f"| **{ev.get('종목명', '')}**<br>({ev.get('섹터', '')}) | {ev.get('현재가', '')}<br>({ev.get('전일대비', '')}) | "
+                f"**{ev.get('매수_추천금액', '')}** | **{ev.get('목표_매도금액', '')}** | {ev.get('손절_기준가', '')} | "
+                f"{ev.get('기대_수익률', '')} | {ev.get('단기신호', '')} | {ev.get('장기신호', '')} |"
             )
 
-        # 4. 실시간 시장 지표
+        # 5. 실시간 시장 지표
         lines.extend([
             "",
             "---",
             "",
-            "## 📈 4. 실시간 금융 시장 지표 (증시 & 환율)",
+            "## 📈 5. 실시간 금융 시장 지표 (증시 & 환율)",
             "",
             "### 🇰🇷 주요 증시 지수",
             "| 지수명 | 현재 지수 | 전일 대비 등락 |",
             "| :--- | :--- | :--- |",
         ])
-
         for idx in stock_indices:
             lines.append(f"| {idx['지수명']} | **{idx['현재지수']}** | {idx['전일대비']} |")
 
         lines.extend([
             "",
-            "### 💱 주요 통화 환율 (매매기준율)",
-            "| 통화 | 환율 | 비고 |",
+            "### 💱 주요 통화 환율",
+            "| 통화명 | 현재 환율 | 변동/기준 |",
             "| :--- | :--- | :--- |",
         ])
-
         for fx in exchange_rates:
             lines.append(f"| {fx['통화명']} | **{fx['환율(원)']}원** | {fx['변동/기준']} |")
 
-        # 5. 7대 분야별 다수 헤드라인
+        # 6. 7대 분야별 다수 헤드라인
         lines.extend([
             "",
             "---",
             "",
-            "## 🌐 5. 7대 분야별 주요 헤드라인",
+            "## 🌐 6. 7대 분야별 주요 헤드라인",
             "",
         ])
 
-        top_picks = news_result.get("category_top_picks", {})
-        for cat, items in top_picks.items():
-            if items:
-                lines.append(f"### 📌 {cat} (주요 뉴스 {len(items)}건)")
-                for item in items:
-                    tag = f" `[{item['상태']}]`" if "집중" in item['상태'] else ""
-                    lines.append(f"- **[{item['기사제목']}]({item.get('링크') or item.get('link', '')})** ({item['언론사']}){tag}")
-                    lines.append(f"  - 💡 *1줄 요약*: {item['요약내용']}")
-                lines.append("")
+        category_picks = news_result.get("category_top_picks", {})
+        for cat_name, items in category_picks.items():
+            lines.append(f"### 📌 [{cat_name}] ({len(items)}건)")
+            for it in items:
+                link = it.get("링크") or it.get("link", "")
+                tag = f"`{it['상태']}` " if "집중" in it["상태"] else ""
+                lines.append(f"- {tag}**[{it['기사제목']}]({link})** ({it['언론사']})")
+                if it.get("요약내용") and "집중" in it["상태"]:
+                    lines.append(f"  > {it['요약내용']}")
+            lines.append("")
 
         with open(file_path, "w", encoding="utf-8") as f:
             f.write("\n".join(lines))
 
         return file_path
+
+    def generate_weekly_excel(self, weekly_data: dict, date_str: str) -> dict:
+        """일요일 주간 총결산 전용 엑셀 파일 생성"""
+        month_str = date_str[:7]
+        month_dir = os.path.join(self.output_dir, month_str)
+        os.makedirs(month_dir, exist_ok=True)
+
+        weekly_path = os.path.join(month_dir, f"{date_str}_주간_금융_및_이슈_종합분석.xlsx")
+
+        with pd.ExcelWriter(weekly_path, engine="openpyxl") as writer:
+            # 시트 1: 코인 주간 총결산
+            df_coins = pd.DataFrame(weekly_data.get("weekly_coins", []))
+            if not df_coins.empty:
+                df_coins.to_excel(writer, sheet_name="3대코인_주간결산", index=False)
+
+            # 시트 2: 주식 주간 유망주
+            df_stocks = pd.DataFrame(weekly_data.get("top_stocks", []))
+            if not df_stocks.empty:
+                df_stocks.to_excel(writer, sheet_name="주식_주간유망주_차주전략", index=False)
+
+            # 시트 3: 주간 7대 분야 메가 이슈
+            df_issues = pd.DataFrame(weekly_data.get("weekly_issues", []))
+            if not df_issues.empty:
+                df_issues.to_excel(writer, sheet_name="주간_메가이슈_TOP5", index=False)
+
+            # 시트 4: 공식 증권사 리포트 주간 하이라이트
+            df_reports = pd.DataFrame(weekly_data.get("weekly_reports", []))
+            if not df_reports.empty:
+                df_reports.to_excel(writer, sheet_name="공식리포트_주간하이라이트", index=False)
+
+            self._style_workbook(writer.book)
+
+        return {"weekly_path": weekly_path, "month_str": month_str}

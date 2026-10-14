@@ -24,38 +24,62 @@ function doPost(e) {
     const filename = data.filename || "daily_report.xlsx";
     const base64Data = data.content_base64;
     const folderName = data.folder_name || "데일리_브리핑_수집";
+    const subfolderPath = data.subfolder || "";
     const isMaster = data.is_master || false;
     
-    // 대상 폴더 찾기 또는 생성
-    let folder;
+    // 1. 대상 최상위 폴더 찾기 또는 생성 ('데일리_브리핑_수집')
+    let targetFolder;
     const folders = DriveApp.getFoldersByName(folderName);
     if (folders.hasNext()) {
-      folder = folders.next();
+      targetFolder = folders.next();
     } else {
-      folder = DriveApp.createFolder(folderName);
+      targetFolder = DriveApp.createFolder(folderName);
     }
     
-    // Base64 디코딩 후 파일 생성 (마스터 파일인 경우 기존 파일 덮어쓰기/업데이트)
-    const decodedBytes = Utilities.base64Decode(base64Data);
-    const contentType = filename.endsWith(".xlsx") ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" : "text/plain";
-    const blob = Utilities.newBlob(decodedBytes, contentType, filename);
-    
-    if (isMaster) {
-      // 기존 마스터 파일이 있으면 삭제 후 최신 누적 파일로 갱신
-      const existingFiles = folder.getFilesByName(filename);
-      while (existingFiles.hasNext()) {
-        existingFiles.next().setTrashed(true);
+    // 2. 월별 서브폴더(예: '2026-10' 또는 '2026-10/공식_리서치_PDF') 경로 처리
+    if (subfolderPath && !isMaster) {
+      const parts = subfolderPath.split("/").map(function(s) { return s.trim(); }).filter(function(s) { return s.length > 0; });
+      for (let i = 0; i < parts.length; i++) {
+        const partName = parts[i];
+        const subFolders = targetFolder.getFoldersByName(partName);
+        if (subFolders.hasNext()) {
+          targetFolder = subFolders.next();
+        } else {
+          targetFolder = targetFolder.createFolder(partName);
+        }
       }
     }
     
-    const file = folder.createFile(blob);
+    // 3. 파일 유형별 Content-Type 설정
+    let contentType = "application/octet-stream";
+    if (filename.endsWith(".xlsx")) {
+      contentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+    } else if (filename.endsWith(".pdf")) {
+      contentType = "application/pdf";
+    } else if (filename.endsWith(".md") || filename.endsWith(".txt")) {
+      contentType = "text/plain; charset=utf-8";
+    }
+
+    // 4. Base64 디코딩 및 Blob 생성
+    const decodedBytes = Utilities.base64Decode(base64Data);
+    const blob = Utilities.newBlob(decodedBytes, contentType, filename);
+    
+    // 5. 같은 이름의 파일이 이미 있으면 깔끔하게 덮어쓰기(기존 파일 휴지통 이동)
+    const existingFiles = targetFolder.getFilesByName(filename);
+    while (existingFiles.hasNext()) {
+      existingFiles.next().setTrashed(true);
+    }
+    
+    const file = targetFolder.createFile(blob);
     
     return ContentService.createTextOutput(JSON.stringify({
       status: "success",
       filename: filename,
+      subfolder: subfolderPath,
       fileId: file.getId(),
       fileUrl: file.getUrl()
     })).setMimeType(ContentService.MimeType.JSON);
+
   } catch (err) {
     return ContentService.createTextOutput(JSON.stringify({
       status: "error",

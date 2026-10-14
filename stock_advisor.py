@@ -141,7 +141,9 @@ class StockAdvisor:
                     "cur_price": self._format_price(cur_p, is_usd),
                     "buy_price": str_buy_price,
                     "sell_price": str_sell_price,
+                    "stop_loss": str_stop_loss,
                     "expected_yield": f"+{expected_yield:.1f}%",
+                    "type": short_signal,
                     "reason": short_reason,
                 })
             elif "매도" in short_signal or "과열" in short_signal:
@@ -151,6 +153,7 @@ class StockAdvisor:
                     "cur_price": self._format_price(cur_p, is_usd),
                     "sell_price": str_sell_price,
                     "type": "단기 과열 익절",
+                    "disparity": f"{disp:+.1f}%",
                     "reason": short_reason,
                 })
 
@@ -161,7 +164,9 @@ class StockAdvisor:
                     "cur_price": self._format_price(cur_p, is_usd),
                     "buy_price": str_buy_price,
                     "sell_price": str_sell_price,
+                    "stop_loss": str_stop_loss,
                     "expected_yield": f"+{expected_yield:.1f}%",
+                    "type": long_signal,
                     "reason": long_reason,
                 })
             elif "비중 축소" in long_signal:
@@ -171,6 +176,7 @@ class StockAdvisor:
                     "cur_price": self._format_price(cur_p, is_usd),
                     "sell_price": str_sell_price,
                     "type": "장기 추세 하락",
+                    "disparity": f"{disp:+.1f}%",
                     "reason": long_reason,
                 })
 

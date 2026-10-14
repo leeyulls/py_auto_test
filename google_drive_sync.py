@@ -32,9 +32,9 @@ class GoogleDriveSync:
                 return path
         return None
 
-    def sync_file(self, file_path: str, is_master: bool = False) -> dict:
+    def sync_file(self, file_path: str, is_master: bool = False, subfolder: str = "") -> dict:
         """
-        생성된 리포트 파일(당일 리포트 또는 누적 마스터 리포트)을 구글 드라이브로 동기화
+        생성된 리포트 파일(당일 리포트 또는 누적 마스터 리포트, PDF 리포트)을 구글 드라이브로 동기화
         """
         results = {"success": False, "methods_attempted": []}
         if not file_path or not os.path.exists(file_path):
@@ -47,6 +47,9 @@ class GoogleDriveSync:
         if local_drive:
             try:
                 dest_folder = os.path.join(local_drive, "데일리_브리핑_수집")
+                if subfolder and not is_master:
+                    parts = [p.strip() for p in subfolder.split("/") if p.strip()]
+                    dest_folder = os.path.join(dest_folder, *parts)
                 os.makedirs(dest_folder, exist_ok=True)
                 dest_path = os.path.join(dest_folder, filename)
                 shutil.copy2(file_path, dest_path)
@@ -67,11 +70,12 @@ class GoogleDriveSync:
                     "filename": filename,
                     "content_base64": file_b64,
                     "folder_name": "데일리_브리핑_수집",
+                    "subfolder": subfolder,
                     "is_master": is_master
                 }
                 res = requests.post(self.apps_script_url, json=payload, timeout=30, allow_redirects=True)
                 if res.status_code == 200 or res.status_code == 302:
-                    print(f"✅ Google Apps Script 웹앱 클라우드 동기화 완료: {filename}")
+                    print(f"✅ Google Apps Script 웹앱 클라우드 동기화 완료: {filename} (폴더: {subfolder or '루트'})")
                     results["success"] = True
                     results["methods_attempted"].append("Apps Script Web App")
                 else:
