@@ -645,12 +645,20 @@ class ReportGenerator:
             for idx, it in enumerate(disp_items, 1):
                 link = it.get("링크") or it.get("link", "")
                 tag = f"`{it['상태']}` " if "집중" in it["상태"] else ""
-                if idx == 1:
-                    lines.append(f"- 🥇 {tag}**[{it['기사제목']}]({link})** ({it['언론사']})")
-                    if it.get("요약내용"):
-                        lines.append(f"  > 💡 {it['요약내용']}")
+                c_sum = it.get("content_summary") or it.get("요약내용", "")
+                exp_ins = it.get("expanded_insight", "")
+                if idx <= 2:
+                    medal = "🥇 " if idx == 1 else "🥈 "
+                    lines.append(f"- {medal}{tag}**[{it['기사제목']}]({link})** ({it['언론사']})")
+                    if c_sum:
+                        lines.append(f"  > 📰 **기사 본문 요약**: {c_sum}")
+                    if exp_ins:
+                        clean_exp = exp_ins.replace("<b>", "**").replace("</b>", "**").replace("<br>", "\n  > ")
+                        lines.append(f"  > {clean_exp}")
                 else:
                     lines.append(f"- {idx}. {tag}[{it['기사제목']}]({link}) ({it['언론사']})")
+                    if c_sum:
+                        lines.append(f"  > - {c_sum[:100]}")
             lines.append("")
 
         with open(file_path, "w", encoding="utf-8") as f:

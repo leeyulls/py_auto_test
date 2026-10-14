@@ -60,6 +60,7 @@ def main():
     today_str = today.strftime("%Y-%m-%d")
     now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     is_sunday = (today.weekday() == 6) or ("--weekly" in sys.argv)
+    send_mail_enabled = "--send-mail" in sys.argv
     month_str = today_str[:7]  # '2026-10'
 
     print("=" * 70)
@@ -148,9 +149,9 @@ def main():
     for disc in special_disclosures[:2]:
         disc["dossier"] = dossier_engine.expand_special_disclosure(disc)
 
-    # 7대 분야별 주요 뉴스 상위 2건 2차 확장 인사이트 분석
+    # 7대 분야별 주요 뉴스 2차 확장 인사이트 분석 및 본문 요약 완성
     for cat_name, items in category_top_picks.items():
-        for item in items[:2]:
+        for item in items:
             expanded_news = dossier_engine.expand_category_news(cat_name, item)
             item["content_summary"] = expanded_news["content_summary"]
             item["expanded_insight"] = expanded_news["expanded_insight"]
@@ -314,32 +315,38 @@ def main():
         if os.path.exists(weekly_pdf_path):
             weekly_attachments.append(weekly_pdf_path)
 
-        sender.send_weekly_report(
-            date_str=today_str,
-            weekly_data=weekly_data,
-            attachments=weekly_attachments
-        )
+        if send_mail_enabled:
+            sender.send_weekly_report(
+                date_str=today_str,
+                weekly_data=weekly_data,
+                attachments=weekly_attachments
+            )
+        else:
+            print("\n🔕 [이메일 발송 건너뜀] '--send-mail' 옵션이 없어 주간 테스트 메일을 발송하지 않습니다.")
     else:
-        print("\n📧 나만의 데일리 브리핑 이메일 발송 중 (엑셀 + 심층 PDF 첨부)...")
         daily_attachments = [daily_excel_path]
         if os.path.exists(daily_pdf_path):
             daily_attachments.append(daily_pdf_path)
 
-        sender.send_report(
-            date_str=today_str,
-            stock_indices=stock_indices,
-            exchange_rates=exchange_rates,
-            stock_advice=stock_advice,
-            crypto_advice=crypto_advice,
-            official_reports=official_reports,
-            news_result=news_result,
-            top_research_list=top_research_list,
-            attachments=daily_attachments,
-            performance_data=performance_data,
-            special_disclosures=special_disclosures,
-            story_dive_data=story_dive_data,
-            real_estate_data=real_estate_data,
-        )
+        if send_mail_enabled:
+            print("\n📧 나만의 데일리 브리핑 이메일 발송 중 (엑셀 + 심층 PDF 첨부)...")
+            sender.send_report(
+                date_str=today_str,
+                stock_indices=stock_indices,
+                exchange_rates=exchange_rates,
+                stock_advice=stock_advice,
+                crypto_advice=crypto_advice,
+                official_reports=official_reports,
+                news_result=news_result,
+                top_research_list=top_research_list,
+                attachments=daily_attachments,
+                performance_data=performance_data,
+                special_disclosures=special_disclosures,
+                story_dive_data=story_dive_data,
+                real_estate_data=real_estate_data,
+            )
+        else:
+            print("\n🔕 [이메일 발송 건너뜀] '--send-mail' 옵션이 없어 데일리 테스트 메일을 발송하지 않고 로컬 보고서만 편찬합니다.")
 
     # 최종 요약 콘솔 출력
     print("\n" + "=" * 70)

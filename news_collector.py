@@ -56,11 +56,53 @@ class NewsCollector:
 
     @classmethod
     def _clean_informative_summary(cls, raw_summary: str, title: str) -> str:
-        """기사 요약에서 언론사/기자/특수문자 및 '...' 말줄임표 잡음을 완벽히 제거하고 완결된 문장 생성"""
+        """기사 요약에서 언론사/기자/특수문자 및 '...' 말줄임표 잡음을 완벽히 제거하고 완결된 2~3개 완성 문장 생성"""
         clean_title = re.sub(r"\[.*?\]|\(.*?\)|<.*?>", "", title).strip()
+        clean_title = re.sub(r"['\"“”‘’]", "", clean_title)
+
         if not raw_summary:
             return f"{clean_title}에 대한 현황과 주요 쟁점을 다룬 보도입니다."
 
+        # 1. Google News RSS의 <ol><li> 클러스터 기사 목록 구조 정밀 파싱
+        if "<li" in raw_summary or "<ol" in raw_summary or "<font" in raw_summary:
+            # HTML 태그 내 링크 텍스트 및 언론사 추출
+            items = []
+            # <li><a ...>제목</a>...<font ...>언론사</font></li> 패턴 추출
+            li_matches = re.findall(r'<li[^>]*>(.*?)</li>', raw_summary, re.DOTALL)
+            if not li_matches:
+                li_matches = [raw_summary]
+
+            for block in li_matches:
+                a_match = re.search(r'<a[^>]*>(.*?)</a>', block, re.DOTALL)
+                font_match = re.search(r'<font[^>]*>(.*?)</font>', block, re.DOTALL)
+                if a_match:
+                    h_text = cls._clean_html(a_match.group(1)).strip()
+                    m_text = cls._clean_html(font_match.group(1)).strip() if font_match else ""
+                    # 노이즈 제거
+                    h_text = re.sub(r"\[.*?\]|\(.*?\)", "", h_text).strip()
+                    h_text = re.sub(r"\.{2,}|…+", "", h_text).strip()
+                    if len(h_text) >= 15:
+                        items.append((h_text, m_text))
+
+            if items:
+                # 첫 번째와 두 번째 기사 헤드라인을 자연스러운 연결 문장으로 재구성
+                first_h, first_m = items[0]
+                m_label = f" ({first_m})" if first_m else ""
+                
+                # 끝맺음 보정
+                if not first_h.endswith(('.', '!', '?')):
+                    first_h += '.'
+
+                if len(items) > 1:
+                    second_h, second_m = items[1]
+                    if not second_h.endswith(('.', '!', '?')):
+                        second_h += '.'
+                    # 두 헤드라인이 유사하지 않은 경우만 연결
+                    if not cls._is_similar_headline(first_h, second_h, threshold=0.6):
+                        return f"{first_h} 아울러 {second_h}"
+                return first_h
+
+        # 2. 일반 텍스트 요약문(연합뉴스, 매일경제 등) 정제
         text = cls._clean_html(raw_summary)
         # 잡음 패턴 및 말줄임표(...) 정규식 제거
         text = re.sub(r"\[.*?\]|\(.*?\)", " ", text)
@@ -78,21 +120,21 @@ class NewsCollector:
             s_clean = s.strip()
             # 잡음 및 너무 짧은 구절 배제
             if len(s_clean) >= 20 and not any(junk in s_clean for junk in ["기자", "포토", "무단", "저작권", "사진="]):
-                # 문장 끝 다듬기 (말줄임 흔적 제거)
                 s_clean = re.sub(r'[\s.,·…]+$', '', s_clean)
                 if not s_clean.endswith(('.', '!', '?')):
                     s_clean += '.'
                 good_sentences.append(s_clean)
 
         if good_sentences:
-            # 최대 2문장 결합
             combined = " ".join(good_sentences[:2])
             if len(combined) >= 30:
                 return combined
 
         if len(text) >= 30:
             cleaned_text = re.sub(r'[\s.,·…]+$', '', text)
-            return cleaned_text + '.'
+            if not cleaned_text.endswith(('.', '!', '?')):
+                cleaned_text += '.'
+            return cleaned_text
 
         return f"{clean_title}과 관련하여 주요 정책 및 시장 이해관계자들의 입장과 향후 파급 효과를 전했습니다."
 
