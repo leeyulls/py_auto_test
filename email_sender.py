@@ -12,6 +12,11 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
 
+try:
+    from intelligence_dossier_engine import IntelligenceDossierEngine
+except ImportError:
+    IntelligenceDossierEngine = None
+
 
 class EmailSender:
     def __init__(self, smtp_server="smtp.naver.com", smtp_port=465):
@@ -26,17 +31,62 @@ class EmailSender:
         return bool(self.naver_user and self.naver_password)
 
     def build_html_body(self, date_str: str, stock_indices: list, exchange_rates: list, stock_advice: dict, crypto_advice: dict, official_reports: list, news_result: dict, top_research_list: list = None, performance_data: dict = None, special_disclosures: list = None, story_dive_data: dict = None) -> str:
-        """스마트폰과 PC에서 가독성 극대화된 모던 카드형 데일리 HTML 이메일 템플릿 생성"""
+        """나만의 프리미엄 인텔리전스 신문(The Executive Intelligence Herald) 모바일/PC 이메일 에디션"""
         today_buys = stock_advice.get("today_buy_picks", [])
         long_buys = stock_advice.get("longterm_buy_picks", [])
         sells = stock_advice.get("sell_warning_picks", [])
 
+        # 나만의 인텔리전스 신문(Newspaper Dossier) 데이터 추출 및 확장
+        nd = story_dive_data.get("newspaper_dossier") if isinstance(story_dive_data, dict) else None
+        if not nd and IntelligenceDossierEngine:
+            try:
+                engine = IntelligenceDossierEngine()
+                mega_dossier = engine.expand_mega_issue_story(news_result.get("mega_issue"), news_result.get("general_news", []))
+                trend_item = story_dive_data.get("trend_item") if isinstance(story_dive_data, dict) else None
+                trend_dossier = engine.expand_trend_story(trend_item) if trend_item else {}
+                exp_reports = [engine.expand_analyst_report(r) for r in official_reports[:2]]
+                exp_discs = [engine.expand_special_disclosure(d) for d in special_disclosures[:2]]
+                nd = {
+                    "mega_dossier": mega_dossier,
+                    "trend_dossier": trend_dossier,
+                    "expanded_reports": exp_reports,
+                    "expanded_disclosures": exp_discs
+                }
+            except Exception:
+                nd = {}
+        elif not nd:
+            nd = {}
+
+        mega_d = nd.get("mega_dossier", {})
+        trend_d = nd.get("trend_dossier", {})
+        exp_reps = nd.get("expanded_reports", [])
+        exp_discs = nd.get("expanded_disclosures", [])
+
         # ---------------------------------------------------------
-        # 1. 📄 증권사 공식 애널리스트 Top 리포트 심층 분석 카드 섹션
+        # 1. 📄 증권사 공식 애널리스트 Top 리포트 심층 해부 (3면 기업 해부)
         # ---------------------------------------------------------
         reports_cards_html = ""
-        if official_reports:
-            for rep in official_reports[:5]:
+        if exp_reps:
+            for rep in exp_reps:
+                reports_cards_html += f"""
+                <div style="background: #FFFFFF; border: 1px solid #CBD5E1; border-top: 4px solid #16A34A; padding: 14px 16px; margin-bottom: 14px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+                    <div style="font-size: 15px; font-weight: bold; color: #166534; margin-bottom: 4px;">
+                        {rep.get('headline')}
+                    </div>
+                    <div style="font-size: 12px; color: #475569; margin-bottom: 8px; border-bottom: 1px solid #E2E8F0; padding-bottom: 4px;">
+                        {rep.get('subhead')} &nbsp;|&nbsp; 📁 원본 PDF: {rep.get('pdf_filename', '')}
+                    </div>
+                    <div style="font-size: 12px; color: #1E293B; line-height: 1.65;">
+                        <div style="margin-bottom: 8px; background: #F8FAFC; padding: 8px 10px; border-radius: 4px;">{rep.get('sec_business')}</div>
+                        <div style="margin-bottom: 8px; background: #F8FAFC; padding: 8px 10px; border-radius: 4px;">{rep.get('sec_thesis')}</div>
+                        <div style="margin-bottom: 8px; background: #F0FDF4; border: 1px solid #DCFCE7; padding: 8px 10px; border-radius: 4px; color: #14532D;">{rep.get('sec_financials')}</div>
+                        <div style="margin-bottom: 8px; background: #FFF1F2; border: 1px solid #FFE4E6; padding: 8px 10px; border-radius: 4px; color: #9F1239;">{rep.get('sec_risks')}</div>
+                        <div style="background: #EFF6FF; border: 1px solid #DBEAFE; padding: 8px 10px; border-radius: 4px; color: #1E40AF;">{rep.get('sec_action')}</div>
+                    </div>
+                </div>
+                """
+        elif official_reports:
+            for rep in official_reports[:4]:
                 tp = rep.get("target_price")
                 tp_str = f"{int(tp):,}원" if tp else "-"
                 ft = rep.get("financial_table", {})
@@ -48,26 +98,18 @@ class EmailSender:
                         <div style="color: #166534; margin-top: 3px;">📈 <i>{ft.get('yoy_summary', '')}</i></div>
                     </div>
                     """
-                summary_val = rep.get('summary_text', '').strip()
                 reports_cards_html += f"""
                 <div style="background: #F0FDF4; border-left: 4px solid #16A34A; padding: 12px 14px; margin-bottom: 10px; border-radius: 6px;">
                     <div style="font-weight: bold; color: #15803D; font-size: 14px;">
                         🏛️ [{rep.get('broker')}] <b>{rep.get('item_name')}</b>: {rep.get('title')}
-                        <span style="font-size: 11px; background: #DCFCE7; color: #166534; padding: 1px 6px; border-radius: 10px; margin-left: 6px;">
-                            신뢰도 ⭐ {rep.get('credibility_score')}점
-                        </span>
+                        <span style="font-size: 11px; background: #DCFCE7; color: #166534; padding: 1px 6px; border-radius: 10px; margin-left: 6px;">신뢰도 ⭐ {rep.get('credibility_score')}점</span>
                     </div>
                     <div style="margin: 6px 0; background: #DCFCE7; padding: 6px 10px; border-radius: 4px; font-size: 12px; color: #14532D;">
-                        🎯 <b>공인 목표주가:</b> <span style="font-weight: bold; color: #166534;">{tp_str}</span> &nbsp;|&nbsp; 
-                        📌 <b>투자의견:</b> <span style="font-weight: bold;">{rep.get('opinion', 'BUY')}</span> &nbsp;|&nbsp;
-                        👀 <b>시장 조회수:</b> {rep.get('read_count', 0)}회
+                        🎯 <b>공인 목표주가:</b> <span style="font-weight: bold; color: #166534;">{tp_str}</span> &nbsp;|&nbsp; 📌 <b>투자의견:</b> {rep.get('opinion', 'BUY')}
                     </div>
                     {ft_box}
                     <div style="color: #374151; font-size: 12px; margin-top: 4px; line-height: 1.5;">
-                        💡 <b>핵심 요지:</b> {summary_val}
-                    </div>
-                    <div style="font-size: 11px; color: #6B7280; margin-top: 4px;">
-                        📁 <i>구글 드라이브(공식_리서치_PDF) 원본 보관: {rep.get('pdf_filename', '')}</i>
+                        💡 <b>핵심 요지:</b> {rep.get('summary_text', '')}
                     </div>
                 </div>
                 """
@@ -230,10 +272,36 @@ class EmailSender:
                 </div>
                 """
 
-        # 메가 핫토픽
+        # ---------------------------------------------------------
+        # 📰 1면 톱 심층 기획특집 기사 (The Lead Story)
+        # ---------------------------------------------------------
         mega = news_result.get("mega_issue")
         mega_html = ""
-        if mega:
+        if mega_d and mega_d.get("chapter1"):
+            mega_html = f"""
+            <div style="background: #FFFFFF; border: 2px solid #1E3A8A; border-radius: 8px; padding: 18px; margin-bottom: 24px; box-shadow: 0 2px 4px rgba(0,0,0,0.06);">
+                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #1E3A8A; padding-bottom: 8px; margin-bottom: 12px;">
+                    <span style="font-size: 13px; font-weight: bold; color: #1E3A8A;">🌐 [오늘의 1면 톱 기획특집 기사]</span>
+                    <span style="background: #DBEAFE; color: #1E40AF; font-size: 11px; font-weight: bold; padding: 2px 8px; border-radius: 10px;">취재원: {mega_d.get('source', '주요 언론')} | 2차 심층 확장 취재</span>
+                </div>
+                <h2 style="font-size: 18px; font-weight: 800; color: #0F172A; margin: 0 0 6px; line-height: 1.4;">
+                    <a href="{mega_d.get('link', '#')}" style="color: #0F172A; text-decoration: none;">{mega_d.get('headline')}</a>
+                </h2>
+                <div style="font-size: 13px; color: #2563EB; font-weight: 600; margin-bottom: 12px; line-height: 1.5;">
+                    {mega_d.get('subhead')}
+                </div>
+                <div style="background: #F8FAFC; border-left: 4px solid #1E3A8A; padding: 12px 14px; font-size: 12.5px; color: #1E293B; line-height: 1.7; margin-bottom: 14px; font-style: italic;">
+                    {mega_d.get('lead')}
+                </div>
+                <div style="font-size: 12px; color: #334155; line-height: 1.7;">
+                    <div style="margin-bottom: 10px; background: #FFFFFF; border: 1px solid #E2E8F0; padding: 10px 12px; border-radius: 6px;">{mega_d.get('chapter1')}</div>
+                    <div style="margin-bottom: 10px; background: #FFFFFF; border: 1px solid #E2E8F0; padding: 10px 12px; border-radius: 6px;">{mega_d.get('chapter2')}</div>
+                    <div style="margin-bottom: 10px; background: #FFFFFF; border: 1px solid #E2E8F0; padding: 10px 12px; border-radius: 6px;">{mega_d.get('chapter3')}</div>
+                    <div style="background: #EFF6FF; border: 1px solid #BFDBFE; padding: 10px 12px; border-radius: 6px; color: #1E40AF;">{mega_d.get('chapter4')}</div>
+                </div>
+            </div>
+            """
+        elif mega:
             mega_html = f"""
             <div style="background: #FFF1F2; border: 2px solid #F43F5E; border-radius: 8px; padding: 16px; margin-bottom: 24px;">
                 <div style="font-size: 13px; font-weight: bold; color: #E11D48; margin-bottom: 4px;">
@@ -250,7 +318,87 @@ class EmailSender:
             """
 
         # ---------------------------------------------------------
-        # 🎯 추천 종목 사후 검증 (Backtesting) & 누적 적중률 카드 (Feature 1)
+        # 🛍️ 2면 기획 르포: 트렌드 & 2030 라이프스타일 소비 심리 (Trend Intelligence)
+        # ---------------------------------------------------------
+        story_dive_html = ""
+        if trend_d and trend_d.get("chapter1"):
+            story_dive_html = f"""
+            <div style="background: #FFFFFF; border: 2px solid #DB2777; border-radius: 8px; padding: 18px; margin-bottom: 24px; box-shadow: 0 2px 4px rgba(0,0,0,0.06);">
+                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #DB2777; padding-bottom: 8px; margin-bottom: 12px;">
+                    <span style="font-size: 13px; font-weight: bold; color: #9D174D;">🛍️ [2면 기획 르포: 2030 라이프스타일 & 소비 심리]</span>
+                    <span style="background: #FCE7F3; color: #9D174D; font-size: 11px; font-weight: bold; padding: 2px 8px; border-radius: 10px;">디토 소비 & PB 전쟁</span>
+                </div>
+                <h2 style="font-size: 17px; font-weight: 800; color: #0F172A; margin: 0 0 6px; line-height: 1.4;">
+                    <a href="{trend_d.get('link', '#')}" style="color: #0F172A; text-decoration: none;">{trend_d.get('headline')}</a>
+                </h2>
+                <div style="font-size: 13px; color: #BE185D; font-weight: 600; margin-bottom: 12px; line-height: 1.5;">
+                    {trend_d.get('subhead')}
+                </div>
+                <div style="background: #FDF2F8; border-left: 4px solid #DB2777; padding: 12px 14px; font-size: 12.5px; color: #1E293B; line-height: 1.7; margin-bottom: 14px; font-style: italic;">
+                    {trend_d.get('lead')}
+                </div>
+                <div style="font-size: 12px; color: #334155; line-height: 1.7;">
+                    <div style="margin-bottom: 10px; background: #FFFFFF; border: 1px solid #FCE7F3; padding: 10px 12px; border-radius: 6px;">{trend_d.get('chapter1')}</div>
+                    <div style="margin-bottom: 10px; background: #FFFFFF; border: 1px solid #FCE7F3; padding: 10px 12px; border-radius: 6px;">{trend_d.get('chapter2')}</div>
+                    <div style="margin-bottom: 10px; background: #FFFFFF; border: 1px solid #FCE7F3; padding: 10px 12px; border-radius: 6px;">{trend_d.get('chapter3')}</div>
+                    <div style="background: #FFF1F2; border: 1px solid #FECDD3; padding: 10px 12px; border-radius: 6px; color: #9F1239;">{trend_d.get('chapter4')}</div>
+                </div>
+                <div style="margin-top: 12px; background: #FEF9C3; border: 1px solid #FDE047; padding: 8px 12px; border-radius: 6px; font-size: 12px; color: #713F12; line-height: 1.5;">
+                    💡 <b>1분 핵심 용어 사전:</b> <b>디토(Ditto) 소비</b>는 인플루언서나 전문가의 취향을 그대로 추종하는 소비 트렌드이며, <b>스몰 럭셔리(Small Luxury)</b>는 불황기 속에서 소소한 고품질 소비재(디저트, 향수)로 심리적 만족을 극대화하는 행동 경제학적 선택입니다.
+                </div>
+            </div>
+            """
+        elif story_dive_data and story_dive_data.get("stories"):
+            cards_inner = ""
+            for st in story_dive_data["stories"]:
+                is_econ = (st.get("track") == "ECONOMY")
+                theme_color = "#2563EB" if is_econ else "#DB2777"
+                theme_bg = "#EFF6FF" if is_econ else "#FDF2F8"
+                badge_bg = "#DBEAFE" if is_econ else "#FCE7F3"
+                badge_text = "#1E40AF" if is_econ else "#9D174D"
+                icon = "🌐" if is_econ else "🔥"
+                link_url = st.get('link') or '#'
+                source_name = st.get('source') or '심층분석'
+                term_html = ""
+                term_tip = st.get("term_tip", "")
+                if term_tip:
+                    clean_term = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', term_tip)
+                    term_html = f"""
+                    <div style="margin-top: 10px; background: #FEF9C3; border: 1px solid #FDE047; padding: 8px 12px; border-radius: 6px; font-size: 12px; color: #713F12; line-height: 1.5;">
+                        💡 <b>1분 핵심 용어 사전:</b> {clean_term}
+                    </div>
+                    """
+                cards_inner += f"""
+                <div style="background: #FFFFFF; border: 1px solid #E2E8F0; border-top: 4px solid {theme_color}; border-radius: 8px; padding: 14px 16px; margin-bottom: 14px;">
+                    <div style="margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center;">
+                        <span style="background: {badge_bg}; color: {badge_text}; font-size: 11px; font-weight: bold; padding: 2px 8px; border-radius: 10px;">{icon} {st.get('track_name')} | {st.get('badge')}</span>
+                        <span style="font-size: 11px; color: #64748B;">출처: {source_name}</span>
+                    </div>
+                    <div style="font-size: 15px; font-weight: bold; color: #0F172A; margin-bottom: 8px;">
+                        <a href="{link_url}" style="color: #0F172A; text-decoration: none;">{st.get('title')}</a>
+                    </div>
+                    <div style="font-size: 12px; color: #334155; line-height: 1.6;">
+                        <div>{st.get('stage1')}</div>
+                        <div style="margin-top: 4px;">{st.get('stage2')}</div>
+                        <div style="margin-top: 4px;">{st.get('stage3')}</div>
+                        <div style="margin-top: 4px;">{st.get('stage4')}</div>
+                    </div>
+                    {term_html}
+                </div>
+                """
+            story_dive_html = f"""
+            <div style="margin-bottom: 24px;">
+                <h2 style="font-size: 17px; color: #1E293B; border-bottom: 2px solid #8B5CF6; padding-bottom: 6px;">
+                    📌 오늘의 심층 테마 리포트 (경제·사회 & 트렌드)
+                </h2>
+                <div style="margin-top: 12px;">
+                    {cards_inner}
+                </div>
+            </div>
+            """
+
+        # ---------------------------------------------------------
+        # 🎯 추천 종목 사후 검증 (Backtesting) & 누적 적중률 카드
         # ---------------------------------------------------------
         perf_html = ""
         if performance_data and performance_data.get("summary"):
@@ -259,17 +407,11 @@ class EmailSender:
             for r in performance_data.get("records", [])[:6]:
                 res = r.get("검증결과", "")
                 if "달성" in res:
-                    badge_bg = "#DCFCE7"
-                    badge_fg = "#166534"
-                    res_col = "#16A34A"
+                    badge_bg, badge_fg, res_col = "#DCFCE7", "#166534", "#16A34A"
                 elif "손절" in res:
-                    badge_bg = "#FEE2E2"
-                    badge_fg = "#991B1B"
-                    res_col = "#DC2626"
+                    badge_bg, badge_fg, res_col = "#FEE2E2", "#991B1B", "#DC2626"
                 else:
-                    badge_bg = "#DBEAFE"
-                    badge_fg = "#1E40AF"
-                    res_col = "#2563EB"
+                    badge_bg, badge_fg, res_col = "#DBEAFE", "#1E40AF", "#2563EB"
 
                 rec_cards += f"""
                 <div style="background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 6px; padding: 10px 12px; margin-bottom: 8px;">
@@ -310,10 +452,35 @@ class EmailSender:
             """
 
         # ---------------------------------------------------------
-        # 🏛️ 금융감독원(DART) & KIND 기업 핵심 특수 공시 카드 (Feature 3)
+        # 🏛️ 4면: 금융감독원(DART) 특수공시 심층 행간 읽기 (Regulatory Intelligence)
         # ---------------------------------------------------------
         disclosures_html = ""
-        if special_disclosures:
+        if exp_discs:
+            d_cards = ""
+            for d in exp_discs:
+                d_cards += f"""
+                <div style="background: #FFFFFF; border: 1px solid #CBD5E1; border-top: 4px solid #D97706; padding: 14px 16px; margin-bottom: 14px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+                    <div style="font-size: 14.5px; font-weight: bold; color: #92400E; margin-bottom: 6px;">
+                        {d.get('headline')}
+                    </div>
+                    <div style="font-size: 12px; color: #1E293B; line-height: 1.65;">
+                        <div style="margin-bottom: 8px; background: #FFFBEB; border: 1px solid #FEF3C7; padding: 8px 10px; border-radius: 4px; color: #78350F;">{d.get('sec_context')}</div>
+                        <div style="margin-bottom: 8px; background: #F8FAFC; border: 1px solid #E2E8F0; padding: 8px 10px; border-radius: 4px; color: #334155;">{d.get('sec_governance')}</div>
+                        <div style="background: #F0FDF4; border: 1px solid #DCFCE7; padding: 8px 10px; border-radius: 4px; color: #166534;">{d.get('sec_strategy')}</div>
+                    </div>
+                </div>
+                """
+            disclosures_html = f"""
+            <div style="margin-bottom: 24px;">
+                <h2 style="font-size: 17px; color: #1E293B; border-bottom: 2px solid #D97706; padding-bottom: 6px; margin-top: 0;">
+                    🏛️ [4면] 금융감독원(DART) 특수공시 심층 행간 읽기 (지배구조 & FCF 분석)
+                </h2>
+                <div style="margin-top: 12px;">
+                    {d_cards}
+                </div>
+            </div>
+            """
+        elif special_disclosures:
             d_cards = ""
             for d in special_disclosures[:4]:
                 badge = d.get("공시배지", "")
@@ -352,7 +519,7 @@ class EmailSender:
             """
 
         # ---------------------------------------------------------
-        # 🇺🇸 미국 글로벌 빅테크 4대장 (NVDA, TSLA, AAPL, MSFT) 카드 (Feature 4)
+        # 🇺🇸 미국 글로벌 빅테크 4대장 (NVDA, TSLA, AAPL, MSFT) 카드
         # ---------------------------------------------------------
         us_bigtech_picks = stock_advice.get("us_bigtech_picks", [])
         us_bigtech_html = ""
@@ -385,91 +552,14 @@ class EmailSender:
             </div>
             """
 
-        # ---------------------------------------------------------
-        # 📌 오늘의 심층 테마 리포트 (Deep Theme Report) 카드 섹션
-        # ---------------------------------------------------------
-        story_dive_html = ""
-        if story_dive_data and story_dive_data.get("stories"):
-            cards_inner = ""
-            for st in story_dive_data["stories"]:
-                is_econ = (st.get("track") == "ECONOMY")
-                theme_color = "#2563EB" if is_econ else "#DB2777"
-                theme_bg = "#EFF6FF" if is_econ else "#FDF2F8"
-                badge_bg = "#DBEAFE" if is_econ else "#FCE7F3"
-                badge_text = "#1E40AF" if is_econ else "#9D174D"
-                icon = "🌐" if is_econ else "🔥"
-                link_url = st.get('link') or '#'
-                source_name = st.get('source') or '심층분석'
-
-                if is_econ:
-                    s1_label = "📋 <b>이슈 개요 및 현황:</b>"
-                    s2_label = "⏳ <b>발단과 누적 타임라인:</b>"
-                    s3_label = "⚖️ <b>이면의 구조와 이해관계:</b>"
-                    s4_label = "🔮 <b>시장 파장과 향후 관전 포인트:</b>"
-                else:
-                    s1_label = "🛍️ <b>트렌드 현황 및 화제:</b>"
-                    s2_label = "🚀 <b>유행의 시초와 바이럴 계기:</b>"
-                    s3_label = "🧠 <b>소비 심리와 마케팅 구조:</b>"
-                    s4_label = "📊 <b>유통가 파장 및 지속 가능성:</b>"
-
-                term_html = ""
-                term_tip = st.get("term_tip", "")
-                if term_tip:
-                    clean_term = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', term_tip)
-                    term_html = f"""
-                    <div style="margin-top: 10px; background: #FEF9C3; border: 1px solid #FDE047; padding: 8px 12px; border-radius: 6px; font-size: 12px; color: #713F12; line-height: 1.5;">
-                        💡 <b>1분 핵심 용어 사전:</b> {clean_term}
-                    </div>
-                    """
-
-                cards_inner += f"""
-                <div style="background: #FFFFFF; border: 1px solid #E2E8F0; border-top: 4px solid {theme_color}; border-radius: 8px; padding: 14px 16px; margin-bottom: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-                    <div style="margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center;">
-                        <span style="background: {badge_bg}; color: {badge_text}; font-size: 11px; font-weight: bold; padding: 2px 8px; border-radius: 10px;">
-                            {icon} {st.get('track_name')} | {st.get('badge')}
-                        </span>
-                        <span style="font-size: 11px; color: #64748B;">출처: {source_name}</span>
-                    </div>
-                    <div style="font-size: 15px; font-weight: bold; color: #0F172A; margin-bottom: 8px; line-height: 1.4;">
-                        <a href="{link_url}" style="color: #0F172A; text-decoration: none;">{st.get('title')}</a>
-                    </div>
-                    <div style="background: {theme_bg}; border-left: 3px solid {theme_color}; padding: 8px 12px; border-radius: 4px; font-size: 12px; color: #1E293B; margin-bottom: 12px; line-height: 1.5;">
-                        💬 <i>"{st.get('hook')}"</i>
-                    </div>
-                    <div style="font-size: 12px; color: #334155; line-height: 1.6;">
-                        <div style="margin-bottom: 8px;">{s1_label} {st.get('stage1')}</div>
-                        <div style="margin-bottom: 8px;">{s2_label} {st.get('stage2')}</div>
-                        <div style="margin-bottom: 8px;">{s3_label} {st.get('stage3')}</div>
-                        <div style="margin-bottom: 4px;">{s4_label} {st.get('stage4')}</div>
-                    </div>
-                    {term_html}
-                </div>
-                """
-
-            story_dive_html = f"""
-            <div style="margin-bottom: 24px;">
-                <div style="border-bottom: 2px solid #8B5CF6; padding-bottom: 6px; margin-bottom: 12px;">
-                    <h2 style="font-size: 17px; color: #1E293B; margin: 0;">
-                        📌 오늘의 심층 테마 리포트 (경제·사회 & 트렌드)
-                    </h2>
-                    <div style="font-size: 11px; color: #6D28D9; margin-top: 3px;">
-                        단순 단신 뉴스를 넘어 배경 역사, 이면의 구조, 시장 파장까지 입체적으로 분석한 데일리 심층 보고서
-                    </div>
-                </div>
-                {cards_inner}
-            </div>
-            """
-
         # 0. 📋 최고경영진 3대 핵심 요약 (Executive Summary Box)
-        # 1) 심층 이슈 브리프
         issue_brief = "주요 거시 경제 및 사회적 핫토픽 점검 진행"
-        if story_dive_data and story_dive_data.get("stories"):
+        if mega_d and mega_d.get("headline"):
+            issue_brief = f"<b>{mega_d.get('headline')}</b> — {mega_d.get('subhead', '')}"
+        elif story_dive_data and story_dive_data.get("stories"):
             first_s = story_dive_data["stories"][0]
             issue_brief = f"<b>[{first_s.get('track_name', '심층이슈')}] {first_s.get('title')}</b> — {first_s.get('hook', '')}"
-        elif mega:
-            issue_brief = f"<b>[메가 핫토픽] {mega.get('기사제목')}</b> — {mega.get('요약내용', '')}"
 
-        # 2) 금융·자산배분 브리프
         asset_brief = "당일 단기 과열권 진입 종목 분할 익절 및 현금 비중 20% 이상 유지 권고"
         if today_buys:
             top_b = today_buys[0]
@@ -477,8 +567,7 @@ class EmailSender:
         elif long_buys:
             asset_brief = f"<b>[적립 투자]</b> <b>{long_buys[0].get('name')}</b> 등 실적 우량주 중심 분할 매수 밴드 유효"
 
-        # 3) 구글 드라이브 심층 보고서 안내
-        pdf_brief = f"20일 주가 변화 차트, 기업 실적 추정치 표 및 DART 공시 투자전략이 수록된 8페이지 정식 보고서(<code>{date_str}_데일리_심층_종합분석_보고서.pdf</code>)가 구글 드라이브(<code>{date_str[:7]}/</code>)에 업로드되었습니다 (본 메일 첨부 확인 가능)."
+        pdf_brief = f"20일 주가 변화 차트, 기업 실적 추정치 표 및 DART 공시 투자전략이 수록된 8페이지 정식 신문판(<code>{date_str}_데일리_심층_종합분석_보고서.pdf</code>)이 구글 드라이브(<code>{date_str[:7]}/</code>)에 업로드되었습니다 (본 메일 첨부 확인 가능)."
 
         exec_summary_html = f"""
         <div style="background: #F8FAFC; border: 2px solid #1E3A8A; border-radius: 8px; padding: 16px 18px; margin-bottom: 22px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
@@ -487,9 +576,9 @@ class EmailSender:
                 <span style="margin-left: auto; font-size: 11px; background: #DBEAFE; color: #1E40AF; padding: 2px 8px; border-radius: 10px; font-weight: bold;">대외비 • 사장님 친전</span>
             </div>
             <ul style="margin: 0; padding-left: 18px; font-size: 12.5px; color: #1E293B; line-height: 1.7;">
-                <li style="margin-bottom: 4px;"><b>심층 이슈:</b> {issue_brief}</li>
+                <li style="margin-bottom: 4px;"><b>1면 톱 기획:</b> {issue_brief}</li>
                 <li style="margin-bottom: 4px;"><b>투자 포커스:</b> {asset_brief}</li>
-                <li><b>구글 드라이브 심층 PDF:</b> {pdf_brief}</li>
+                <li><b>구글 드라이브 심층 신문 PDF:</b> {pdf_brief}</li>
             </ul>
         </div>
         """
@@ -500,16 +589,16 @@ class EmailSender:
         <head>
             <meta charset="utf-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>경영진 전략 인텔리전스 모닝 브리핑</title>
+            <title>The Executive Intelligence Herald ({date_str})</title>
         </head>
         <body style="font-family: -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', sans-serif; background-color: #F8FAFC; margin: 0; padding: 20px; line-height: 1.6; color: #1E293B;">
             <div style="max-width: 680px; margin: 0 auto; background: #FFFFFF; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); border: 1px solid #E2E8F0;">
                 
-                <!-- 헤더: 팀장 보고형 최고경영진 톤앤매너 -->
+                <!-- 헤더: 신문 스타일 프리미엄 톤앤매너 -->
                 <div style="background: linear-gradient(135deg, #0F172A 0%, #1E3A8A 100%); color: #FFFFFF; padding: 26px 24px; text-align: center;">
-                    <div style="font-size: 11px; letter-spacing: 2px; color: #93C5FD; text-transform: uppercase; font-weight: bold;">Executive Intelligence Briefing</div>
-                    <h1 style="margin: 8px 0 0; font-size: 21px; font-weight: bold;">💼 [경영진 보고] {date_str} 전략 인텔리전스 모닝 브리핑</h1>
-                    <p style="margin: 6px 0 0; font-size: 12.5px; opacity: 0.9; color: #E2E8F0;">단기 의사결정을 위한 3분 모바일 요약본 • 20일 주가 변화 차트 및 심층 조사는 구글 드라이브 PDF 수록</p>
+                    <div style="font-size: 11px; letter-spacing: 2px; color: #93C5FD; text-transform: uppercase; font-weight: bold;">The Executive Intelligence Herald</div>
+                    <h1 style="margin: 8px 0 0; font-size: 21px; font-weight: bold;">📰 [경영진 보고] {date_str} 나만의 프리미엄 인텔리전스 신문</h1>
+                    <p style="margin: 6px 0 0; font-size: 12.5px; opacity: 0.9; color: #E2E8F0;">단순 단신 요약을 탈피한 2차 심층 교차 취재 & 전방위 기업·공시 해부 에디션</p>
                 </div>
 
                 <div style="padding: 24px;">
@@ -517,41 +606,30 @@ class EmailSender:
                     <!-- 📋 최고경영진 3대 핵심 요약 (Executive Summary) -->
                     {exec_summary_html}
 
-                    <!-- 🔥 메가 핫토픽 -->
+                    <!-- 📰 1면 톱 기획특집 기사 (The Lead Story) -->
                     {mega_html}
 
-                    <!-- 📌 오늘의 심층 테마 리포트 섹션 -->
+                    <!-- 🛍️ 2면 기획 르포: 트렌드 & 소비 심리 해부 -->
                     {story_dive_html}
 
-                    <!-- 🎯 AI 추천 종목 사후 검증 (Backtesting) 섹션 -->
-                    {perf_html}
-
-                    <!-- 🏛️ 금융감독원 특수 공시 섹션 -->
-                    {disclosures_html}
-
-                    <!-- 🇺🇸 미국 글로벌 빅테크 4대장 섹션 -->
-                    {us_bigtech_html}
-
-                    <!-- 1. 📄 증권사 공식 리포트 섹션 -->
+                    <!-- 📄 3면 기업 심층 해부: 증권사 공식 애널리스트 리포트 -->
                     <div style="margin-bottom: 24px;">
                         <h2 style="font-size: 17px; color: #1E293B; border-bottom: 2px solid #16A34A; padding-bottom: 6px; margin-top: 0;">
-                            📄 증권사 공식 애널리스트 Top 리포트 심층 분석 (공인 목표가 & 2026/2027 실적 표)
+                            📄 [3면] 증권사 공식 애널리스트 Top 리포트 심층 해부 (비즈니스 해자 & 실적 표)
                         </h2>
                         <div style="margin-top: 14px;">
                             {reports_cards_html}
                         </div>
                     </div>
 
-                    <!-- 2. 🪙 3대 코인(비트코인, 이더리움, 솔라나) 섹션 -->
-                    <div style="margin-bottom: 24px;">
-                        <h2 style="font-size: 17px; color: #1E293B; border-bottom: 2px solid #A855F7; padding-bottom: 6px;">
-                            🪙 3대 코인(BTC, ETH, SOL) 시세 & 매매 추천금액
-                        </h2>
-                        <div style="margin-top: 14px;">
-                            {coin_cards_html}
-                            {crypto_news_html}
-                        </div>
-                    </div>
+                    <!-- 🏛️ 4면 DART 특수공시 심층 행간 읽기 -->
+                    {disclosures_html}
+
+                    <!-- 🎯 AI 추천 종목 사후 검증 (Backtesting) 섹션 -->
+                    {perf_html}
+
+                    <!-- 🇺🇸 미국 글로벌 빅테크 4대장 섹션 -->
+                    {us_bigtech_html}
 
                     <!-- 3. 주식 매매 추천 & 추천 금액 섹션 -->
                     <div style="margin-bottom: 24px;">
@@ -664,16 +742,87 @@ class EmailSender:
             </div>
             """
 
+        # 주간 도시에 데이터 추출
+        nd = weekly_data.get("newspaper_dossier") or weekly_data.get("story_dive_data", {}).get("newspaper_dossier")
+        if not nd and IntelligenceDossierEngine and weekly_issues:
+            try:
+                engine = IntelligenceDossierEngine()
+                top_iss = weekly_issues[0] if weekly_issues else {}
+                mega_d = engine.expand_mega_issue_story(top_iss)
+                trend_d = engine.expand_trend_story({"title": top_iss.get("기사제목", "소비 트렌드"), "summary": top_iss.get("요약내용", "")})
+                exp_reps = [engine.expand_analyst_report(r) for r in weekly_reports[:2]] if weekly_reports else []
+                nd = {"mega_dossier": mega_d, "trend_dossier": trend_d, "expanded_reports": exp_reps}
+            except Exception:
+                nd = {}
+        elif not nd:
+            nd = {}
+
+        mega_d = nd.get("mega_dossier", {})
+        trend_d = nd.get("trend_dossier", {})
+        exp_reps = nd.get("expanded_reports", [])
+
+        # 주간 메가 심층 기획 기사
+        weekly_mega_html = ""
+        if mega_d and mega_d.get("chapter1"):
+            weekly_mega_html = f"""
+            <div style="background: #FFFFFF; border: 2px solid #1E3A8A; border-radius: 8px; padding: 18px; margin-bottom: 24px; box-shadow: 0 2px 4px rgba(0,0,0,0.06);">
+                <div style="font-size: 13px; font-weight: bold; color: #1E3A8A; margin-bottom: 6px;">🌐 [주간 1면 톱 심층 기획 기사]</div>
+                <div style="font-size: 17px; font-weight: bold; color: #0F172A; margin-bottom: 6px;">{mega_d.get('headline')}</div>
+                <div style="font-size: 12.5px; color: #2563EB; font-weight: 600; margin-bottom: 12px;">{mega_d.get('subhead')}</div>
+                <div style="background: #F8FAFC; border-left: 4px solid #1E3A8A; padding: 10px 14px; font-size: 12px; color: #1E293B; line-height: 1.65; margin-bottom: 14px; font-style: italic;">{mega_d.get('lead')}</div>
+                <div style="font-size: 12px; color: #334155; line-height: 1.65;">
+                    <div style="margin-bottom: 8px; background: #FFFFFF; border: 1px solid #E2E8F0; padding: 10px 12px; border-radius: 6px;">{mega_d.get('chapter1')}</div>
+                    <div style="margin-bottom: 8px; background: #FFFFFF; border: 1px solid #E2E8F0; padding: 10px 12px; border-radius: 6px;">{mega_d.get('chapter2')}</div>
+                    <div style="margin-bottom: 8px; background: #FFFFFF; border: 1px solid #E2E8F0; padding: 10px 12px; border-radius: 6px;">{mega_d.get('chapter3')}</div>
+                    <div style="background: #EFF6FF; border: 1px solid #BFDBFE; padding: 10px 12px; border-radius: 6px; color: #1E40AF;">{mega_d.get('chapter4')}</div>
+                </div>
+            </div>
+            """
+
+        # 주간 트렌드 기획 르포
+        weekly_trend_html = ""
+        if trend_d and trend_d.get("chapter1"):
+            weekly_trend_html = f"""
+            <div style="background: #FFFFFF; border: 2px solid #DB2777; border-radius: 8px; padding: 18px; margin-bottom: 24px; box-shadow: 0 2px 4px rgba(0,0,0,0.06);">
+                <div style="font-size: 13px; font-weight: bold; color: #9D174D; margin-bottom: 6px;">🛍️ [주간 기획 르포: 2030 소비 심리 & 트렌드 총결산]</div>
+                <div style="font-size: 16.5px; font-weight: bold; color: #0F172A; margin-bottom: 6px;">{trend_d.get('headline')}</div>
+                <div style="font-size: 12.5px; color: #BE185D; font-weight: 600; margin-bottom: 12px;">{trend_d.get('subhead')}</div>
+                <div style="background: #FDF2F8; border-left: 4px solid #DB2777; padding: 10px 14px; font-size: 12px; color: #1E293B; line-height: 1.65; margin-bottom: 14px; font-style: italic;">{trend_d.get('lead')}</div>
+                <div style="font-size: 12px; color: #334155; line-height: 1.65;">
+                    <div style="margin-bottom: 8px; background: #FFFFFF; border: 1px solid #FCE7F3; padding: 10px 12px; border-radius: 6px;">{trend_d.get('chapter1')}</div>
+                    <div style="margin-bottom: 8px; background: #FFFFFF; border: 1px solid #FCE7F3; padding: 10px 12px; border-radius: 6px;">{trend_d.get('chapter2')}</div>
+                    <div style="margin-bottom: 8px; background: #FFFFFF; border: 1px solid #FCE7F3; padding: 10px 12px; border-radius: 6px;">{trend_d.get('chapter3')}</div>
+                    <div style="background: #FFF1F2; border: 1px solid #FECDD3; padding: 10px 12px; border-radius: 6px; color: #9F1239;">{trend_d.get('chapter4')}</div>
+                </div>
+            </div>
+            """
+
         # 📄 공식 리포트 하이라이트
         report_cards_html = ""
-        for r in weekly_reports:
+        if exp_reps:
+            for r in exp_reps[:2]:
+                report_cards_html += f"""
+                <div style="background: #FFFFFF; border: 1px solid #CBD5E1; border-top: 4px solid #0EA5E9; padding: 14px 16px; margin-bottom: 12px; border-radius: 8px;">
+                    <div style="font-size: 14.5px; font-weight: bold; color: #0369A1; margin-bottom: 4px;">{r.get('headline')}</div>
+                    <div style="font-size: 11px; color: #0284C7; margin-bottom: 6px;">{r.get('subhead')}</div>
+                    <div style="font-size: 11px; color: #334155; line-height: 1.6;">
+                        <div style="margin-bottom: 4px;">{r.get('sec_business')}</div>
+                        <div style="margin-bottom: 4px;">{r.get('sec_thesis')}</div>
+                        <div style="margin-bottom: 4px; background: #F0FDF4; padding: 6px; border-radius: 4px;">{r.get('sec_financials')}</div>
+                        <div style="background: #EFF6FF; padding: 6px; border-radius: 4px;">{r.get('sec_action')}</div>
+                    </div>
+                </div>
+                """
+        for r in weekly_reports[:4]:
+            tp = r.get("target_price", "-")
+            tp_str = f"{int(tp):,}원" if str(tp).replace(",", "").isdigit() else str(tp)
             report_cards_html += f"""
             <div style="background: #F8FAFC; border-left: 4px solid #0EA5E9; padding: 10px 14px; margin-bottom: 8px; border-radius: 6px;">
                 <div style="font-weight: bold; color: #0369A1; font-size: 14px;">
                     📘 [{r.get('broker')}] {r.get('item_name')}: {r.get('title')}
                 </div>
                 <div style="font-size: 12px; color: #0284C7; margin: 4px 0;">
-                    🎯 <b>공인 목표가:</b> {r.get('target_price')} | 투자의견: {r.get('opinion')} | 신뢰도: ⭐ {r.get('score')}점
+                    🎯 <b>공인 목표가:</b> {tp_str} | 투자의견: {r.get('opinion')} | 신뢰도: ⭐ {r.get('score')}점
                 </div>
                 <div style="font-size: 12px; color: #475569;">
                     {r.get('summary', '')[:120]}...
@@ -735,6 +884,12 @@ class EmailSender:
                     <!-- 📋 최고경영진 주간 핵심 요약 (Executive Summary) -->
                     {exec_weekly_summary_html}
 
+                    <!-- 🌐 주간 1면 톱 심층 기획 기사 -->
+                    {weekly_mega_html}
+
+                    <!-- 🛍️ 주간 기획 르포: 2030 소비 심리 & 트렌드 -->
+                    {weekly_trend_html}
+
                     <!-- 1. 🪙 3대 코인 주간 총결산 & 차주 매매 밴드 -->
                     <div style="margin-bottom: 24px;">
                         <h2 style="font-size: 17px; color: #1E293B; border-bottom: 2px solid #9333EA; padding-bottom: 6px; margin-top: 0;">
@@ -758,7 +913,7 @@ class EmailSender:
                     <!-- 3. 📄 공식 증권사 리서치 주간 하이라이트 -->
                     <div style="margin-bottom: 24px;">
                         <h2 style="font-size: 17px; color: #1E293B; border-bottom: 2px solid #0EA5E9; padding-bottom: 6px;">
-                            📄 3. 금주 증권사 공식 리포트 하이라이트 (공인 목표가)
+                            📄 3. 금주 증권사 공식 리포트 하이라이트 (공인 목표가 & 기업 정밀 해부)
                         </h2>
                         <div style="margin-top: 14px;">
                             {report_cards_html}

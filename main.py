@@ -31,6 +31,7 @@ from performance_tracker import PerformanceTracker
 from disclosure_collector import DisclosureCollector
 from story_dive_engine import StoryDiveEngine
 from pdf_report_generator import PdfReportGenerator
+from intelligence_dossier_engine import IntelligenceDossierEngine
 
 
 def load_env(env_path):
@@ -127,10 +128,32 @@ def main():
         {"title": m["기사제목"], "link": m["링크"], "category": m["구분"]} for m in market_news
     ])
 
-    # 6. 📌 오늘의 심층 테마 리포트 엔진 (경제·사회 & 트렌드·유행)
-    print("\n[6/10] 📌 오늘의 심층 테마 리포트(경제·사회 & 트렌드·유행) 작성 중...")
+    # 6. 📰 [나만의 인텔리전스 뉴스페이퍼 & 심층 도시에 엔진] (2차 확장 탐색 및 심층 분석)
+    print("\n[6/10] 📰 2차 심층 탐색 & 나만의 인텔리전스 뉴스페이퍼(심층 기획·기업 해부·공시 행간) 편찬 중...")
+    dossier_engine = IntelligenceDossierEngine(history_mgr=history_mgr)
+    mega_dossier = dossier_engine.expand_mega_issue_story(mega_issue=mega_issue, general_news=general_news)
+
     story_engine = StoryDiveEngine(history_mgr=history_mgr)
     story_dive_data = story_engine.generate_two_track_stories(general_news=general_news, mega_issue=mega_issue)
+    trend_candidates = story_engine.fetch_trend_candidates()
+    trend_target = trend_candidates[0] if trend_candidates else {"title": "2030 디토 소비와 신소비 트렌드", "summary": "숏폼 바이럴을 통한 품절 대란 확산"}
+    trend_dossier = dossier_engine.expand_trend_story(trend_target)
+
+    # 증권사 공식 리포트 Top 2 기업 심층 해부
+    for rep in official_reports[:2]:
+        rep["dossier"] = dossier_engine.expand_analyst_report(rep)
+
+    # DART 특수공시 Top 2 심층 행간 읽기
+    for disc in special_disclosures[:2]:
+        disc["dossier"] = dossier_engine.expand_special_disclosure(disc)
+
+    newspaper_dossier = {
+        "mega_dossier": mega_dossier,
+        "trend_dossier": trend_dossier,
+        "expanded_reports": [r["dossier"] for r in official_reports[:2] if "dossier" in r],
+        "expanded_disclosures": [d["dossier"] for d in special_disclosures[:2] if "dossier" in d],
+    }
+    story_dive_data["newspaper_dossier"] = newspaper_dossier
 
     # 7. 주가 기술적 지표, 쿨다운(Cool-down) 주기 적용 & 미국 빅테크 4대장 매수/매도 추천금액 산출
     print("\n[7/10] 🧠 주가 분석, 쿨다운 주기(동일종목 연속추천 방지) 및 미국 빅테크 4대장 산출 중...")
@@ -247,6 +270,8 @@ def main():
         weekly_advisor = WeeklyAdvisor(master_file_path=master_excel_path)
         weekly_data = weekly_advisor.analyze_weekly_trend(today_str)
         weekly_data["performance_data"] = performance_data
+        weekly_data["story_dive_data"] = story_dive_data
+        weekly_data["newspaper_dossier"] = newspaper_dossier
         weekly_excel_info = report_gen.generate_weekly_excel(weekly_data, today_str)
         weekly_excel_path = weekly_excel_info["weekly_path"]
 
