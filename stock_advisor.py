@@ -251,6 +251,7 @@ class StockAdvisor:
                     "expected_yield": f"+{expected_yield:.1f}%",
                     "type": short_signal,
                     "reason": short_reason,
+                    "recent_closes": tech.get("recent_closes", []),
                 })
             elif "쿨다운" in short_signal:
                 pass  # 쿨다운 중인 종목은 오늘 신규 단기 매수 리스트에서 제외하여 도배 방지
@@ -263,6 +264,7 @@ class StockAdvisor:
                     "type": "단기 과열 익절",
                     "disparity": f"{disp:+.1f}%",
                     "reason": short_reason,
+                    "recent_closes": tech.get("recent_closes", []),
                 })
 
             if "장기 적립/매수" in long_signal:
@@ -313,6 +315,7 @@ class StockAdvisor:
                 "52주위치": f"{tech['pos_52w']}%",
                 "핵심뉴스": news_summary,
                 "is_us": is_usd,
+                "recent_closes": tech.get("recent_closes", []),
             }
             all_evaluations.append(item_dict)
 

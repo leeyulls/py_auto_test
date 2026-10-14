@@ -30,6 +30,7 @@ from email_sender import EmailSender
 from performance_tracker import PerformanceTracker
 from disclosure_collector import DisclosureCollector
 from story_dive_engine import StoryDiveEngine
+from pdf_report_generator import PdfReportGenerator
 
 
 def load_env(env_path):
@@ -197,13 +198,35 @@ def main():
     print(f" - 📚 일자별 누적 마스터: {master_excel_path}")
     print(f" - 📝 마크다운 브리핑: {md_path}")
 
+    # 11. 출판용 초고해상도 A4 데일리 심층 종합분석 보고서 (PDF) 편찬
+    print(f"\n[11/11] 📄 6~8페이지 규모 최고경영진 데일리 심층 종합분석 A4 PDF 보고서 편찬 중...")
+    pdf_gen = PdfReportGenerator()
+    month_dir = os.path.dirname(daily_excel_path)
+    daily_pdf_path = os.path.join(month_dir, f"{today_str}_데일리_심층_종합분석_보고서.pdf")
+    pdf_gen.generate_daily_pdf(
+        date_str=today_str,
+        stock_indices=stock_indices,
+        exchange_rates=exchange_rates,
+        stock_advice=stock_advice,
+        crypto_advice=crypto_advice,
+        official_reports=official_reports,
+        news_result=news_result,
+        performance_data=performance_data,
+        special_disclosures=special_disclosures,
+        story_dive_data=story_dive_data,
+        output_pdf_path=daily_pdf_path
+    )
+
     # 구글 드라이브 월별(YYYY-MM) 폴더 및 공식 리서치 PDF 동기화
     print(f"\n☁️ 구글 드라이브 월별({month_str}) 폴더 & 공식 PDF 동기화 진행 중...")
     drive_sync = GoogleDriveSync()
 
-    # 당일 엑셀 및 마크다운 -> YYYY-MM 폴더에 저장
+    # 당일 엑셀, 마크다운 및 심층 PDF -> YYYY-MM 폴더에 저장
     drive_sync.sync_file(daily_excel_path, is_master=False, subfolder=month_str)
     drive_sync.sync_file(md_path, is_master=False, subfolder=month_str)
+    if os.path.exists(daily_pdf_path):
+        drive_sync.sync_file(daily_pdf_path, is_master=False, subfolder=month_str)
+
     # 누적 마스터 엑셀 -> 최상위 루트 폴더에 저장
     drive_sync.sync_file(master_excel_path, is_master=True)
 
@@ -217,27 +240,45 @@ def main():
                 pdf_synced_count += 1
     print(f" - 구글 드라이브 공식 PDF 동기화 완료: {pdf_synced_count}건")
 
-    # 메일링 발송 (일요일: 주간 총결산 스페셜 / 평일: 07시 데일리 브리핑)
+    # 메일링 발송 (일요일: 주간 총결산 스페셜 백서 / 평일: 07시 경영진 데일리 브리핑)
     sender = EmailSender()
     if is_sunday:
-        print("\n🏆 [일요일 주간 총결산 모드] 최근 7일치 데이터 주간 총결산 분석 및 스페셜 메일링 발송 중...")
+        print("\n🏆 [일요일 주간 총결산 모드] 최근 7일치 데이터 주간 총결산 분석, 백서 PDF 편찬 및 메일링 발송 중...")
         weekly_advisor = WeeklyAdvisor(master_file_path=master_excel_path)
         weekly_data = weekly_advisor.analyze_weekly_trend(today_str)
         weekly_data["performance_data"] = performance_data
         weekly_excel_info = report_gen.generate_weekly_excel(weekly_data, today_str)
         weekly_excel_path = weekly_excel_info["weekly_path"]
 
-        # 주간 엑셀 구글 드라이브 동기화
-        drive_sync.sync_file(weekly_excel_path, is_master=False, subfolder=month_str)
+        # 주간 전략 종합 백서 A4 PDF 편찬 (12~15페이지)
+        weekly_pdf_path = os.path.join(month_dir, f"{today_str}_주간_글로벌_금융_전략_백서.pdf")
+        pdf_gen.generate_weekly_pdf(
+            date_str=today_str,
+            weekly_data=weekly_data,
+            output_pdf_path=weekly_pdf_path
+        )
 
-        # 주간 스페셜 이메일 발송
+        # 주간 엑셀 및 주간 PDF 구글 드라이브 동기화
+        drive_sync.sync_file(weekly_excel_path, is_master=False, subfolder=month_str)
+        if os.path.exists(weekly_pdf_path):
+            drive_sync.sync_file(weekly_pdf_path, is_master=False, subfolder=month_str)
+
+        # 주간 스페셜 이메일 발송 (엑셀 + 주간 백서 PDF 첨부)
+        weekly_attachments = [weekly_excel_path]
+        if os.path.exists(weekly_pdf_path):
+            weekly_attachments.append(weekly_pdf_path)
+
         sender.send_weekly_report(
             date_str=today_str,
             weekly_data=weekly_data,
-            attachment_path=weekly_excel_path
+            attachments=weekly_attachments
         )
     else:
-        print("\n📧 매수/매도 추천가 & 3대 코인 & 공식 Top 10 리포트 & DART 특수공시 모닝 브리핑 발송 중...")
+        print("\n📧 최고경영진 전략 인텔리전스 모닝 브리핑 이메일 발송 중 (엑셀 + 심층 PDF 첨부)...")
+        daily_attachments = [daily_excel_path]
+        if os.path.exists(daily_pdf_path):
+            daily_attachments.append(daily_pdf_path)
+
         sender.send_report(
             date_str=today_str,
             stock_indices=stock_indices,
@@ -247,7 +288,7 @@ def main():
             official_reports=official_reports,
             news_result=news_result,
             top_research_list=top_research_list,
-            attachment_path=daily_excel_path,
+            attachments=daily_attachments,
             performance_data=performance_data,
             special_disclosures=special_disclosures,
             story_dive_data=story_dive_data,

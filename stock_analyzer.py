@@ -100,6 +100,7 @@ class StockAnalyzer:
                 "disparity_20": round(disparity_20, 2),
                 "rsi": rsi,
                 "return_5d": round(return_5d, 2),
+                "recent_closes": [round(c, 2) for c in (closes[-20:] if closes else [])],
             }
         except Exception as e:
             print(f"[경고] {ticker} 주가 수집 오류: {e}")
