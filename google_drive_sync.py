@@ -4,9 +4,18 @@ google_drive_sync.py
 """
 
 import os
+import sys
 import shutil
 import base64
 import requests
+
+# Windows 콘솔 cp949 인코딩 에러 방지
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+        sys.stderr.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
 
 
 class GoogleDriveSync:
@@ -77,7 +86,7 @@ class GoogleDriveSync:
                 }
                 res = requests.post(self.apps_script_url, json=payload, timeout=30, allow_redirects=True)
                 if res.status_code == 200 or res.status_code == 302:
-                    print(f"✅ Google Apps Script 웹앱 클라우드 동기화 완료: {filename} (폴더: {subfolder or '루트'})")
+                    print(f"[동기화 완료] Google Apps Script 웹앱 클라우드 동기화 완료: {filename} (폴더: {subfolder or '루트'})")
                     results["success"] = True
                     results["methods_attempted"].append("Apps Script Web App")
                 else:
@@ -86,6 +95,6 @@ class GoogleDriveSync:
                 print(f"[경고] Apps Script 웹앱 업로드 실패: {e}")
 
         if not results["success"]:
-            print(f"ℹ️ [{filename}] 구글 드라이브 직접 연동 설정이 없어 로컬 reports/ 폴더에 안전하게 누적 보관 중입니다.")
+            print(f"[안내] [{filename}] 구글 드라이브 직접 연동 설정이 없어 로컬 reports/ 폴더에 안전하게 누적 보관 중입니다.")
 
         return results
