@@ -14,7 +14,8 @@
 function doGet(e) {
   return ContentService.createTextOutput(JSON.stringify({
     status: "online",
-    message: "구글 드라이브 동기화 웹앱이 정상 작동 중입니다!"
+    version: "v2.0-monthly-pdf-fixed",
+    message: "구글 드라이브 동기화 웹앱 최신 버전이 정상 작동 중입니다!"
   })).setMimeType(ContentService.MimeType.JSON);
 }
 
