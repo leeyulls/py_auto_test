@@ -12,16 +12,64 @@
  */
 
 function doGet(e) {
+  // 웹 브라우저 링크 클릭 한번으로 루트 폴더 청소 지원: ?action=cleanup_root
+  if (e && e.parameter && e.parameter.action === "cleanup_root") {
+    const folders = DriveApp.getFoldersByName("데일리_브리핑_수집");
+    if (!folders.hasNext()) {
+      return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "폴더를 찾을 수 없습니다." })).setMimeType(ContentService.MimeType.JSON);
+    }
+    const root = folders.next();
+    const files = root.getFiles();
+    let cleaned = [];
+    while (files.hasNext()) {
+      const file = files.next();
+      const fname = file.getName();
+      if (fname !== "일자별_누적_데일리_이슈_및_주식_브리핑_마스터.xlsx") {
+        cleaned.push(fname);
+        file.setTrashed(true);
+      }
+    }
+    return ContentService.createTextOutput(JSON.stringify({
+      status: "success",
+      message: "루트 메인폴더 정리 완료! (마스터 엑셀 및 월별 폴더 제외 파일 삭제)",
+      cleaned_count: cleaned.length,
+      cleaned_files: cleaned
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+
   return ContentService.createTextOutput(JSON.stringify({
     status: "online",
-    version: "v2.0-monthly-pdf-fixed",
-    message: "구글 드라이브 동기화 웹앱 최신 버전이 정상 작동 중입니다!"
+    version: "v2.1-cleanup-supported",
+    message: "구글 드라이브 동기화 웹앱 최신 버전이 정상 작동 중입니다! (?action=cleanup_root 로 메인폴더 청소 가능)"
   })).setMimeType(ContentService.MimeType.JSON);
 }
 
 function doPost(e) {
   try {
     const data = JSON.parse(e.postData.contents);
+
+    // [특수 명령] 루트 폴더 청소 요청 처리
+    if (data.action === "cleanup_root") {
+      const folders = DriveApp.getFoldersByName(data.folder_name || "데일리_브리핑_수집");
+      if (folders.hasNext()) {
+        const root = folders.next();
+        const files = root.getFiles();
+        let cleaned = [];
+        while (files.hasNext()) {
+          const file = files.next();
+          const fname = file.getName();
+          if (fname !== "일자별_누적_데일리_이슈_및_주식_브리핑_마스터.xlsx") {
+            cleaned.push(fname);
+            file.setTrashed(true);
+          }
+        }
+        return ContentService.createTextOutput(JSON.stringify({
+          status: "success",
+          cleaned_count: cleaned.length,
+          cleaned_files: cleaned
+        })).setMimeType(ContentService.MimeType.JSON);
+      }
+    }
     
     // 1. 파일명 한글 깨짐 원천 방지 (Base64 우선 디코딩)
     let filename = data.filename || "daily_report.xlsx";
