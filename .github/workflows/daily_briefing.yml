@@ -1,11 +1,10 @@
-name: Daily Morning & Evening Intelligence Briefing
+name: Daily Evening Intelligence Briefing
 
 on:
   schedule:
-    # 1. 한국 시간(KST) 매일 아침 07:00 수신: UTC 21:55 (KST 06:55)
-    - cron: '55 21 * * *'
-    # 2. 한국 시간(KST) 매일 저녁 19:00 수신: UTC 09:55 (KST 18:55)
-    - cron: '55 9 * * *'
+    # 한국 시간(KST) 매일 저녁 19:15 수신 (UTC 10:15)
+    # 전 세계 정각(00분/55분) 공유 러너 큐 병목을 피해 15분에 실행하여 즉시 처리 보장
+    - cron: '15 10 * * *'
   # GitHub 웹페이지 및 CLI에서 원클릭 수동 실행 버튼 제공
   workflow_dispatch:
     inputs:

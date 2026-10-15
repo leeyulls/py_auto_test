@@ -71,28 +71,48 @@ class GoogleDriveSync:
 
         # 2. Google Apps Script Web App URL이 설정된 경우 클라우드 자동 업로드
         if self.apps_script_url:
-            try:
-                with open(file_path, "rb") as f:
-                    file_b64 = base64.b64encode(f.read()).decode("utf-8")
+            max_retries = 3
+            for attempt in range(1, max_retries + 1):
+                try:
+                    with open(file_path, "rb") as f:
+                        file_b64 = base64.b64encode(f.read()).decode("utf-8")
 
-                filename_b64 = base64.b64encode(filename.encode("utf-8")).decode("utf-8")
-                payload = {
-                    "filename": filename,
-                    "filename_b64": filename_b64,
-                    "content_base64": file_b64,
-                    "folder_name": "데일리_브리핑_수집",
-                    "subfolder": subfolder,
-                    "is_master": is_master
-                }
-                res = requests.post(self.apps_script_url, json=payload, timeout=30, allow_redirects=True)
-                if res.status_code == 200 or res.status_code == 302:
-                    print(f"[동기화 완료] Google Apps Script 웹앱 클라우드 동기화 완료: {filename} (폴더: {subfolder or '루트'})")
-                    results["success"] = True
-                    results["methods_attempted"].append("Apps Script Web App")
-                else:
-                    print(f"[경고] Apps Script 웹앱 업로드 응답 코드: {res.status_code}")
-            except Exception as e:
-                print(f"[경고] Apps Script 웹앱 업로드 실패: {e}")
+                    filename_b64 = base64.b64encode(filename.encode("utf-8")).decode("utf-8")
+                    payload = {
+                        "filename": filename,
+                        "filename_b64": filename_b64,
+                        "content_base64": file_b64,
+                        "folder_name": "데일리_브리핑_수집",
+                        "subfolder": subfolder,
+                        "is_master": is_master
+                    }
+                    res = requests.post(self.apps_script_url, json=payload, timeout=90, allow_redirects=True)
+                    if res.status_code == 200:
+                        try:
+                            res_data = res.json()
+                            if res_data.get("status") == "success":
+                                target_f = res_data.get("target_folder_name") or subfolder or "루트"
+                                fid = res_data.get("fileId", "")
+                                print(f"☁️ [구글드라이브 동기화 성공] {filename} ➔ 폴더: [{target_f}] (FileID: {fid})")
+                                results["success"] = True
+                                results["methods_attempted"].append("Apps Script Web App")
+                                results["file_id"] = fid
+                                results["file_url"] = res_data.get("fileUrl", "")
+                                break
+                            else:
+                                err_msg = res_data.get("message", "알 수 없는 오류")
+                                print(f"[경고] Apps Script 응답 실패 (시도 {attempt}/{max_retries}): {err_msg}")
+                        except Exception:
+                            # JSON 파싱 불가 (HTML 리다이렉트 등)
+                            print(f"[경고] Apps Script 비정상 응답 (시도 {attempt}/{max_retries}): {res.text[:120]}")
+                    else:
+                        print(f"[경고] Apps Script HTTP 상태코드 에러 (시도 {attempt}/{max_retries}): {res.status_code}")
+                except Exception as e:
+                    print(f"[경고] Apps Script 업로드 예외 발생 (시도 {attempt}/{max_retries}): {e}")
+
+                if attempt < max_retries:
+                    import time
+                    time.sleep(2)
 
         if not results["success"]:
             print(f"[안내] [{filename}] 구글 드라이브 직접 연동 설정이 없어 로컬 reports/ 폴더에 안전하게 누적 보관 중입니다.")
