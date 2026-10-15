@@ -241,8 +241,8 @@ def main():
     print(f" - 📚 일자별 누적 마스터: {master_excel_path}")
     print(f" - 📝 마크다운 브리핑: {md_path}")
 
-    # 12. 출판용 초고해상도 A4 데일리 심층 종합분석 보고서 (PDF - 11페이지 독립 구성) 편찬
-    print(f"\n📄 11페이지 규모 나만의 데일리 심층 분석 A4 PDF 보고서 편찬 중...")
+    # 12. 출판용 초고해상도 A4 데일리 심층 종합분석 보고서 (PDF 전수 수록 구성) 편찬
+    print(f"\n📄 전수 수록 초고해상도 A4 데일리 심층 분석 PDF 보고서 편찬 중...")
     pdf_gen = PdfReportGenerator()
     month_dir = os.path.dirname(daily_excel_path)
     daily_pdf_path = os.path.join(month_dir, f"{today_str}_데일리_심층_종합분석_보고서.pdf")

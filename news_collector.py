@@ -135,7 +135,7 @@ class NewsCollector:
                     good_sentences.append(s_clean)
 
         if good_sentences:
-            combined = " ".join(good_sentences[:2])
+            combined = " ".join(good_sentences[:4])
             if len(combined) >= 30:
                 return combined
 

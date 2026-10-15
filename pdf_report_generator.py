@@ -394,48 +394,40 @@ class PdfReportGenerator:
             </tr>
             """
 
-        # 8. 7대 분야별 헤드라인 아카이브 (10면 & 11면 독립 2페이지 완결 조판)
+        # 8. 7대 분야별 헤드라인 아카이브 (전수 심층 본문 요약 & 확장 인사이트 수록)
         def _render_cat_block(cat_k, cat_label, top_picks_dict):
             items = top_picks_dict.get(cat_k, [])
             if not items:
                 return ""
             items_li = ""
-            for idx, it in enumerate(items[:4]):
+            for idx, it in enumerate(items):
                 it_link = it.get("링크") or it.get("link", "#")
                 tag = f" <span style='background: #FEE2E2; color: #DC2626; font-size: 9px; padding: 1px 4px; border-radius: 3px;'>{it.get('상태')}</span>" if "집중" in str(it.get('상태', '')) else ""
                 content_sum = it.get('content_summary') or it.get('요약내용', '')
                 expanded_ins = it.get('expanded_insight', '')
                 if not expanded_ins:
-                    expanded_ins = f"<b>💡 확장 인사이트:</b> 관련 산업계 및 정책 환경의 후속 변화와 공급망 파급 효과를 지속적으로 모니터링해야 합니다."
+                    expanded_ins = f"<b>💡 심층 맥락 & 전략적 시사점:</b> 관련 산업계 및 정책 환경의 후속 변화와 공급망 파급 효과를 지속적으로 모니터링해야 합니다.<br><b>🔎 핵심 체크포인트:</b> 소관 부처 및 시장의 공식 반응 추이를 선행 지표로 삼아야 합니다."
 
-                if idx < 2:
-                    items_li += f"""
-                    <div style="margin-bottom: 6px; font-size: 10.5px; background: #FFFFFF; border: 1px solid #E2E8F0; padding: 6px 8px; border-radius: 4px;">
-                        <div>
-                            <span style="font-weight: bold; color: #1D4ED8;">[{idx + 1}]</span> 
-                            <a href="{it_link}" style="color: #1D4ED8; text-decoration: none; font-weight: bold;">{it.get('기사제목')}</a>
-                            <span style="color: #64748B; font-size: 9.5px;">({it.get('언론사')})</span>{tag}
-                        </div>
-                        <div style="color: #334155; font-size: 10px; margin-top: 2px; padding-left: 6px; border-left: 2px solid #3B82F6; line-height: 1.4;">
-                            <b>📰 기사 본문 요약:</b> {content_sum}
-                        </div>
-                        <div style="color: #1E40AF; background: #EFF6FF; border: 1px solid #BFDBFE; border-radius: 3px; padding: 3px 6px; font-size: 9.5px; margin-top: 2px; line-height: 1.35;">
-                            {expanded_ins}
-                        </div>
+                items_li += f"""
+                <div style="margin-bottom: 7px; font-size: 10px; background: #FFFFFF; border: 1px solid #E2E8F0; padding: 6px 9px; border-radius: 4px; page-break-inside: avoid;">
+                    <div style="line-height: 1.35; margin-bottom: 3px;">
+                        <span style="font-weight: bold; color: #1D4ED8;">[{idx + 1}]</span> 
+                        <a href="{it_link}" style="color: #0F172A; text-decoration: none; font-weight: bold; font-size: 10.5px;">{it.get('기사제목')}</a>
+                        <span style="color: #64748B; font-size: 9px;">({it.get('언론사')})</span>{tag}
                     </div>
-                    """
-                else:
-                    items_li += f"""
-                    <div style="margin-bottom: 3px; font-size: 10px; color: #334155;">
-                        • <a href="{it_link}" style="color: #334155; text-decoration: none; font-weight: 500;">{it.get('기사제목')}</a>
-                        <span style="color: #94A3B8; font-size: 9px;">({it.get('언론사')})</span>{tag}
-                        <div style="color: #64748B; font-size: 9.5px; padding-left: 8px; line-height: 1.3;">- {content_sum[:85]}</div>
+                    <div style="color: #334155; font-size: 9.8px; margin-top: 3px; padding-left: 8px; border-left: 2px solid #3B82F6; line-height: 1.45;">
+                        <b>📰 기사 본문 요약:</b> {content_sum}
                     </div>
-                    """
+                    <div style="color: #1E40AF; background: #EFF6FF; border: 1px solid #BFDBFE; border-left: 3px solid #2563EB; border-radius: 3px; padding: 4px 8px; font-size: 9.3px; margin-top: 4px; line-height: 1.4;">
+                        {expanded_ins}
+                    </div>
+                </div>
+                """
             return f"""
-            <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 5px; padding: 6px 10px; margin-bottom: 6px; page-break-inside: avoid;">
-                <div style="font-size: 11.5px; font-weight: bold; color: #1E293B; margin-bottom: 4px; border-bottom: 1px solid #CBD5E1; padding-bottom: 2px;">
-                    {cat_label}
+            <div style="background: #F8FAFC; border: 1px solid #CBD5E1; border-radius: 5px; padding: 7px 10px; margin-bottom: 10px;">
+                <div style="font-size: 12px; font-weight: bold; color: #1E293B; margin-bottom: 6px; border-bottom: 2px solid #3B82F6; padding-bottom: 3px; display: flex; justify-content: space-between; align-items: center;">
+                    <span>{cat_label}</span>
+                    <span style="font-size: 9.5px; color: #64748B; font-weight: normal;">총 {len(items)}건 전수 수록</span>
                 </div>
                 {items_li}
             </div>
@@ -881,11 +873,11 @@ class PdfReportGenerator:
   <div class="page-break"></div>
 
   <!-- ============================================================ -->
-  <!-- 🌐 [Page 10] 10면 7대 분야별 헤드라인 아카이브 (1부: 거시경제·정치·IT과학) -->
+  <!-- 🌐 7대 분야별 인텔리전스 와이어 (Part 1: 거시경제·정치·IT과학 전수 수록) -->
   <!-- ============================================================ -->
-  <div class="sec-banner" style="background: #334155;">
-    <span>🌐 10면 분야별 인텔리전스 와이어 (Part 1) • INTELLIGENCE WIRE</span>
-    <span style="font-size: 10px; opacity: 0.9;">거시경제 & 비즈니스, 정치 핵심 이슈, IT·과학 & 테크 신상품 (심층 본문 요약 & 100% 일치 확장 인사이트)</span>
+  <div class="sec-banner" style="background: #1E3A8A; margin-bottom: 8px;">
+    <span>🌐 분야별 인텔리전스 와이어 (Part 1) • INTELLIGENCE WIRE</span>
+    <span style="font-size: 10px; opacity: 0.9;">💼 거시경제 & 비즈니스 • 🏛️ 정치 핵심 이슈 • 💻 IT·과학 & 테크 (심층 본문 요약 & 2차 취재 인사이트 전수 수록)</span>
   </div>
 
   {cat_news_page1}
@@ -893,11 +885,11 @@ class PdfReportGenerator:
   <div class="page-break"></div>
 
   <!-- ============================================================ -->
-  <!-- 🌐 [Page 11] 11면 7대 분야별 헤드라인 아카이브 (2부: 세계·사회·문화) -->
+  <!-- 🌐 7대 분야별 인텔리전스 와이어 (Part 2: 세계·사회·문화 전수 수록) -->
   <!-- ============================================================ -->
-  <div class="sec-banner" style="background: #334155;">
-    <span>🌐 11면 분야별 인텔리전스 와이어 (Part 2) • INTELLIGENCE WIRE</span>
-    <span style="font-size: 10px; opacity: 0.9;">세계·국제 정세, 사회·사건사고, 연예·문화 트렌드 (심층 본문 요약 & 100% 일치 확장 인사이트)</span>
+  <div class="sec-banner" style="background: #1E3A8A; margin-bottom: 8px;">
+    <span>🌐 분야별 인텔리전스 와이어 (Part 2) • INTELLIGENCE WIRE</span>
+    <span style="font-size: 10px; opacity: 0.9;">🌍 세계·국제 정세 • 🚨 사회·사건사고 • 🎬 연예·문화 트렌드 (심층 본문 요약 & 2차 취재 인사이트 전수 수록)</span>
   </div>
 
   {cat_news_page2}
@@ -1012,7 +1004,7 @@ class PdfReportGenerator:
                 <td style="padding: 8px; text-align: right; color: #1E40AF; font-weight: bold;">{sell_p}</td>
                 <td style="padding: 8px; text-align: center; color: #16A34A; font-weight: bold;">{exp_y}</td>
                 <td style="padding: 8px; text-align: center;">{sparkline}</td>
-                <td style="padding: 8px; font-size: 11px; color: #334155;">{reason[:70]}</td>
+                <td style="padding: 8px; font-size: 11px; color: #334155;">{reason}</td>
             </tr>
             """
 

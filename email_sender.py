@@ -371,38 +371,29 @@ class EmailSender:
             items = top_picks.get(cat_key, [])
             if items:
                 cat_items_html = ""
-                display_items = items[:5]
+                display_items = items
                 for idx, it in enumerate(display_items):
                     it_link = it.get("링크") or it.get("link", "")
                     tag = f" <span style='background: #FEE2E2; color: #DC2626; padding: 1px 5px; border-radius: 3px; font-size: 11px;'>{it.get('상태', '')}</span>" if "집중" in str(it.get('상태', '')) else ""
                     content_sum = it.get('content_summary') or it.get('요약내용', '')
                     expanded_ins = it.get('expanded_insight', '')
                     if not expanded_ins and IntelligenceDossierEngine:
-                        expanded_ins = f"<b>💡 확장 인사이트:</b> 관련 산업계 및 정책 환경의 후속 변화와 공급망 파급 효과를 지속적으로 모니터링해야 합니다."
+                        expanded_ins = f"<b>💡 심층 맥락 & 전략적 시사점:</b> 관련 산업계 및 정책 환경의 후속 변화와 공급망 파급 효과를 지속적으로 모니터링해야 합니다.<br><b>🔎 핵심 체크포인트:</b> 소관 부처 및 시장의 공식 반응 추이를 선행 지표로 삼아야 합니다."
 
-                    if idx < 2:
-                        cat_items_html += f"""
-                        <div style="margin-bottom: 12px; font-size: 13px; background: #FFFFFF; border: 1px solid #E2E8F0; padding: 10px 12px; border-radius: 6px;">
-                            <div style="line-height: 1.4;">
-                                <span style="font-weight: bold; color: #1D4ED8;">[{idx + 1}]</span> <a href="{it_link}" style="color: #1D4ED8; text-decoration: none; font-weight: 600;">{it.get('기사제목', '')}</a>
-                                <span style="font-size: 11px; color: #6B7280;">({it.get('언론사', '')})</span>{tag}
-                            </div>
-                            <div style="font-size: 12px; color: #334155; margin-top: 5px; padding-left: 10px; border-left: 2px solid #3B82F6; line-height: 1.5;">
-                                <b>📰 기사 본문 요약:</b> {content_sum}
-                            </div>
-                            <div style="font-size: 11.5px; color: #1E40AF; background: #EFF6FF; border: 1px solid #BFDBFE; border-radius: 4px; padding: 6px 10px; margin-top: 5px; line-height: 1.45;">
-                                {expanded_ins}
-                            </div>
+                    cat_items_html += f"""
+                    <div style="margin-bottom: 10px; font-size: 12.5px; background: #FFFFFF; border: 1px solid #E2E8F0; padding: 10px 12px; border-radius: 6px;">
+                        <div style="line-height: 1.4;">
+                            <span style="font-weight: bold; color: #1D4ED8;">[{idx + 1}]</span> <a href="{it_link}" style="color: #1D4ED8; text-decoration: none; font-weight: 600;">{it.get('기사제목', '')}</a>
+                            <span style="font-size: 11px; color: #6B7280;">({it.get('언론사', '')})</span>{tag}
                         </div>
-                        """
-                    else:
-                        cat_items_html += f"""
-                        <div style="margin-bottom: 6px; font-size: 12px; line-height: 1.4;">
-                            • <a href="{it_link}" style="color: #334155; text-decoration: none; font-weight: 500;">{it.get('기사제목', '')}</a>
-                            <span style="font-size: 11px; color: #94A3B8;">({it.get('언론사', '')})</span>{tag}
-                            <div style="color: #64748B; font-size: 11px; padding-left: 12px; line-height: 1.35;">- {content_sum[:90]}</div>
+                        <div style="font-size: 12px; color: #334155; margin-top: 5px; padding-left: 10px; border-left: 2px solid #3B82F6; line-height: 1.5;">
+                            <b>📰 기사 본문 요약:</b> {content_sum}
                         </div>
-                        """
+                        <div style="font-size: 11.5px; color: #1E40AF; background: #EFF6FF; border: 1px solid #BFDBFE; border-left: 3px solid #2563EB; border-radius: 4px; padding: 6px 10px; margin-top: 5px; line-height: 1.45;">
+                            {expanded_ins}
+                        </div>
+                    </div>
+                    """
 
                 headlines_html += f"""
                 <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 14px; margin-bottom: 16px;">
