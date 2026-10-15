@@ -23,6 +23,7 @@ class RealEstateAdvisor:
             "한국부동산원 주간 아파트 매매 전세 가격 동향",
             "주택담보대출 금리 코픽스 스트레스 DSR",
             "서울 아파트 매매 거래량 전세가율",
+            "여의도 영등포 목동 재건축 아파트 시세",
         ]
         seen_titles = set()
 
@@ -90,6 +91,14 @@ class RealEstateAdvisor:
                 "status": "강보합세 유지",
                 "status_color": "#2563EB",
                 "summary": "직주근접 핵심 입지 선호 및 전세 매물 품귀로 인한 매매가 하방 지지 지속"
+            },
+            {
+                "region": "서울 여의도·영등포 (YBD & 양천/목동)",
+                "sale_change": "+0.11%",
+                "jeonse_change": "+0.08%",
+                "status": "재건축·직주근접 강세",
+                "status_color": "#16A34A",
+                "summary": "여의도 금융권 랜드마크 초고층 재건축 및 목동 신시가지 통합 정비사업 가속화로 매물 회수 및 강세"
             },
             {
                 "region": "서울 노도강 / 외곽권",

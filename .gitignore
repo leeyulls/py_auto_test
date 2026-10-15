@@ -19,5 +19,6 @@ Thumbs.db
 reports/*_데일리_이슈_및_금융동향_브리핑.*
 reports/**/공식_리서치_PDF/
 reports/**/*.pdf
+reports/**/*.html
 reports/20*/*_데일리_이슈_및_금융동향_브리핑.*
 reports/20*/*_주간_금융_및_이슈_종합분석.*

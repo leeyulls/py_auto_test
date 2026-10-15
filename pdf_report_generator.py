@@ -659,6 +659,13 @@ class PdfReportGenerator:
     <span><b>11~21면</b> 7대분야 전수뉴스</span>
   </div>
 
+  <div style="background: #EFF6FF; border: 1px solid #BFDBFE; border-left: 4px solid #1D4ED8; border-radius: 4px; padding: 6px 10px; margin-bottom: 8px; font-size: 9.5px; color: #1E3A8A; line-height: 1.45;">
+    <div style="font-weight: bold; margin-bottom: 3px;">🎯 오늘의 핵심 경영 & 투자 결단 체크포인트 (Executive Action Checklist)</div>
+    <div>1. <b>거시 리스크 관리:</b> 당일 글로벌 증시 및 환율 변동성 확대 국면에서 무리한 추격 매수를 지양하고 방어적 현금 유동성 25% 유지</div>
+    <div>2. <b>실적 기반 선별 압축:</b> 2026/2027 공인 실적 턴어라운드 및 확정 수주 모멘텀이 확인된 섹터(방산·원전·AI 전력망) 중심 분할 매수 대응</div>
+    <div>3. <b>자산 양극화 방어:</b> 대출 규제 환경 속에서 서울 핵심지(강남·마용성·여의도/영등포) 및 1기 신도시 재건축 선도지구 위주 압축 보유 지속</div>
+  </div>
+
   <div class="sec-banner" style="background: #1E3A8A;">
     <span>🌐 1면 톱 기획특집 • MEGA ISSUE FOCUS</span>
     <span style="font-size: 10px; opacity: 0.9;">취재원: {mega_d.get('source', '주요 언론')} | 심층 2차 확장 취재 완료</span>
@@ -1553,3 +1560,299 @@ class PdfReportGenerator:
         else:
             safe_print(f"📄 ❌ 주간 PDF 편찬 실패")
             return None
+
+    def generate_mobile_html_report(self, date_str: str, stock_indices: list, exchange_rates: list,
+                                   stock_advice: dict, crypto_advice: dict, official_reports: list,
+                                   news_result: dict, performance_data: dict, special_disclosures: list,
+                                   story_dive_data: dict, output_html_path: str, real_estate_data: dict = None,
+                                   edition: str = "morning", market_drivers: dict = None) -> str:
+        """
+        [아이폰/스마트폰 전용] 모바일 퍼스트 100% 반응형 인터랙티브 웹진 HTML 보고서 생성
+        - 핀치 줌 불필요, 폰트 15~16px 고가독성, 세로 스크롤 카드 UI
+        - 상단 터치 네비게이션, 가로 스크롤 보호 테이블, 전수 기사 수록
+        """
+        is_evening = (edition == "evening")
+        edition_label = "석간 이브닝 마감 에디션" if is_evening else "조간 모닝 프리미엄 에디션"
+        theme_col = "#7C3AED" if is_evening else "#1E40AF"
+
+        if not market_drivers:
+            market_drivers = {
+                "domestic_reason": "대외 거시경제 지표 및 글로벌 긴축 경계감 속에서 외국인·기관의 현선물 매물 출회 및 주도 섹터 차익 실현",
+                "us_reason": "미 국채 금리 변동성 및 인플레이션 지표 발표에 따른 빅테크 기술주 중심의 차익 매물과 실적 관망세",
+                "fx_reason": "글로벌 위험회피 심리 및 미 달러화 강약세 흐름에 연동된 완만한 환율 변동성"
+            }
+
+        nd = story_dive_data.get("newspaper_dossier", {}) if isinstance(story_dive_data, dict) else {}
+        mega_d = nd.get("mega_dossier", {})
+        trend_d = nd.get("trend_dossier", {})
+        exp_reps = nd.get("expanded_reports", [])
+        exp_discs = nd.get("expanded_disclosures", [])
+
+        # 1. 지수/환율 카드
+        idx_cards = ""
+        for idx in stock_indices:
+            col = "#16A34A" if "+" in idx.get("전일대비", "") else "#DC2626"
+            idx_cards += f"""
+            <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 10px 14px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-weight: bold; font-size: 14px; color: #0F172A;">{idx.get('지수명')}</span>
+                <div style="text-align: right;">
+                    <span style="font-weight: 800; font-size: 15px; color: #0F172A;">{idx.get('현재지수')}</span>
+                    <span style="color: {col}; font-weight: bold; font-size: 13px; margin-left: 6px;">{idx.get('전일대비')}</span>
+                </div>
+            </div>
+            """
+
+        fx_cards = ""
+        for fx in exchange_rates[:3]:
+            col = "#16A34A" if "+" in fx.get("전일대비", "") else "#2563EB"
+            fx_cards += f"""
+            <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 10px 14px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-weight: bold; font-size: 14px; color: #0F172A;">{fx.get('통화명')}</span>
+                <div style="text-align: right;">
+                    <span style="font-weight: 800; font-size: 15px; color: #0F172A;">{fx.get('환율(원)')}원</span>
+                    <span style="color: {col}; font-size: 12px; margin-left: 6px;">{fx.get('전일대비')}</span>
+                </div>
+            </div>
+            """
+
+        # 2. 부동산 7대 권역 카드
+        re_cards = ""
+        for r in (real_estate_data or {}).get("regional_trends", []):
+            sc = r.get("sale_change", "0.00%")
+            jc = r.get("jeonse_change", "0.00%")
+            sc_col = "#16A34A" if "+" in sc else ("#DC2626" if "-" in sc else "#64748B")
+            re_cards += f"""
+            <div style="background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 8px; padding: 12px; margin-bottom: 10px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                    <span style="font-weight: bold; font-size: 14.5px; color: #0F172A;">{r.get('region')}</span>
+                    <span style="background: #EFF6FF; color: {r.get('status_color', '#1E40AF')}; font-weight: bold; font-size: 11px; padding: 2px 8px; border-radius: 12px;">{r.get('status')}</span>
+                </div>
+                <div style="font-size: 13px; margin-bottom: 6px; color: #334155;">
+                    매매 <b style="color: {sc_col};">{sc}</b> &nbsp;|&nbsp; 전세 <b>{jc}</b>
+                </div>
+                <div style="font-size: 12.5px; color: #64748B; line-height: 1.45;">
+                    {r.get('summary')}
+                </div>
+            </div>
+            """
+
+        # 3. 7대 분야 전수 뉴스
+        news_sections = ""
+        top_picks = news_result.get("category_top_picks", {})
+        cat_labels = [
+            ("거시경제/비즈니스", "💼 거시경제 & 비즈니스"),
+            ("정치", "🏛️ 정치 핵심 이슈"),
+            ("IT/과학/신상품", "💻 IT·과학 & 테크"),
+            ("부동산/원자재", "🏢 부동산 & 원자재"),
+            ("문화/라이프스타일", "🛍️ 문화 & 라이프스타일"),
+            ("국제/글로벌", "🌐 국제 & 글로벌 외교"),
+            ("사회/교육/환경", "🌱 사회·교육 & 환경"),
+        ]
+        for cat_k, cat_label in cat_labels:
+            items = top_picks.get(cat_k, [])
+            if not items:
+                continue
+            item_html = ""
+            for idx, it in enumerate(items):
+                link = it.get("링크") or it.get("link", "#")
+                c_sum = it.get("content_summary") or it.get("요약내용", "")
+                exp_in = it.get("expanded_insight", "")
+                item_html += f"""
+                <div style="background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 8px; padding: 14px; margin-bottom: 12px;">
+                    <div style="font-size: 15px; font-weight: bold; color: #0F172A; line-height: 1.4; margin-bottom: 6px;">
+                        <a href="{link}" style="color: #0F172A; text-decoration: none;">[{idx+1}] {it.get('기사제목')}</a>
+                        <span style="font-size: 11px; color: #64748B; font-weight: normal;">({it.get('언론사')})</span>
+                    </div>
+                    <div style="font-size: 13.5px; color: #334155; line-height: 1.55; margin-bottom: 8px; background: #F8FAFC; padding: 10px; border-radius: 6px; border-left: 3px solid #3B82F6;">
+                        <b>📰 팩트 요약:</b> {c_sum}
+                    </div>
+                    <div style="font-size: 13px; color: #1E40AF; background: #EFF6FF; padding: 10px; border-radius: 6px; line-height: 1.5; border-left: 3px solid #2563EB;">
+                        {exp_in}
+                    </div>
+                </div>
+                """
+            news_sections += f"""
+            <div style="margin-top: 24px;">
+                <div style="font-size: 17px; font-weight: 800; color: #0F172A; margin-bottom: 12px; border-bottom: 2px solid {theme_col}; padding-bottom: 6px; display: flex; justify-content: space-between;">
+                    <span>{cat_label}</span>
+                    <span style="font-size: 13px; color: #64748B; font-weight: normal;">{len(items)}건 전수</span>
+                </div>
+                {item_html}
+            </div>
+            """
+
+        p_sum = performance_data.get("summary", {}) if isinstance(performance_data, dict) else {}
+
+        html = f"""<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>나만의 인텔리전스 모바일 웹리포트 ({date_str})</title>
+<style>
+  body {{
+    font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+    background: #F1F5F9;
+    color: #0F172A;
+    margin: 0;
+    padding: 0;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }}
+  .container {{
+    max-width: 600px;
+    margin: 0 auto;
+    background: #FFFFFF;
+    min-height: 100vh;
+    box-shadow: 0 0 20px rgba(0,0,0,0.05);
+  }}
+  .header {{
+    background: {theme_col};
+    color: #FFFFFF;
+    padding: 24px 20px;
+    text-align: center;
+  }}
+  .nav-bar {{
+    position: sticky;
+    top: 0;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid #E2E8F0;
+    display: flex;
+    overflow-x: auto;
+    white-space: nowrap;
+    padding: 10px 16px;
+    gap: 12px;
+    z-index: 100;
+  }}
+  .nav-item {{
+    color: #475569;
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 700;
+    padding: 4px 10px;
+    background: #F1F5F9;
+    border-radius: 16px;
+  }}
+  .content {{
+    padding: 20px 16px 40px;
+  }}
+  .card {{
+    background: #FFFFFF;
+    border: 1px solid #E2E8F0;
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 16px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+  }}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div style="font-size: 12px; opacity: 0.9; margin-bottom: 4px;">THE EXECUTIVE INTELLIGENCE HERALD</div>
+    <div style="font-size: 22px; font-weight: 900; letter-spacing: -0.5px;">나만의 모바일 인텔리전스</div>
+    <div style="font-size: 13px; margin-top: 6px; opacity: 0.95;">{date_str} • {edition_label}</div>
+  </div>
+
+  <div class="nav-bar">
+    <a href="#action" class="nav-item">🎯 3대결단</a>
+    <a href="#macro" class="nav-item">📊 증시/환율</a>
+    <a href="#mega" class="nav-item">🌐 메가이슈</a>
+    <a href="#re" class="nav-item">🏢 부동산(7대권역)</a>
+    <a href="#backtest" class="nav-item">🎯 성과검증</a>
+    <a href="#news" class="nav-item">📰 전수기사</a>
+  </div>
+
+  <div class="content">
+    <!-- 3대 결단 -->
+    <div id="action" class="card" style="background: #EFF6FF; border: 1px solid #BFDBFE; border-left: 5px solid #2563EB;">
+      <div style="font-weight: 800; font-size: 15px; color: #1E40AF; margin-bottom: 8px;">🎯 오늘의 핵심 3대 결단 (Executive Checklist)</div>
+      <div style="font-size: 13.5px; color: #1E3A8A; line-height: 1.6;">
+        1. <b>거시 리스크 관리:</b> 글로벌 증시 변동성 확대 국면에서 무리한 추격 매수 금지 및 현금 유동성 25% 유지<br>
+        2. <b>실적 턴어라운드 압축:</b> 2026/2027 예상 실적 급증 및 확정 수주 모멘텀 보유주 중심 분할 매수<br>
+        3. <b>자산 양극화 방어:</b> 서울 핵심지(강남·마용성·여의도/영등포) 및 1기 신도시 재건축 선도지구 압축 보유
+      </div>
+    </div>
+
+    <!-- 증시/환율 & 원인 -->
+    <div id="macro" class="card">
+      <div style="font-weight: 800; font-size: 16px; margin-bottom: 12px; color: #0F172A;">📊 글로벌 증시 및 환율 현황</div>
+      {idx_cards}
+      {fx_cards}
+      <div style="background: #F8FAFC; border-left: 4px solid #2563EB; padding: 12px; border-radius: 6px; font-size: 13px; margin-top: 12px; line-height: 1.55;">
+        <div style="font-weight: bold; color: #1E40AF; margin-bottom: 4px;">💡 당일 글로벌 증시 및 외환시장 등락 원인 분석</div>
+        <div>• <b>국내 증시:</b> {market_drivers.get('domestic_reason')}</div>
+        <div style="margin-top: 4px;">• <b>미국 증시:</b> {market_drivers.get('us_reason')}</div>
+        <div style="margin-top: 4px;">• <b>외환 시장:</b> {market_drivers.get('fx_reason')}</div>
+      </div>
+    </div>
+
+    <!-- 1면 메가이슈 -->
+    <div id="mega" class="card">
+      <span style="background: #1E3A8A; color: #FFF; font-size: 11px; font-weight: bold; padding: 2px 8px; border-radius: 4px;">1면 톱 기획특집</span>
+      <div style="font-size: 18px; font-weight: 900; margin: 10px 0 6px; line-height: 1.35; color: #0F172A;">
+        {mega_d.get('headline', '글로벌 공급망 및 산업 재편 이슈')}
+      </div>
+      <div style="font-size: 13.5px; font-weight: bold; color: #2563EB; margin-bottom: 12px;">
+        {mega_d.get('subhead', '')}
+      </div>
+      <div style="background: #F8FAFC; border-left: 4px solid #1E3A8A; padding: 12px; font-size: 13.5px; color: #334155; margin-bottom: 12px;">
+        {mega_d.get('lead', '')}
+      </div>
+      <div style="font-size: 13.5px; color: #334155; line-height: 1.6;">
+        <p>{mega_d.get('chapter1', '')}</p>
+        <p>{mega_d.get('chapter2', '')}</p>
+        <p>{mega_d.get('chapter3', '')}</p>
+        <p style="background: #EFF6FF; padding: 10px; border-radius: 6px; color: #1E40AF;">{mega_d.get('chapter4', '')}</p>
+      </div>
+      {f'''<div style="margin-top: 10px; background: #F0FDF4; border: 1px solid #BBF7D0; border-left: 4px solid #16A34A; border-radius: 6px; padding: 10px; font-size: 13px; color: #166534;">
+        <b>🎯 [핵심 투자 밸류체인 & 수혜주]:</b> {mega_d.get('value_chain')}
+      </div>''' if mega_d.get('value_chain') else ''}
+    </div>
+
+    <!-- 부동산 7대 권역 -->
+    <div id="re" class="card">
+      <div style="font-weight: 800; font-size: 16px; margin-bottom: 12px; color: #0F172A;">🏢 대한민국 부동산 7대 권역 실시간 인텔리전스</div>
+      {re_cards}
+    </div>
+
+    <!-- 성과 검증 백테스팅 -->
+    <div id="backtest" class="card" style="background: #EFF6FF; border: 1px solid #BFDBFE;">
+      <div style="font-weight: 800; font-size: 16px; color: #1E40AF; margin-bottom: 10px;">🎯 사후 검증(Backtesting) 성과 백서</div>
+      <div style="display: flex; justify-content: space-around; text-align: center; margin-bottom: 12px;">
+        <div>
+          <div style="font-size: 12px; color: #1E40AF;">누적 적중 승률</div>
+          <div style="font-size: 22px; font-weight: 900; color: #1D4ED8;">{p_sum.get('win_rate', 0)}%</div>
+        </div>
+        <div>
+          <div style="font-size: 12px; color: #1E40AF;">총 검증 모수</div>
+          <div style="font-size: 22px; font-weight: 900; color: #0F172A;">{p_sum.get('total_picks', 0)}건</div>
+        </div>
+        <div>
+          <div style="font-size: 12px; color: #4338CA;">목표가 추적 중</div>
+          <div style="font-size: 22px; font-weight: 900; color: #4338CA;">{p_sum.get('holding_count', 0)}건</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 전수 기사 와이어 -->
+    <div id="news">
+      {news_sections}
+    </div>
+  </div>
+
+  <div style="background: #F8FAFC; border-top: 1px solid #E2E8F0; padding: 20px; text-align: center; font-size: 12px; color: #94A3B8;">
+    본 모바일 인텔리전스 보고서는 Google Gemini & Quantitative Quant Engine에 의해 자동 편찬되었습니다.<br>
+    © 2026 The Executive Intelligence Herald. All Rights Reserved.
+  </div>
+</div>
+</body>
+</html>
+"""
+        with open(output_html_path, "w", encoding="utf-8") as f:
+            f.write(html)
+
+        safe_print(f"📱 ✅ [모바일 인터랙티브 웹리포트 생성 완료] {output_html_path} (크기: {os.path.getsize(output_html_path):,} bytes)")
+        return output_html_path
+

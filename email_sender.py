@@ -756,7 +756,21 @@ class EmailSender:
                     <p style="margin: 6px 0 0; font-size: 12.5px; opacity: 0.9; color: #E2E8F0;">단순 요약을 탈피한 2차 심층 교차 취재 & 전방위 기업·공시 해부 에디션</p>
                 </div>
 
+                <!-- 📱 모바일 웹진 및 고해상도 PDF 안내 배너 -->
+                <div style="background: #F1F5F9; border-bottom: 1px solid #E2E8F0; padding: 10px 18px; font-size: 11.5px; color: #334155; display: flex; justify-content: space-between; align-items: center;">
+                    <span>📱 <b>아이폰/모바일 환경:</b> 첨부된 <code>*.html</code> 웹리포트를 사파리/크롬으로 열면 스마트폰 전체화면으로 열람 가능합니다.</span>
+                    <span style="background: #DBEAFE; color: #1E40AF; padding: 2px 8px; border-radius: 4px; font-weight: bold; font-size: 10px;">모바일 퍼스트</span>
+                </div>
+
                 <div style="padding: 24px;">
+
+                    <!-- 🎯 오늘의 핵심 3대 경영/투자 결단 체크포인트 -->
+                    <div style="background: #EFF6FF; border: 1px solid #BFDBFE; border-left: 4px solid #1D4ED8; border-radius: 6px; padding: 12px 14px; margin-bottom: 20px; font-size: 12px; color: #1E3A8A; line-height: 1.55;">
+                        <div style="font-weight: bold; font-size: 13.5px; margin-bottom: 6px;">🎯 오늘의 핵심 경영 & 투자 결단 체크포인트 (Executive Action Checklist)</div>
+                        <div>1. <b>거시 리스크 관리:</b> 글로벌 증시 및 환율 변동성 국면에서 무리한 추격 매수를 지양하고 방어적 현금 25% 유지</div>
+                        <div>2. <b>실적 기반 선별 압축:</b> 2026/2027 공인 실적 턴어라운드 및 수주 잔고가 확정된 우량주 중심 분할 매수</div>
+                        <div>3. <b>자산 양극화 방어:</b> 서울 핵심지(강남·마용성·여의도/영등포) 및 1기 신도시 재건축 선도지구 압축 보유 지속</div>
+                    </div>
                     
                     <!-- 📋 나만의 3대 핵심 요약 (Daily Summary) -->
                     {exec_summary_html}

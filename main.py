@@ -305,15 +305,36 @@ def main():
         market_drivers=market_drivers,
     )
 
+    # 13. [아이폰/스마트폰 전용] 모바일 퍼스트 100% 반응형 웹리포트 편찬
+    daily_mobile_html_path = os.path.join(month_dir, f"{today_str}_{ed_tag}_모바일_웹리포트.html")
+    pdf_gen.generate_mobile_html_report(
+        date_str=today_str,
+        stock_indices=stock_indices,
+        exchange_rates=exchange_rates,
+        stock_advice=stock_advice,
+        crypto_advice=crypto_advice,
+        official_reports=official_reports,
+        news_result=news_result,
+        performance_data=performance_data,
+        special_disclosures=special_disclosures,
+        story_dive_data=story_dive_data,
+        real_estate_data=real_estate_data,
+        output_html_path=daily_mobile_html_path,
+        edition=edition_type,
+        market_drivers=market_drivers,
+    )
+
     # 구글 드라이브 월별(YYYY-MM) 폴더 및 공식 리서치 PDF 동기화
     print(f"\n☁️ 구글 드라이브 월별({month_str}) 폴더 & 공식 PDF 동기화 진행 중...")
     drive_sync = GoogleDriveSync()
 
-    # 당일 엑셀, 마크다운 및 심층 PDF -> YYYY-MM 폴더에 저장
+    # 당일 엑셀, 마크다운, 심층 PDF 및 모바일 웹리포트 -> YYYY-MM 폴더에 저장
     drive_sync.sync_file(daily_excel_path, is_master=False, subfolder=month_str)
     drive_sync.sync_file(md_path, is_master=False, subfolder=month_str)
     if os.path.exists(daily_pdf_path):
         drive_sync.sync_file(daily_pdf_path, is_master=False, subfolder=month_str)
+    if os.path.exists(daily_mobile_html_path):
+        drive_sync.sync_file(daily_mobile_html_path, is_master=False, subfolder=month_str)
 
     # 누적 마스터 엑셀 -> 최상위 루트 폴더에 저장
     drive_sync.sync_file(master_excel_path, is_master=True)
@@ -371,9 +392,11 @@ def main():
         daily_attachments = [daily_excel_path]
         if os.path.exists(daily_pdf_path):
             daily_attachments.append(daily_pdf_path)
+        if os.path.exists(daily_mobile_html_path):
+            daily_attachments.append(daily_mobile_html_path)
 
         if send_mail_enabled:
-            print(f"\n📧 나만의 데일리 브리핑 이메일 발송 중 ({edition_name_ko} - 엑셀 + 심층 PDF 첨부)...")
+            print(f"\n📧 나만의 데일리 브리핑 이메일 발송 중 ({edition_name_ko} - 엑셀 + 심층 PDF + 모바일 웹진 첨부)...")
             sender.send_report(
                 date_str=today_str,
                 stock_indices=stock_indices,
