@@ -17,10 +17,8 @@ logger = logging.getLogger("gemini_client")
 
 class GeminiIntelligenceClient:
     MODELS = [
-        "gemini-2.5-flash",
-        "gemini-flash-latest",
-        "gemini-2.5-flash-lite",
         "gemini-flash-lite-latest",
+        "gemini-flash-latest",
     ]
 
     def __init__(self, api_key: str = None):
@@ -30,8 +28,8 @@ class GeminiIntelligenceClient:
     def is_available(self) -> bool:
         return self.is_active
 
-    def _call_api(self, prompt: str, system_prompt: str = "", temperature: float = 0.2, as_json: bool = False, max_retries: int = 3) -> str:
-        """Gemini REST API 직접 호출 (다중 모델 폴백 및 자동 지수 백오프)"""
+    def _call_api(self, prompt: str, system_prompt: str = "", temperature: float = 0.2, as_json: bool = False, max_retries: int = 2) -> str:
+        """Gemini REST API 직접 호출 (초고속 Lite 모델 우선 및 자동 폴백)"""
         if not self.is_active:
             return ""
 
@@ -55,7 +53,7 @@ class GeminiIntelligenceClient:
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={self.api_key}"
             for attempt in range(max_retries):
                 try:
-                    res = requests.post(url, headers=headers, json=body, timeout=35)
+                    res = requests.post(url, headers=headers, json=body, timeout=25)
                     if res.status_code == 200:
                         data = res.json()
                         candidates = data.get("candidates", [])
@@ -64,15 +62,15 @@ class GeminiIntelligenceClient:
                             if parts:
                                 return parts[0].get("text", "").strip()
                     elif res.status_code in (429, 503):
-                        backoff = (attempt + 1) * 5
-                        print(f"   [Gemini API ({model_name})] {res.status_code} 레이트리밋 감지 -> {backoff}초 대기 후 자동 재시도...")
+                        backoff = (attempt + 1) * 2
+                        print(f"   [Gemini API ({model_name})] {res.status_code} 일시 부하 -> {backoff}초 대기...")
                         time.sleep(backoff)
                     else:
-                        print(f"   [Gemini API ({model_name})] Status {res.status_code}: {res.text[:120]}")
+                        print(f"   [Gemini API ({model_name})] Status {res.status_code}: {res.text[:100]}")
                         break
                 except Exception as e:
                     print(f"   [Gemini API ({model_name}) 통신 재시도] {e}")
-                    time.sleep(2)
+                    time.sleep(1)
         return ""
 
     # =========================================================================
@@ -272,8 +270,8 @@ class GeminiIntelligenceClient:
             except Exception as e:
                 print(f"   [Gemini {category} 배치 파싱 오류] {e}")
 
-            # 15 RPM 한도 완벽 준수를 위한 안전 간격 (5.0초)
-            time.sleep(5.0)
+            # Lite 모델 최적화 안전 간격 (1.5초)
+            time.sleep(1.5)
 
         return items
 
