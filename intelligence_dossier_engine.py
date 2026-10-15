@@ -705,19 +705,29 @@ class IntelligenceDossierEngine:
         if self.gemini_client and self.gemini_client.is_available():
             gemini_res = self.gemini_client.expand_analyst_report(rep)
             if gemini_res and gemini_res.get("chapter1"):
+                # 실적 표 요약 텍스트
+                ft_box = ""
+                if ft.get("has_table"):
+                    ft_box = f"<b>3. 2026/2027 공인 실적 전망치:</b> 2026F 매출 {ft.get('rev_2026', '-')} / 영익 {ft.get('op_2026', '-')}, 2027F 매출 {ft.get('rev_2027', '-')} / 영익 {ft.get('op_2027', '-')}. {ft.get('yoy_summary', '')}"
+                else:
+                    ft_box = "<b>3. 실적 펀더멘털 및 마진 체력:</b> 외형 매출 성장과 마진율 개선이 동반되는 호황 사이클에 진입하고 있으며 이익 체력이 강화될 것으로 전망됩니다."
+
+                pdf_fn = rep.get("pdf_filename") or (os.path.basename(rep.get("pdf_local_path", "")) if rep.get("pdf_local_path") else "")
                 return {
                     "headline": gemini_res.get("headline", f"📘 [기업 정밀 해부] {broker} 주목한 '{item_name}'"),
                     "subhead": gemini_res.get("subhead", f"공식 투자의견: {opinion} • 2026/2027 실적 및 목표주가 행간 해부"),
                     "lead": gemini_res.get("lead", ""),
                     "sec_business": gemini_res.get("chapter1", ""),
                     "sec_thesis": gemini_res.get("chapter2", ""),
-                    "sec_financial": gemini_res.get("chapter3", ""),
-                    "sec_strategy": f"<b>실전 투자자 가이드:</b> 목표가 {tp_str} 및 분기 실적 추이를 확인하며 분할 접근 권고.",
+                    "sec_financials": ft_box,
+                    "sec_risks": gemini_res.get("lead", f"투자 전 주요 전제조건과 고객사 발주 일정, 원가 변동성을 반드시 모니터링해야 합니다."),
+                    "sec_action": gemini_res.get("chapter3", f"<b>실전 투자자 가이드:</b> 목표가 {tp_str} 및 분기 실적 추이를 확인하며 분할 접근 권고."),
                     "financial_table": ft,
                     "item_name": item_name,
                     "broker": broker,
                     "target_price": target_price,
                     "opinion": opinion,
+                    "pdf_filename": pdf_fn,
                     "link": rep.get("pdf_url") or rep.get("link", "#")
                 }
 

@@ -115,7 +115,7 @@ def main():
     # 5. 7대 분야별 뉴스 수집 (분야별 최소 3~10건 수집 보장)
     print("\n[5/9] 🌐 7대 분야별 뉴스 수집 및 언론사 동시집중보도(클러스터링) 분석 중...")
     news_collector = NewsCollector(history_mgr=history_mgr)
-    news_result = news_collector.collect_all_categories(limit_per_feed=15, top_n_per_category=8)
+    news_result = news_collector.collect_all_categories(limit_per_feed=20, top_n_per_category=15)
     general_news = news_result["all_articles"]
     mega_issue = news_result.get("mega_issue")
     category_top_picks = news_result.get("category_top_picks", {})

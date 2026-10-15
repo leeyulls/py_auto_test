@@ -137,15 +137,17 @@ class GeminiIntelligenceClient:
 트렌드 이슈 제목: {raw_title}
 내용: {raw_summary}
 
-위 트렌드에 대해 2면 기획 르포를 다음 JSON 포맷으로 작성하십시오:
+위 트렌드 이슈에 대해 2면 기획 르포 기사를 다음 JSON 포맷으로 작성하십시오.
+각 chapter 필드에는 반드시 HTML <b> 태그의 소제목 뒤에 주어진 트렌드 사건에 대한 실제 구체적 분석 내용(3문장 이상)을 직접 작성해야 합니다. 안내 문구를 그대로 복사하지 마십시오.
+
 {{
-  "headline": "트렌드의 핵심을 짚는 르포 헤드라인",
-  "subhead": "소비 심리와 산업적 함의를 담은 부제목",
-  "lead": "현상 소개 및 오픈런/바이럴의 현주소 (3문장)",
-  "chapter1": "<b>■ 유행의 시초와 바이럴 트리거:</b> 어디서 어떻게 촉발되어 대중적 화제가 되었는가? (3문장)",
-  "chapter2": "<b>■ 2030 소비 심리 & 행동 경제학 분석:</b> 왜 사람들이 여기에 열광하고 지갑을 여는가? (3문장)",
-  "chapter3": "<b>■ 산업 생태계 영향 & 비즈니스 수혜:</b> 이 트렌드로 실질적인 이익을 얻는 기업/플랫폼은 어디인가? (3문장)",
-  "chapter4": "<b>■ 유행 수명 주기 & 지속 가능성 진단:</b> 반짝 유행인가 지속 가능한 메가 트렌드인가? 주의할 점은? (3문장)"
+  "headline": "트렌드의 핵심을 짚는 날카로운 르포 헤드라인 (30자 내외)",
+  "subhead": "2030 소비 심리와 산업적 파장을 압축한 부제목 (50자 내외)",
+  "lead": "현상 소개 및 오픈런/품절 대란/바이럴의 현주소를 생생하게 묘사 (3~4문장)",
+  "chapter1": "<b>■ 유행의 시초와 바이럴 트리거:</b> [이슈가 촉발된 온라인 커뮤니티, 숏폼, 팝업스토어 등 바이럴 경위와 대중 확산 과정을 구체적으로 3문장 서술]",
+  "chapter2": "<b>■ 2030 소비 심리 & 행동 경제학 분석:</b> [디토 소비, 스몰 럭셔리, 경험 공유 욕구 등 소비자들이 지갑을 여는 심리적 기제를 3문장 서술]",
+  "chapter3": "<b>■ 산업 생태계 영향 & 비즈니스 수혜:</b> [해당 브랜드, 유통 채널, 협력 중소기업 등 실질적인 수익을 창출하는 기업군과 비즈니스 모델 파장을 3문장 서술]",
+  "chapter4": "<b>■ 유행 수명 주기 & 지속 가능성 진단:</b> [단기 밈이나 반짝 유행에 그칠 리스크와 지속 가능한 비즈니스로 안착하기 위한 과제를 3문장 서술]"
 }}
 """
         res_text = self._call_api(prompt, system_prompt=system_prompt, as_json=True)
@@ -221,16 +223,19 @@ class GeminiIntelligenceClient:
             "반드시 입력된 기사 개수와 순서 그대로 JSON 배열로 반환하십시오."
         )
 
-        articles_payload = []
-        for idx, it in enumerate(items):
-            articles_payload.append({
-                "id": idx,
-                "title": it.get("기사제목", ""),
-                "source": it.get("언론사", ""),
-                "summary": it.get("요약내용", "")[:400]
-            })
+        chunk_size = 10
+        for chunk_start in range(0, len(items), chunk_size):
+            chunk = items[chunk_start:chunk_start + chunk_size]
+            articles_payload = []
+            for idx, it in enumerate(chunk):
+                articles_payload.append({
+                    "id": idx,
+                    "title": it.get("기사제목", ""),
+                    "source": it.get("언론사", ""),
+                    "summary": it.get("요약내용", "")[:400]
+                })
 
-        prompt = f"""
+            prompt = f"""
 다음은 '{category}' 분야의 수집된 기사 목록입니다:
 {json.dumps(articles_payload, ensure_ascii=False, indent=2)}
 
@@ -245,21 +250,21 @@ class GeminiIntelligenceClient:
   ...
 ]
 """
-        res_text = self._call_api(prompt, system_prompt=system_prompt, as_json=True)
-        try:
-            clean_res = re.sub(r"^```json\s*|\s*```$", "", res_text.strip(), flags=re.MULTILINE)
-            synthesized_list = json.loads(clean_res)
-            
-            synth_map = {item.get("id"): item for item in synthesized_list if "id" in item}
-            for idx, it in enumerate(items):
-                if idx in synth_map:
-                    s = synth_map[idx]
-                    it["content_summary"] = s.get("content_summary") or it.get("요약내용", "")
-                    impact = s.get("context_impact", "")
-                    cp = s.get("checkpoint_milestone", "")
-                    it["expanded_insight"] = f"<b>💡 심층 맥락 & 파장:</b> {impact}<br><b>🔎 핵심 체크포인트 & 일정:</b> {cp}"
-        except Exception as e:
-            print(f"   [Gemini {category} 배치 파싱 오류] {e}")
+            res_text = self._call_api(prompt, system_prompt=system_prompt, as_json=True)
+            try:
+                clean_res = re.sub(r"^```json\s*|\s*```$", "", res_text.strip(), flags=re.MULTILINE)
+                synthesized_list = json.loads(clean_res)
+                
+                synth_map = {item.get("id"): item for item in synthesized_list if "id" in item}
+                for idx, it in enumerate(chunk):
+                    if idx in synth_map:
+                        s = synth_map[idx]
+                        it["content_summary"] = s.get("content_summary") or it.get("요약내용", "")
+                        impact = s.get("context_impact", "")
+                        cp = s.get("checkpoint_milestone", "")
+                        it["expanded_insight"] = f"<b>💡 심층 맥락 & 파장:</b> {impact}<br><b>🔎 핵심 체크포인트 & 일정:</b> {cp}"
+            except Exception as e:
+                print(f"   [Gemini {category} 배치 파싱 오류] {e}")
 
         return items
 

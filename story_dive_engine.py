@@ -66,14 +66,22 @@ class StoryDiveEngine:
                 break
         return " ".join(clean_sentences)
 
+    VIRAL_TERMS = {
+        "품절": 25, "대란": 25, "오픈런": 30, "완판": 25, "웨이팅": 20, "줄서는": 20,
+        "디토": 25, "핫플": 20, "역주행": 25, "신드롬": 25, "열광": 20, "품귀": 25,
+        "흑백요리사": 35, "팝업": 20, "성수": 15, "MZ": 15, "인기폭발": 25, "소비트렌드": 20,
+        "트렌드": 15, "바이럴": 20, "신상품": 15, "웃돈": 25, "품귀현상": 25
+    }
+    PR_EXCLUDE_TERMS = {"출시했다", "선보인다", "공개했다", "오픈했다", "협약", "MOU", "체결했다"}
+
     def fetch_trend_candidates(self) -> list:
-        """확장된 3대 트렌드 피드로부터 광범위한 트렌드/유행 후보 수집 및 중복 제거"""
+        """확장된 3대 트렌드 피드로부터 바이럴/화제성 지수 스코어링을 통해 최상위 1위 트렌드 엄선"""
         candidates = []
         seen_titles = set()
         for feed_url in self.trend_feeds:
             try:
                 parsed = feedparser.parse(feed_url)
-                for entry in parsed.entries[:10]:
+                for entry in parsed.entries[:12]:
                     raw_title = self._clean_text(entry.get("title", ""))
                     summary = self._clean_text(entry.get("summary", ""))
                     link = entry.get("link", "")
@@ -90,15 +98,29 @@ class StoryDiveEngine:
                         continue
                     seen_titles.add(simp_title)
 
+                    # 바이럴/소비자 열광 지수 스코어링
+                    score = 0
+                    comb = f"{clean_title} {summary}"
+                    for term, weight in self.VIRAL_TERMS.items():
+                        if term in comb:
+                            score += weight
+                    # 단순 기업 단발성 PR 보도자료 감점
+                    if any(pr in clean_title for pr in self.PR_EXCLUDE_TERMS):
+                        score -= 20
+
                     candidates.append({
                         "title": clean_title,
                         "summary": summary,
                         "link": link,
                         "source": source,
-                        "category": "트렌드/유행"
+                        "category": "트렌드/유행",
+                        "viral_score": score
                     })
             except Exception as e:
                 print(f"[경고] 트렌드 후보 수집 오류 ({feed_url[:40]}...): {e}")
+
+        # 바이럴 화제성 점수 내림차순 정렬
+        candidates.sort(key=lambda x: x.get("viral_score", 0), reverse=True)
         return candidates
 
     def search_deep_context(self, keyword: str, aspect: str = "배경") -> list:

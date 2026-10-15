@@ -196,22 +196,74 @@ class PdfReportGenerator:
             </tr>
             """
 
-        # 2. 추천 종목 테이블 (주가 변화 차트 포함)
+        # 2. 추천 종목 테이블 (단기 매수, 장기 적립 및 매도/과열 주의 종목 전수 수록)
         stock_cards = ""
         today_buys = stock_advice.get("today_buy_picks", [])
-        for b in today_buys[:4]:
+        long_buys = stock_advice.get("longterm_buy_picks", [])
+        sell_picks = stock_advice.get("sell_warning_picks", [])
+
+        # 1) 단기 매수 유망 종목
+        for b in today_buys:
             sparkline = self.generate_svg_sparkline(b.get("recent_closes", []))
+            badge = "<span style='background: #DCFCE7; color: #166534; padding: 2px 5px; border-radius: 3px; font-size: 9px; font-weight: bold;'>🟢 단기 매수</span>"
             stock_cards += f"""
-            <tr style="border-bottom: 1px solid #E2E8F0;">
-                <td style="padding: 8px 6px; font-weight: bold; color: #0F172A;">
-                    {b.get('name')}<br><span style="font-size: 10px; color: #64748B;">{b.get('ticker')}</span>
+            <tr style="border-bottom: 1px solid #E2E8F0; background: #F0FDF4;">
+                <td style="padding: 7px 6px; font-weight: bold; color: #0F172A;">
+                    {badge} <b>{b.get('name')}</b><br><span style="font-size: 10px; color: #64748B;">{b.get('ticker')}</span>
                 </td>
-                <td style="padding: 8px 6px; text-align: right;">{b.get('cur_price')}</td>
-                <td style="padding: 8px 6px; text-align: right; font-weight: bold; color: #16A34A;">{b.get('buy_price')}</td>
-                <td style="padding: 8px 6px; text-align: right; font-weight: bold; color: #1D4ED8;">{b.get('sell_price')}</td>
-                <td style="padding: 8px 6px; text-align: center; font-weight: bold; color: #16A34A;">{b.get('expected_yield')}</td>
-                <td style="padding: 8px 6px; text-align: center;">{sparkline}</td>
-                <td style="padding: 8px 6px; font-size: 11px; color: #334155;">{b.get('reason')}</td>
+                <td style="padding: 7px 6px; text-align: right;">{b.get('cur_price')}</td>
+                <td style="padding: 7px 6px; text-align: right; font-weight: bold; color: #166534;">{b.get('buy_price')}</td>
+                <td style="padding: 7px 6px; text-align: right; font-weight: bold; color: #1D4ED8;">{b.get('sell_price')}</td>
+                <td style="padding: 7px 6px; text-align: center; font-weight: bold; color: #166534;">{b.get('expected_yield')}</td>
+                <td style="padding: 7px 6px; text-align: center;">{sparkline}</td>
+                <td style="padding: 7px 6px; font-size: 10.5px; color: #334155;">{b.get('reason', b.get('type', ''))}</td>
+            </tr>
+            """
+
+        # 2) 장기 적립 매수 유망 종목
+        for lb in long_buys:
+            sparkline = self.generate_svg_sparkline(lb.get("recent_closes", []))
+            badge = "<span style='background: #DBEAFE; color: #1E40AF; padding: 2px 5px; border-radius: 3px; font-size: 9px; font-weight: bold;'>🔵 장기 적립</span>"
+            stock_cards += f"""
+            <tr style="border-bottom: 1px solid #E2E8F0; background: #EFF6FF;">
+                <td style="padding: 7px 6px; font-weight: bold; color: #0F172A;">
+                    {badge} <b>{lb.get('name')}</b><br><span style="font-size: 10px; color: #64748B;">{lb.get('ticker')}</span>
+                </td>
+                <td style="padding: 7px 6px; text-align: right;">{lb.get('cur_price')}</td>
+                <td style="padding: 7px 6px; text-align: right; font-weight: bold; color: #1E40AF;">{lb.get('buy_price')}</td>
+                <td style="padding: 7px 6px; text-align: right; font-weight: bold; color: #2563EB;">{lb.get('sell_price')}</td>
+                <td style="padding: 7px 6px; text-align: center; font-weight: bold; color: #1E40AF;">{lb.get('expected_yield')}</td>
+                <td style="padding: 7px 6px; text-align: center;">{sparkline}</td>
+                <td style="padding: 7px 6px; font-size: 10.5px; color: #334155;">{lb.get('reason', lb.get('type', ''))}</td>
+            </tr>
+            """
+
+        if not today_buys and not long_buys:
+            stock_cards += """
+            <tr style="background: #F8FAFC; border-bottom: 1px solid #E2E8F0;">
+                <td colspan="7" style="text-align: center; padding: 10px 8px; color: #64748B; font-size: 10.5px;">
+                    ⚠️ <b>시장 급변동 및 과열 장세 알림:</b> 오늘 단기 지표상 안전마진을 충족하는 신규 매수 종목이 없습니다. 무리한 추격 매수를 지양하고 관망을 권고합니다.
+                </td>
+            </tr>
+            """
+
+        # 3) 매도 권고 및 과열 주의 종목 (Sell & Overheated Warnings)
+        for s in sell_picks[:5]:
+            sparkline = self.generate_svg_sparkline(s.get("recent_closes", []))
+            badge = "<span style='background: #FEE2E2; color: #991B1B; padding: 2px 5px; border-radius: 3px; font-size: 9px; font-weight: bold;'>🔴 매도/과열 주의</span>"
+            disp = s.get('disparity', '')
+            reason_text = f"{s.get('type', '')} (이격도 {disp})" if disp else s.get('type', '')
+            stock_cards += f"""
+            <tr style="border-bottom: 1px solid #FECACA; background: #FEF2F2;">
+                <td style="padding: 7px 6px; font-weight: bold; color: #991B1B;">
+                    {badge} <b>{s.get('name')}</b><br><span style="font-size: 10px; color: #991B1B;">{s.get('ticker')}</span>
+                </td>
+                <td style="padding: 7px 6px; text-align: right; color: #7F1D1D; font-weight: bold;">{s.get('cur_price')}</td>
+                <td style="padding: 7px 6px; text-align: center; color: #64748B;">- (신규매수금지)</td>
+                <td style="padding: 7px 6px; text-align: right; font-weight: bold; color: #DC2626;">{s.get('sell_price')}</td>
+                <td style="padding: 7px 6px; text-align: center; font-weight: bold; color: #DC2626;">비중 축소</td>
+                <td style="padding: 7px 6px; text-align: center;">{sparkline}</td>
+                <td style="padding: 7px 6px; font-size: 10.5px; color: #991B1B; font-weight: 500;">⚠️ {reason_text}</td>
             </tr>
             """
 
@@ -336,20 +388,30 @@ class PdfReportGenerator:
         rep_dossier_html = ""
         if exp_reps:
             for r in exp_reps[:2]:
+                sec_boxes = ""
+                if r.get('sec_business'):
+                    sec_boxes += f"<div style='margin-bottom: 6px; background: #F8FAFC; padding: 8px 10px; border-radius: 4px;'>{r['sec_business']}</div>"
+                if r.get('sec_thesis'):
+                    sec_boxes += f"<div style='margin-bottom: 6px; background: #F8FAFC; padding: 8px 10px; border-radius: 4px;'>{r['sec_thesis']}</div>"
+                if r.get('sec_financials'):
+                    sec_boxes += f"<div style='margin-bottom: 6px; background: #F0FDF4; border: 1px solid #DCFCE7; padding: 8px 10px; border-radius: 4px; color: #14532D;'>{r['sec_financials']}</div>"
+                if r.get('sec_risks'):
+                    sec_boxes += f"<div style='margin-bottom: 6px; background: #FFF1F2; border: 1px solid #FFE4E6; padding: 8px 10px; border-radius: 4px; color: #9F1239;'>{r['sec_risks']}</div>"
+                if r.get('sec_action'):
+                    sec_boxes += f"<div style='background: #EFF6FF; border: 1px solid #DBEAFE; padding: 8px 10px; border-radius: 4px; color: #1E40AF;'>{r['sec_action']}</div>"
+
+                pdf_fn = r.get('pdf_filename') or ''
+                fn_str = f" &nbsp;|&nbsp; 📁 원본 PDF: {pdf_fn}" if pdf_fn else ""
                 rep_dossier_html += f"""
                 <div style="background: #FFFFFF; border: 1px solid #CBD5E1; border-top: 4px solid #16A34A; border-radius: 6px; padding: 12px 14px; margin-bottom: 12px; page-break-inside: avoid;">
                     <div style="font-size: 15px; font-weight: bold; color: #166534; margin-bottom: 4px;">
-                        {r.get('headline')}
+                        {r.get('headline', '')}
                     </div>
                     <div style="font-size: 11.5px; color: #475569; margin-bottom: 8px; border-bottom: 1px solid #E2E8F0; padding-bottom: 4px;">
-                        {r.get('subhead')} &nbsp;|&nbsp; 📁 원본 PDF: {r.get('pdf_filename', '')}
+                        {r.get('subhead', '')}{fn_str}
                     </div>
                     <div style="font-size: 11px; color: #1E293B; line-height: 1.6;">
-                        <div style="margin-bottom: 6px; background: #F8FAFC; padding: 8px 10px; border-radius: 4px;">{r.get('sec_business')}</div>
-                        <div style="margin-bottom: 6px; background: #F8FAFC; padding: 8px 10px; border-radius: 4px;">{r.get('sec_thesis')}</div>
-                        <div style="margin-bottom: 6px; background: #F0FDF4; border: 1px solid #DCFCE7; padding: 8px 10px; border-radius: 4px; color: #14532D;">{r.get('sec_financials')}</div>
-                        <div style="margin-bottom: 6px; background: #FFF1F2; border: 1px solid #FFE4E6; padding: 8px 10px; border-radius: 4px; color: #9F1239;">{r.get('sec_risks')}</div>
-                        <div style="background: #EFF6FF; border: 1px solid #DBEAFE; padding: 8px 10px; border-radius: 4px; color: #1E40AF;">{r.get('sec_action')}</div>
+                        {sec_boxes}
                     </div>
                 </div>
                 """
@@ -369,15 +431,21 @@ class PdfReportGenerator:
         disc_dossier_html = ""
         if exp_discs:
             for d in exp_discs[:2]:
+                disc_boxes = ""
+                if d.get('sec_context'):
+                    disc_boxes += f"<div style='margin-bottom: 6px; background: #FFFBEB; border: 1px solid #FEF3C7; padding: 8px 10px; border-radius: 4px; color: #78350F;'>{d['sec_context']}</div>"
+                if d.get('sec_governance'):
+                    disc_boxes += f"<div style='margin-bottom: 6px; background: #F8FAFC; border: 1px solid #E2E8F0; padding: 8px 10px; border-radius: 4px; color: #334155;'>{d['sec_governance']}</div>"
+                if d.get('sec_strategy'):
+                    disc_boxes += f"<div style='background: #F0FDF4; border: 1px solid #DCFCE7; padding: 8px 10px; border-radius: 4px; color: #166534;'>{d['sec_strategy']}</div>"
+
                 disc_dossier_html += f"""
                 <div style="background: #FFFFFF; border: 1px solid #CBD5E1; border-top: 4px solid #D97706; border-radius: 6px; padding: 12px 14px; margin-bottom: 12px; page-break-inside: avoid;">
                     <div style="font-size: 14.5px; font-weight: bold; color: #92400E; margin-bottom: 6px;">
-                        {d.get('headline')}
+                        {d.get('headline', '')}
                     </div>
                     <div style="font-size: 11px; color: #1E293B; line-height: 1.6;">
-                        <div style="margin-bottom: 6px; background: #FFFBEB; border: 1px solid #FEF3C7; padding: 8px 10px; border-radius: 4px; color: #78350F;">{d.get('sec_context')}</div>
-                        <div style="margin-bottom: 6px; background: #F8FAFC; border: 1px solid #E2E8F0; padding: 8px 10px; border-radius: 4px; color: #334155;">{d.get('sec_governance')}</div>
-                        <div style="background: #F0FDF4; border: 1px solid #DCFCE7; padding: 8px 10px; border-radius: 4px; color: #166534;">{d.get('sec_strategy')}</div>
+                        {disc_boxes}
                     </div>
                 </div>
                 """
