@@ -118,6 +118,12 @@ class DisclosureCollector:
                         continue
                     seen_titles.add(simp_key)
 
+                    # 이전 수집 이력(아침 발행분 등)과 중복 검사
+                    if self.history_mgr:
+                        status, _ = self.history_mgr.check_status(clean_title, link)
+                        if status == "duplicate":
+                            continue
+
                     # 특수 공시 판정
                     cls_info = self.classify_disclosure(clean_title, raw_summary)
                     if not cls_info:

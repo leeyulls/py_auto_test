@@ -35,11 +35,13 @@ CORE_MARKET_LEADERS = {
 
 
 class ResearchManager:
-    def __init__(self, output_dir=None):
+    def __init__(self, output_dir=None, history_mgr=None):
         if output_dir is None:
             self.output_dir = os.path.join(os.path.dirname(__file__), "reports")
         else:
             self.output_dir = output_dir
+
+        self.history_mgr = history_mgr
 
         self.headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
@@ -250,6 +252,21 @@ class ResearchManager:
 
         # 점수 높은 순 정렬
         scored.sort(key=lambda x: x["credibility_score"], reverse=True)
+
+        if self.history_mgr:
+            fresh_reports = []
+            seen_reports = []
+            for r in scored:
+                if self.history_mgr.is_research_collected(r.get("item_name"), r.get("title"), str(r.get("id"))):
+                    r["is_previously_featured"] = True
+                    seen_reports.append(r)
+                else:
+                    r["is_previously_featured"] = False
+                    fresh_reports.append(r)
+
+            # 신규 미발행 리포트를 최우선 배치하고, 10건 미만일 경우 기존 리포트로 보충
+            scored = fresh_reports + seen_reports
+
         return scored
 
     def download_top_pdfs(self, top_reports: list, month_str: str, date_str: str) -> list:

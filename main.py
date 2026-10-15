@@ -56,28 +56,54 @@ def main():
     if os.path.exists(txt_config):
         load_env(txt_config)
 
+    # KST 기준 시간 및 에디션(모닝 vs 이브닝) 자동 판별
+    now_utc = datetime.datetime.now(datetime.timezone.utc)
+    now_kst = now_utc + datetime.timedelta(hours=9)
+    kst_hour = now_kst.hour
+
+    edition_arg = None
+    for arg in sys.argv:
+        if arg.startswith("--edition="):
+            edition_arg = arg.split("=", 1)[1].strip().lower()
+        elif arg in ("--morning", "-m"):
+            edition_arg = "morning"
+        elif arg in ("--evening", "-e"):
+            edition_arg = "evening"
+
+    if edition_arg in ("morning", "evening"):
+        is_evening = (edition_arg == "evening")
+    else:
+        # KST 기준 13:00~03:59은 이브닝 마감 브리핑, 04:00~12:59는 모닝 개장 브리핑
+        is_evening = (13 <= kst_hour or kst_hour < 4)
+
+    edition_type = "evening" if is_evening else "morning"
+    edition_name_ko = "이브닝 마감 에디션" if is_evening else "모닝 개장 에디션"
+
     today = datetime.date.today()
     today_str = today.strftime("%Y-%m-%d")
-    now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    now_str = now_kst.strftime("%Y-%m-%d %H:%M:%S")
     is_sunday = (today.weekday() == 6) or ("--weekly" in sys.argv)
     send_mail_enabled = "--no-mail" not in sys.argv
     month_str = today_str[:7]  # '2026-10'
 
     print("=" * 70)
-    print("🚀 [7대 분야 뉴스 & 주식/코인 추천가 & 증권사 공식 Top 10 리포트 자동화]")
-    print(f"⏰ 실행 시각: {now_str} (일요일 주간결산 모드: {'ON' if is_sunday else 'OFF'})")
+    print(f"🚀 [7대 분야 뉴스 & 증시/코인 추천가 & 증권사 공식 리포트 - {edition_name_ko}]")
+    print(f"⏰ KST 실행 시각: {now_str} (에디션: {edition_name_ko} | 일요일 주간결산: {'ON' if is_sunday else 'OFF'})")
     print(f"📁 구글 드라이브 적재 타겟: 데일리_브리핑_수집/{month_str}/")
     print("=" * 70)
 
     # 1. 히스토리 매니저 초기화
-    print("\n[1/8] 🔍 이전 수집 이력 로드 및 중복 필터 준비...")
+    print("\n[1/8] 🔍 이전 수집 이력 로드 및 겹침 제로(Zero Overlap) 필터 준비...")
     history_mgr = HistoryManager()
 
-    # 2. 증권사 공식 리서치 Top 10 수집 & 5대 신뢰도 지표 평가 & PDF 다운로드
+    # 2. 증권사 공식 리서치 Top 10 수집 & 5대 신뢰도 지표 평가 & PDF 다운로드 (이력 기반 중복 배제)
     print("\n[2/8] 🏛️ 증권사 공식 애널리스트 리포트 수집, 5대 지표 신뢰도 점수 산출 및 Top 10 PDF 다운로드...")
-    research_mgr = ResearchManager()
+    research_mgr = ResearchManager(history_mgr=history_mgr)
     research_res = research_mgr.collect_and_process(date_str=today_str, top_n=10)
     official_reports = research_res.get("top_reports", [])
+    if official_reports:
+        history_mgr.record_research(official_reports)
+
     print(f" - 선별된 공인 리포트: {len(official_reports)}건")
     for r in official_reports[:3]:
         tp_str = f"{int(r['target_price']):,}원" if r.get('target_price') else "-"
@@ -128,6 +154,8 @@ def main():
         {"title": n["기사제목"], "link": n.get("링크") or n.get("link", ""), "category": n["분야"]} for n in general_news
     ] + [
         {"title": m["기사제목"], "link": m["링크"], "category": m["구분"]} for m in market_news
+    ] + [
+        {"title": d["공시제목"], "link": d.get("링크") or "", "category": "특수공시"} for d in special_disclosures
     ])
 
     # 6. 📰 [나만의 인텔리전스 뉴스페이퍼 & 심층 도시에 엔진] (2차 확장 탐색 및 심층 분석)
@@ -249,7 +277,8 @@ def main():
     print(f"\n📄 전수 수록 초고해상도 A4 데일리 심층 분석 PDF 보고서 편찬 중...")
     pdf_gen = PdfReportGenerator()
     month_dir = os.path.dirname(daily_excel_path)
-    daily_pdf_path = os.path.join(month_dir, f"{today_str}_데일리_심층_종합분석_보고서.pdf")
+    ed_tag = "이브닝" if is_evening else "모닝"
+    daily_pdf_path = os.path.join(month_dir, f"{today_str}_{ed_tag}_심층_종합분석_보고서.pdf")
     pdf_gen.generate_daily_pdf(
         date_str=today_str,
         stock_indices=stock_indices,
@@ -262,7 +291,8 @@ def main():
         special_disclosures=special_disclosures,
         story_dive_data=story_dive_data,
         real_estate_data=real_estate_data,
-        output_pdf_path=daily_pdf_path
+        output_pdf_path=daily_pdf_path,
+        edition=edition_type,
     )
 
     # 구글 드라이브 월별(YYYY-MM) 폴더 및 공식 리서치 PDF 동기화
@@ -333,7 +363,7 @@ def main():
             daily_attachments.append(daily_pdf_path)
 
         if send_mail_enabled:
-            print("\n📧 나만의 데일리 브리핑 이메일 발송 중 (엑셀 + 심층 PDF 첨부)...")
+            print(f"\n📧 나만의 데일리 브리핑 이메일 발송 중 ({edition_name_ko} - 엑셀 + 심층 PDF 첨부)...")
             sender.send_report(
                 date_str=today_str,
                 stock_indices=stock_indices,
@@ -348,6 +378,7 @@ def main():
                 special_disclosures=special_disclosures,
                 story_dive_data=story_dive_data,
                 real_estate_data=real_estate_data,
+                edition=edition_type,
             )
         else:
             print("\n🔕 [이메일 발송 건너뜀] '--no-mail' 옵션이 지정되어 데일리 테스트 메일을 발송하지 않고 로컬 보고서만 편찬합니다.")

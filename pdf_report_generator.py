@@ -11,6 +11,7 @@ import re
 import html
 import datetime
 import subprocess
+import shutil
 
 try:
     from intelligence_dossier_engine import IntelligenceDossierEngine
@@ -52,8 +53,16 @@ class PdfReportGenerator:
                 r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
                 r"C:\Program Files\Google\Chrome\Application\chrome.exe",
                 r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+                "/usr/bin/google-chrome",
+                "/usr/bin/google-chrome-stable",
+                "/usr/bin/chromium-browser",
+                "/usr/bin/chromium",
             ]
-            self.edge_path = next((p for p in candidates if os.path.exists(p)), None)
+            for bin_name in ["google-chrome", "google-chrome-stable", "chromium-browser", "chromium", "msedge"]:
+                which_p = shutil.which(bin_name)
+                if which_p and which_p not in candidates:
+                    candidates.insert(0, which_p)
+            self.edge_path = next((p for p in candidates if p and os.path.exists(p)), None)
 
     @staticmethod
     def generate_svg_sparkline(prices: list, width: int = 140, height: int = 34) -> str:
@@ -105,8 +114,10 @@ class PdfReportGenerator:
         try:
             cmd = [
                 self.edge_path,
-                "--headless",
+                "--headless=new" if sys.platform != "win32" else "--headless",
                 "--disable-gpu",
+                "--no-sandbox",
+                "--disable-dev-shm-usage",
                 "--run-all-compositor-stages-before-draw",
                 f"--print-to-pdf={pdf_path}",
                 html_path,
@@ -117,7 +128,7 @@ class PdfReportGenerator:
                 text=True,
                 encoding="utf-8",
                 errors="replace",
-                timeout=45,
+                timeout=60,
             )
             if os.path.exists(pdf_path) and os.path.getsize(pdf_path) > 1000:
                 return True
@@ -131,7 +142,8 @@ class PdfReportGenerator:
     def generate_daily_pdf(self, date_str: str, stock_indices: list, exchange_rates: list,
                            stock_advice: dict, crypto_advice: dict, official_reports: list,
                            news_result: dict, performance_data: dict, special_disclosures: list,
-                           story_dive_data: dict, output_pdf_path: str, real_estate_data: dict = None) -> str:
+                           story_dive_data: dict, output_pdf_path: str, real_estate_data: dict = None,
+                           edition: str = "morning") -> str:
         """
         [경영진 보고용] 10~11페이지 규모 The Executive Intelligence Herald (나만의 심층 인텔리전스 신문) A4 PDF 편찬
         """
@@ -515,12 +527,16 @@ class PdfReportGenerator:
         cat_news_page1 = "".join([_render_cat_block(k, lbl, top_picks) for k, lbl in cat_group_1])
         cat_news_page2 = "".join([_render_cat_block(k, lbl, top_picks) for k, lbl in cat_group_2])
 
-        # 9. HTML 조립 (My Daily Intelligence Briefing 8-Page Edition)
+        # 9. HTML 조립 (My Daily Intelligence Briefing)
+        is_evening = (str(edition).lower() == "evening") or ("저녁" in str(edition)) or ("이브닝" in str(edition))
+        edition_label = "이브닝 마감 에디션" if is_evening else "모닝 개장 에디션"
+        tagline_text = "당일 국내 증시 마감 결산 & 낮 시간 신규 이슈 & 익일 글로벌 전망" if is_evening else "단순 요약을 탈피한 2차 심층 교차 취재 & 밸류체인 전방위 해부 에디션"
+
         html_content = f"""<!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8">
-<title>My Daily Intelligence Briefing ({date_str})</title>
+<title>My Daily Intelligence Briefing - {edition_label} ({date_str})</title>
 <style>
   @page {{
     size: A4;
@@ -610,11 +626,11 @@ class PdfReportGenerator:
   <div class="masthead">
     <div class="masthead-dateline">
       <span>MY DAILY INTELLIGENCE BRIEFING</span>
-      <span>나만의 데일리 금융 & 심층 이슈 브리핑 • 개인 맞춤형 리포트</span>
+      <span>나만의 데일리 금융 & 심층 이슈 브리핑 • 개인 맞춤형 리포트 ({edition_label})</span>
       <span>기준일자: {date_str}</span>
     </div>
     <div class="masthead-title">MY DAILY BRIEFING</div>
-    <div class="masthead-tagline">단순 요약을 탈피한 2차 심층 교차 취재 & 밸류체인 전방위 해부 에디션</div>
+    <div class="masthead-tagline">{tagline_text}</div>
   </div>
 
   <div class="sec-banner" style="background: #1E3A8A;">

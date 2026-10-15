@@ -1163,15 +1163,19 @@ class EmailSender:
         """
         return html
 
-    def send_report(self, date_str: str, stock_indices: list, exchange_rates: list, stock_advice: dict, crypto_advice: dict, official_reports: list, news_result: dict, top_research_list: list = None, attachment_path: str = None, performance_data: dict = None, special_disclosures: list = None, story_dive_data: dict = None, attachments: list = None, real_estate_data: dict = None) -> bool:
-        """평일/토요일 데일리 모닝 브리핑 이메일 발송"""
+    def send_report(self, date_str: str, stock_indices: list, exchange_rates: list, stock_advice: dict, crypto_advice: dict, official_reports: list, news_result: dict, top_research_list: list = None, attachment_path: str = None, performance_data: dict = None, special_disclosures: list = None, story_dive_data: dict = None, attachments: list = None, real_estate_data: dict = None, edition: str = "morning") -> bool:
+        """나만의 데일리 브리핑 이메일 발송 (모닝/이브닝 구분)"""
         if not self.is_configured():
             print("\n⚠️ [이메일 발송 건너뜀] NAVER_USER 또는 NAVER_PASSWORD가 설정되지 않았습니다.")
             return False
 
+        is_evening = (str(edition).lower() == "evening") or ("저녁" in str(edition)) or ("이브닝" in str(edition))
+        ed_badge = "[이브닝 마감 브리핑]" if is_evening else "[모닝 개장 브리핑]"
+        ed_desc = "당일 증시 마감 결산 & 낮 시간 신규 이슈 & 익일 대비" if is_evening else "글로벌 매크로 & 당일 개장 전 투자 전략"
+
         try:
             msg = MIMEMultipart("mixed")
-            msg["Subject"] = f"[{date_str} 나만의 오늘의 브리핑] 데일리 금융동향 & 심층 이슈 리포트"
+            msg["Subject"] = f"{ed_badge} {date_str} 나만의 데일리 인텔리전스 - {ed_desc}"
             msg["From"] = f"{self.naver_user}@naver.com"
             msg["To"] = self.receiver_email
 
@@ -1210,7 +1214,7 @@ class EmailSender:
                 server.login(self.naver_user, self.naver_password)
                 server.send_message(msg)
 
-            print(f"📧 ✅ [오늘의 브리핑] 데일리 모닝 브리핑 이메일 발송 완료! 수신자: {self.receiver_email}")
+            print(f"📧 ✅ {ed_badge} 데일리 이메일 발송 완료! 수신자: {self.receiver_email}")
             return True
         except Exception as e:
             print(f"📧 ❌ 이메일 발송 실패: {e}")

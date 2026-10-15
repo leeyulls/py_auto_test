@@ -61,12 +61,12 @@ class HistoryManager:
 
         for date_str, items in self.history.items():
             for item in items:
-                # 1. 링크가 같거나 정규화 제목이 완전히 동일한 경우 -> 완전 중복
-                if item.get("link") == link:
+                # 1. 유효한 링크가 같거나 정규화 제목이 완전히 동일한 경우 -> 완전 중복
+                if link and link != "#" and item.get("link") and item.get("link") == link:
                     return "duplicate", None
 
                 prev_norm = item.get("norm_title", "")
-                if prev_norm == norm_title:
+                if prev_norm and prev_norm == norm_title:
                     return "duplicate", None
 
                 # 2. 제목 유사도 비교
@@ -87,8 +87,53 @@ class HistoryManager:
 
         return "new", None
 
+    def is_research_collected(self, item_name: str, title: str, research_id: str = None) -> bool:
+        """해당 종목/리포트가 당일 또는 최근 이력에 이미 발행되었는지 판별"""
+        norm_title = self._normalize_title(title or "")
+        clean_item = (item_name or "").strip()
+
+        for date_str, items in self.history.items():
+            for item in items:
+                if item.get("category") != "증권사리포트":
+                    continue
+                # 1. research_id 일치
+                if research_id and item.get("research_id") and str(item.get("research_id")) == str(research_id):
+                    return True
+                # 2. 동일 종목 + 제목 유사도 70% 이상
+                if clean_item and clean_item == item.get("item_name"):
+                    prev_norm = item.get("norm_title", "")
+                    if prev_norm == norm_title:
+                        return True
+                    sim = difflib.SequenceMatcher(None, norm_title, prev_norm).ratio()
+                    if sim >= 0.7:
+                        return True
+        return False
+
+    def record_research(self, reports: list):
+        """선별된 증권사 공식 리포트를 이력에 등록"""
+        today_str = datetime.date.today().isoformat()
+        if today_str not in self.history:
+            self.history[today_str] = []
+
+        for rep in reports:
+            title = rep.get("title", "")
+            norm_title = self._normalize_title(title)
+            words = list(set(w for w in norm_title.split() if len(w) >= 2))
+            self.history[today_str].append({
+                "title": title,
+                "norm_title": norm_title,
+                "link": rep.get("attach_url") or "",
+                "category": "증권사리포트",
+                "item_name": rep.get("item_name", ""),
+                "broker": rep.get("broker", ""),
+                "research_id": str(rep.get("id") or ""),
+                "words": words,
+            })
+
+        self.save_history()
+
     def record_collected(self, articles: list):
-        """오늘 수집된 기사 목록을 이력에 등록"""
+        """오늘 수집된 기사/공시 목록을 이력에 등록"""
         today_str = datetime.date.today().isoformat()
         if today_str not in self.history:
             self.history[today_str] = []
@@ -99,7 +144,7 @@ class HistoryManager:
             self.history[today_str].append({
                 "title": art["title"],
                 "norm_title": norm_title,
-                "link": art["link"],
+                "link": art.get("link", ""),
                 "category": art.get("category", ""),
                 "words": words,
             })
