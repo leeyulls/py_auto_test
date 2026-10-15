@@ -16,7 +16,7 @@ import requests
 logger = logging.getLogger("gemini_client")
 
 class GeminiIntelligenceClient:
-    API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
+    MODELS = ["gemini-flash-latest", "gemini-flash-lite-latest"]
 
     def __init__(self, api_key: str = None):
         self.api_key = (api_key or os.environ.get("GEMINI_API_KEY", "")).strip()
@@ -26,13 +26,11 @@ class GeminiIntelligenceClient:
         return self.is_active
 
     def _call_api(self, prompt: str, system_prompt: str = "", temperature: float = 0.2, as_json: bool = False, max_retries: int = 2) -> str:
-        """Gemini 1.5 Flash REST API 직접 호출 (외부 라이브러리 종속성 없음)"""
+        """Gemini REST API 직접 호출 (다중 모델 폴백 및 자동 재시도)"""
         if not self.is_active:
             return ""
 
-        url = f"{self.API_URL}?key={self.api_key}"
         headers = {"Content-Type": "application/json"}
-        
         contents = [{"parts": [{"text": prompt}]}]
         body = {
             "contents": contents,
@@ -48,25 +46,27 @@ class GeminiIntelligenceClient:
         if as_json:
             body["generationConfig"]["responseMimeType"] = "application/json"
 
-        for attempt in range(max_retries):
-            try:
-                res = requests.post(url, headers=headers, json=body, timeout=25)
-                if res.status_code == 200:
-                    data = res.json()
-                    candidates = data.get("candidates", [])
-                    if candidates:
-                        parts = candidates[0].get("content", {}).get("parts", [])
-                        if parts:
-                            return parts[0].get("text", "").strip()
-                elif res.status_code == 429:
-                    print(f"   [Gemini API] 429 Rate Limit 감지 (잠시 대기 후 재시도 {attempt+1}/{max_retries})...")
-                    time.sleep(4)
-                else:
-                    print(f"   [Gemini API 오류] Status {res.status_code}: {res.text[:150]}")
-                    break
-            except Exception as e:
-                print(f"   [Gemini API 통신 실패] {e}")
-                time.sleep(2)
+        for model_name in self.MODELS:
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={self.api_key}"
+            for attempt in range(max_retries):
+                try:
+                    res = requests.post(url, headers=headers, json=body, timeout=30)
+                    if res.status_code == 200:
+                        data = res.json()
+                        candidates = data.get("candidates", [])
+                        if candidates:
+                            parts = candidates[0].get("content", {}).get("parts", [])
+                            if parts:
+                                return parts[0].get("text", "").strip()
+                    elif res.status_code in (429, 503):
+                        print(f"   [Gemini API ({model_name})] {res.status_code} 일시적 부하 감지 (대기 후 재시도)...")
+                        time.sleep(3)
+                    else:
+                        print(f"   [Gemini API ({model_name})] Status {res.status_code}: {res.text[:120]}")
+                        break
+                except Exception as e:
+                    print(f"   [Gemini API ({model_name}) 통신 재시도] {e}")
+                    time.sleep(2)
         return ""
 
     # =========================================================================
