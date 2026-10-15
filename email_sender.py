@@ -371,112 +371,135 @@ class EmailSender:
             items = top_picks.get(cat_key, [])
             if items:
                 cat_items_html = ""
-                display_items = items
+                # 이메일은 핵심 요약본이므로 분야별 상위 4건 발췌 수록 (전체 기사는 PDF 상세본에 전수 수록)
+                display_items = items[:4]
                 for idx, it in enumerate(display_items):
                     it_link = it.get("링크") or it.get("link", "")
                     tag = f" <span style='background: #FEE2E2; color: #DC2626; padding: 1px 5px; border-radius: 3px; font-size: 11px;'>{it.get('상태', '')}</span>" if "집중" in str(it.get('상태', '')) else ""
                     content_sum = it.get('content_summary') or it.get('요약내용', '')
                     expanded_ins = it.get('expanded_insight', '')
-                    if not expanded_ins and IntelligenceDossierEngine:
-                        expanded_ins = f"<b>💡 심층 맥락 & 전략적 시사점:</b> 관련 산업계 및 정책 환경의 후속 변화와 공급망 파급 효과를 지속적으로 모니터링해야 합니다.<br><b>🔎 핵심 체크포인트:</b> 소관 부처 및 시장의 공식 반응 추이를 선행 지표로 삼아야 합니다."
+                    if not expanded_ins:
+                        expanded_ins = f"<b>💡 심층 맥락:</b> 후속 정책 발표 및 산업계 파급 효과 모니터링 필요.<br><b>🔎 체크포인트:</b> 소관 부처 공식 반응 및 핵심 일정 점검."
 
                     cat_items_html += f"""
-                    <div style="margin-bottom: 10px; font-size: 12.5px; background: #FFFFFF; border: 1px solid #E2E8F0; padding: 10px 12px; border-radius: 6px;">
+                    <div style="margin-bottom: 8px; font-size: 12px; background: #FFFFFF; border: 1px solid #E2E8F0; padding: 8px 10px; border-radius: 5px;">
                         <div style="line-height: 1.4;">
                             <span style="font-weight: bold; color: #1D4ED8;">[{idx + 1}]</span> <a href="{it_link}" style="color: #1D4ED8; text-decoration: none; font-weight: 600;">{it.get('기사제목', '')}</a>
                             <span style="font-size: 11px; color: #6B7280;">({it.get('언론사', '')})</span>{tag}
                         </div>
-                        <div style="font-size: 12px; color: #334155; margin-top: 5px; padding-left: 10px; border-left: 2px solid #3B82F6; line-height: 1.5;">
-                            <b>📰 기사 본문 요약:</b> {content_sum}
+                        <div style="font-size: 11.5px; color: #334155; margin-top: 4px; padding-left: 8px; border-left: 2px solid #3B82F6; line-height: 1.45;">
+                            <b>📰 핵심 팩트:</b> {content_sum}
                         </div>
-                        <div style="font-size: 11.5px; color: #1E40AF; background: #EFF6FF; border: 1px solid #BFDBFE; border-left: 3px solid #2563EB; border-radius: 4px; padding: 6px 10px; margin-top: 5px; line-height: 1.45;">
+                        <div style="font-size: 11px; color: #1E40AF; background: #EFF6FF; border: 1px solid #BFDBFE; border-left: 3px solid #2563EB; border-radius: 3px; padding: 5px 8px; margin-top: 4px; line-height: 1.4;">
                             {expanded_ins}
                         </div>
                     </div>
                     """
 
+                total_cat_cnt = len(items)
+                more_notice = ""
+                if total_cat_cnt > len(display_items):
+                    more_notice = f"""
+                    <div style="font-size: 11px; color: #64748B; text-align: right; margin-top: 6px; font-weight: 500;">
+                        👉 <i>{icon_title} 분야 전체 {total_cat_cnt}건 기사 전수 분석 및 상세 카드는 첨부된 [PDF 상세본]에 수록되어 있습니다.</i>
+                    </div>
+                    """
+
                 headlines_html += f"""
-                <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 14px; margin-bottom: 16px;">
-                    <div style="font-size: 14px; font-weight: bold; color: #1E293B; margin-bottom: 10px; border-bottom: 2px solid #E2E8F0; padding-bottom: 4px;">
-                        {icon_title} <span style="font-size: 12px; color: #64748B; font-weight: normal;">(주요 뉴스 {len(display_items)}건)</span>
+                <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 12px; margin-bottom: 14px;">
+                    <div style="font-size: 13.5px; font-weight: bold; color: #1E293B; margin-bottom: 8px; border-bottom: 2px solid #E2E8F0; padding-bottom: 4px; display: flex; justify-content: space-between; align-items: center;">
+                        <span>{icon_title}</span>
+                        <span style="font-size: 11px; color: #2563EB; font-weight: bold;">(요약 {len(display_items)}건 / 전체 {total_cat_cnt}건)</span>
                     </div>
                     {cat_items_html}
+                    {more_notice}
                 </div>
                 """
 
         # ---------------------------------------------------------
-        # 📰 1면 톱 심층 기획특집 기사 (The Lead Story)
+        # 📰 1면 톱 심층 기획특집 기사 (The Lead Story 요약본)
         # ---------------------------------------------------------
         mega = news_result.get("mega_issue")
         mega_html = ""
         if mega_d and mega_d.get("chapter1"):
+            # HTML 태그 제거 헬퍼
+            def _first_sent(html_text):
+                clean = re.sub(r'<[^>]+>', '', html_text)
+                sents = re.split(r'(?<=[.!?])\s+', clean)
+                return sents[0] if sents else clean[:80]
+
+            ch1_brief = _first_sent(mega_d.get('chapter1', ''))
+            ch2_brief = _first_sent(mega_d.get('chapter2', ''))
+            ch3_brief = _first_sent(mega_d.get('chapter3', ''))
+            ch4_brief = _first_sent(mega_d.get('chapter4', ''))
+
             mega_html = f"""
-            <div style="background: #FFFFFF; border: 2px solid #1E3A8A; border-radius: 8px; padding: 18px; margin-bottom: 24px; box-shadow: 0 2px 4px rgba(0,0,0,0.06);">
-                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #1E3A8A; padding-bottom: 8px; margin-bottom: 12px;">
-                    <span style="font-size: 13px; font-weight: bold; color: #1E3A8A;">🌐 [오늘의 1면 톱 기획특집 기사]</span>
+            <div style="background: #FFFFFF; border: 2px solid #1E3A8A; border-radius: 8px; padding: 16px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.06);">
+                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #1E3A8A; padding-bottom: 6px; margin-bottom: 10px;">
+                    <span style="font-size: 13px; font-weight: bold; color: #1E3A8A;">🌐 [오늘의 1면 톱 기획특집 요약]</span>
                     <span style="background: #DBEAFE; color: #1E40AF; font-size: 11px; font-weight: bold; padding: 2px 8px; border-radius: 10px;">취재원: {mega_d.get('source', '주요 언론')} | 2차 심층 확장 취재</span>
                 </div>
-                <h2 style="font-size: 18px; font-weight: 800; color: #0F172A; margin: 0 0 6px; line-height: 1.4;">
+                <h2 style="font-size: 17px; font-weight: 800; color: #0F172A; margin: 0 0 6px; line-height: 1.4;">
                     <a href="{mega_d.get('link', '#')}" style="color: #0F172A; text-decoration: none;">{mega_d.get('headline')}</a>
                 </h2>
-                <div style="font-size: 13px; color: #2563EB; font-weight: 600; margin-bottom: 12px; line-height: 1.5;">
+                <div style="font-size: 12.5px; color: #2563EB; font-weight: 600; margin-bottom: 10px; line-height: 1.45;">
                     {mega_d.get('subhead')}
                 </div>
-                <div style="background: #F8FAFC; border-left: 4px solid #1E3A8A; padding: 12px 14px; font-size: 12.5px; color: #1E293B; line-height: 1.7; margin-bottom: 14px; font-style: italic;">
+                <div style="background: #F8FAFC; border-left: 4px solid #1E3A8A; padding: 10px 12px; font-size: 12px; color: #1E293B; line-height: 1.6; margin-bottom: 12px; font-style: italic;">
                     {mega_d.get('lead')}
                 </div>
-                <div style="font-size: 12px; color: #334155; line-height: 1.7;">
-                    <div style="margin-bottom: 10px; background: #FFFFFF; border: 1px solid #E2E8F0; padding: 10px 12px; border-radius: 6px;">{mega_d.get('chapter1')}</div>
-                    <div style="margin-bottom: 10px; background: #FFFFFF; border: 1px solid #E2E8F0; padding: 10px 12px; border-radius: 6px;">{mega_d.get('chapter2')}</div>
-                    <div style="margin-bottom: 10px; background: #FFFFFF; border: 1px solid #E2E8F0; padding: 10px 12px; border-radius: 6px;">{mega_d.get('chapter3')}</div>
-                    <div style="background: #EFF6FF; border: 1px solid #BFDBFE; padding: 10px 12px; border-radius: 6px; color: #1E40AF;">{mega_d.get('chapter4')}</div>
+                <div style="background: #F1F5F9; border-radius: 6px; padding: 10px 12px; font-size: 11.5px; line-height: 1.6; color: #334155;">
+                    <div style="margin-bottom: 4px;">• 📌 <b>발단 & 타임라인:</b> {ch1_brief}</div>
+                    <div style="margin-bottom: 4px;">• ⚡ <b>핵심 이해관계 & 쟁점:</b> {ch2_brief}</div>
+                    <div style="margin-bottom: 4px;">• 📊 <b>공개 데이터 & 팩트:</b> {ch3_brief}</div>
+                    <div>• ⏳ <b>향후 일정 & 관전 포인트:</b> {ch4_brief}</div>
+                </div>
+                <div style="margin-top: 10px; background: #EFF6FF; border: 1px solid #BFDBFE; padding: 7px 10px; border-radius: 5px; font-size: 11px; color: #1E40AF; text-align: center;">
+                    📎 <b>4대 챕터 심층 르포 전문과 팩트 분석은 첨부된 [PDF 상세본 1면]에 전수 수록되어 있습니다.</b>
                 </div>
             </div>
             """
         elif mega:
             mega_html = f"""
-            <div style="background: #FFF1F2; border: 2px solid #F43F5E; border-radius: 8px; padding: 16px; margin-bottom: 24px;">
-                <div style="font-size: 13px; font-weight: bold; color: #E11D48; margin-bottom: 4px;">
+            <div style="background: #FFF1F2; border: 2px solid #F43F5E; border-radius: 8px; padding: 14px; margin-bottom: 20px;">
+                <div style="font-size: 12.5px; font-weight: bold; color: #E11D48; margin-bottom: 4px;">
                     🔥 오늘의 메가 핫토픽 [언론사 {mega['media_count']}개사 집중 보도]
                 </div>
-                <div style="font-size: 16px; font-weight: bold; color: #881337; margin-bottom: 8px;">
+                <div style="font-size: 15px; font-weight: bold; color: #881337; margin-bottom: 6px;">
                     <a href="{mega.get('링크') or mega.get('link', '')}" style="color: #881337; text-decoration: none;">{mega['기사제목']}</a>
-                    <span style="font-size: 12px; color: #9F1239; font-weight: normal;">({mega['언론사']})</span>
+                    <span style="font-size: 11px; color: #9F1239; font-weight: normal;">({mega['언론사']})</span>
                 </div>
-                <div style="font-size: 13px; color: #4C0519; line-height: 1.5; background: #FFE4E6; padding: 8px 12px; border-radius: 6px;">
-                    💡 <b>1줄 요약:</b> {mega['요약내용']}
+                <div style="font-size: 12px; color: #4C0519; line-height: 1.5; background: #FFE4E6; padding: 6px 10px; border-radius: 4px;">
+                    💡 <b>핵심 팩트:</b> {mega['요약내용']}
                 </div>
             </div>
             """
 
         # ---------------------------------------------------------
-        # 🛍️ 2면 기획 르포: 트렌드 & 2030 라이프스타일 소비 심리 (Trend Intelligence)
+        # 🛍️ 2면 기획 르포: 트렌드 & 2030 라이프스타일 소비 심리 (Trend Intelligence 요약본)
         # ---------------------------------------------------------
         story_dive_html = ""
         if trend_d and trend_d.get("chapter1"):
             story_dive_html = f"""
-            <div style="background: #FFFFFF; border: 2px solid #DB2777; border-radius: 8px; padding: 18px; margin-bottom: 24px; box-shadow: 0 2px 4px rgba(0,0,0,0.06);">
-                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #DB2777; padding-bottom: 8px; margin-bottom: 12px;">
-                    <span style="font-size: 13px; font-weight: bold; color: #9D174D;">🛍️ [2면 기획 르포: 2030 라이프스타일 & 소비 심리]</span>
-                    <span style="background: #FCE7F3; color: #9D174D; font-size: 11px; font-weight: bold; padding: 2px 8px; border-radius: 10px;">디토 소비 & PB 전쟁</span>
+            <div style="background: #FFFFFF; border: 2px solid #DB2777; border-radius: 8px; padding: 16px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.06);">
+                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #DB2777; padding-bottom: 6px; margin-bottom: 10px;">
+                    <span style="font-size: 13px; font-weight: bold; color: #9D174D;">🛍️ [2면 기획 르포: 2030 라이프스타일 & 소비 심리 요약]</span>
+                    <span style="background: #FCE7F3; color: #9D174D; font-size: 11px; font-weight: bold; padding: 2px 8px; border-radius: 10px;">트렌드 인텔리전스</span>
                 </div>
-                <h2 style="font-size: 17px; font-weight: 800; color: #0F172A; margin: 0 0 6px; line-height: 1.4;">
+                <h2 style="font-size: 16px; font-weight: 800; color: #0F172A; margin: 0 0 6px; line-height: 1.4;">
                     <a href="{trend_d.get('link', '#')}" style="color: #0F172A; text-decoration: none;">{trend_d.get('headline')}</a>
                 </h2>
-                <div style="font-size: 13px; color: #BE185D; font-weight: 600; margin-bottom: 12px; line-height: 1.5;">
+                <div style="font-size: 12.5px; color: #BE185D; font-weight: 600; margin-bottom: 10px; line-height: 1.45;">
                     {trend_d.get('subhead')}
                 </div>
-                <div style="background: #FDF2F8; border-left: 4px solid #DB2777; padding: 12px 14px; font-size: 12.5px; color: #1E293B; line-height: 1.7; margin-bottom: 14px; font-style: italic;">
+                <div style="background: #FDF2F8; border-left: 4px solid #DB2777; padding: 10px 12px; font-size: 12px; color: #1E293B; line-height: 1.6; margin-bottom: 10px; font-style: italic;">
                     {trend_d.get('lead')}
                 </div>
-                <div style="font-size: 12px; color: #334155; line-height: 1.7;">
-                    <div style="margin-bottom: 10px; background: #FFFFFF; border: 1px solid #FCE7F3; padding: 10px 12px; border-radius: 6px;">{trend_d.get('chapter1')}</div>
-                    <div style="margin-bottom: 10px; background: #FFFFFF; border: 1px solid #FCE7F3; padding: 10px 12px; border-radius: 6px;">{trend_d.get('chapter2')}</div>
-                    <div style="margin-bottom: 10px; background: #FFFFFF; border: 1px solid #FCE7F3; padding: 10px 12px; border-radius: 6px;">{trend_d.get('chapter3')}</div>
-                    <div style="background: #FFF1F2; border: 1px solid #FECDD3; padding: 10px 12px; border-radius: 6px; color: #9F1239;">{trend_d.get('chapter4')}</div>
+                <div style="margin-top: 10px; background: #FEF9C3; border: 1px solid #FDE047; padding: 7px 10px; border-radius: 5px; font-size: 11.5px; color: #713F12; line-height: 1.45;">
+                    💡 <b>1분 핵심 용어:</b> <b>디토(Ditto) 소비</b>는 인플루언서·전문가 취향 추종 소비, <b>스몰 럭셔리</b>는 불황기 소소한 고품질 소비재를 통한 심리적 만족 극대화 행동입니다.
                 </div>
-                <div style="margin-top: 12px; background: #FEF9C3; border: 1px solid #FDE047; padding: 8px 12px; border-radius: 6px; font-size: 12px; color: #713F12; line-height: 1.5;">
-                    💡 <b>1분 핵심 용어 사전:</b> <b>디토(Ditto) 소비</b>는 인플루언서나 전문가의 취향을 그대로 추종하는 소비 트렌드이며, <b>스몰 럭셔리(Small Luxury)</b>는 불황기 속에서 소소한 고품질 소비재(디저트, 향수)로 심리적 만족을 극대화하는 행동 경제학적 선택입니다.
+                <div style="margin-top: 10px; background: #FFF1F2; border: 1px solid #FECDD3; padding: 7px 10px; border-radius: 5px; font-size: 11px; color: #9F1239; text-align: center;">
+                    📎 <b>소비 심리 역학 및 비즈니스 수혜/리스크 상세 르포는 첨부된 [PDF 상세본 2면]에서 확인하실 수 있습니다.</b>
                 </div>
             </div>
             """

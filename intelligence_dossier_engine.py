@@ -12,6 +12,7 @@ import datetime
 import collections
 from urllib.parse import quote
 import feedparser
+from gemini_intelligence_client import GeminiIntelligenceClient
 
 try:
     import trafilatura
@@ -110,8 +111,9 @@ class SmartNewsSummarizer:
 
 
 class IntelligenceDossierEngine:
-    def __init__(self, history_mgr=None):
+    def __init__(self, history_mgr=None, gemini_client=None):
         self.history_mgr = history_mgr
+        self.gemini_client = gemini_client or GeminiIntelligenceClient()
         self.call_count = 0
         self.used_action_indices = []
         self.used_frame_indices = set()
@@ -540,23 +542,44 @@ class IntelligenceDossierEngine:
         if not target.get("기사제목") and general_news:
             target = general_news[0]
 
-        raw_title = target.get("기사제목", "글로벌 공급망 및 산업 재편 이슈")
-        raw_summary = target.get("요약내용", "주요 산업과 정책 환경의 중대한 변화가 감지되었습니다.")
+        raw_title = target.get("기사제목", "주요 국가 정책 및 산업 변곡점 이슈")
+        raw_summary = target.get("요약내용", "주요 정책 및 산업 환경의 중대한 변화가 감지되었습니다.")
         link = target.get("링크") or target.get("link", "#")
         source = target.get("언론사", "주요언론")
         media_count = target.get("media_count", 5)
 
-        # 문맥 전체(주어 + 핵심사건) 정밀 파악
+        # 1. Gemini AI 실시간 심층 취재 기사 편찬 (활성화 시 최우선 실행)
+        if self.gemini_client and self.gemini_client.is_available():
+            gemini_res = self.gemini_client.expand_mega_issue(
+                raw_title=raw_title,
+                raw_summary=raw_summary,
+                media_count=media_count,
+                related_articles=general_news[:8] if general_news else None
+            )
+            if gemini_res and gemini_res.get("chapter1"):
+                return {
+                    "headline": gemini_res.get("headline", raw_title),
+                    "subhead": gemini_res.get("subhead", ""),
+                    "lead": gemini_res.get("lead", raw_summary),
+                    "chapter1": gemini_res.get("chapter1", ""),
+                    "chapter2": gemini_res.get("chapter2", ""),
+                    "chapter3": gemini_res.get("chapter3", ""),
+                    "chapter4": gemini_res.get("chapter4", ""),
+                    "entity": raw_title[:15],
+                    "raw_title": raw_title,
+                    "link": link,
+                    "source": source
+                }
+
+        # 2. 오프라인 폴백 모드 (가짜 템플릿 배제 & 순수 팩트 기반 구성)
         ctx_info = self.extract_contextual_query(raw_title, raw_summary)
         entity = ctx_info["subject"]
         context_phrase = ctx_info["context_phrase"]
 
-        # 2차 다각도 심층 조사 수행 (단어 1개가 아닌 문맥 쿼리 기반)
         bg_items = self.search_multi_angle_context(ctx_info["search_query"], angle="배경", limit=4)
         stake_items = self.search_multi_angle_context(ctx_info["search_query"], angle="쟁점", limit=4)
         data_items = self.search_multi_angle_context(ctx_info["search_query"], angle="데이터", limit=4)
 
-        # 문장 추출
         bg_sents = []
         for it in bg_items:
             bg_sents.extend(self._split_into_clean_sentences(it["summary"]))
@@ -567,45 +590,26 @@ class IntelligenceDossierEngine:
         for it in data_items:
             data_sents.extend(self._split_into_clean_sentences(it["summary"]))
 
-        bg_text = " ".join(bg_sents[:3]) if bg_sents else f"'{context_phrase}' 사안은 과거 수년간 글로벌 통상 질서 및 국내 규제 정책이 누적되어 온 결과물로, 단순한 우발적 사건이 아닌 구조적 변곡점에서 비롯되었습니다."
-        stake_text = " ".join(stake_sents[:3]) if stake_sents else f"정부 및 규제 당국은 시장 투명성과 공공 정책 주도권을 강화하려는 반면, 민간 산업계는 비용 상승 압박과 글로벌 경쟁력 약화를 우려하며 치열한 수싸움을 전개하고 있습니다."
-        data_text = " ".join(data_sents[:3]) if data_sents else f"업계 추산에 따르면 관련 시장 규모와 파급 효과는 수조 원대에 달하며, 향후 분기별 기업 실적과 직결되는 결정적 변수로 작용할 전망입니다."
+        bg_text = " ".join(bg_sents[:3]) if bg_sents else f"'{raw_title}' 사안은 전후 정책 및 사회적 배경이 복합적으로 얽혀 있으며, 각계의 입장이 첨예하게 대립하고 있습니다."
+        stake_text = " ".join(stake_sents[:3]) if stake_sents else f"당국과 주요 이해관계자 간의 실질적 이해득실과 파급 효과를 둘러싸고 후속 공방이 격화되고 있습니다."
+        data_text = " ".join(data_sents[:3]) if data_sents else f"공개된 사실관계와 객관적 수치 데이터에 따르면 향후 결정될 사안의 규모와 파급력에 시장의 이목이 집중되고 있습니다."
 
-        headline = f"🌐 [1면 탑 심층 기획] '{context_phrase}'의 숨겨진 비하인드와 글로벌 밸류체인 대변혁"
-        subhead = f"단순 뉴스 헤드라인을 넘어선 전후 맥락: '{context_phrase}' 사안이 촉발된 진짜 배경과 이해관계자별 손익 전격 해부"
+        headline = f"🌐 [1면 톱 기획] '{raw_title}' 전격 해부"
+        subhead = f"주요 언론 집중 보도: '{raw_title}' 사안의 배경과 이해관계자별 쟁점 종합"
 
         lead_p = (
             f"오늘 대한민국 주요 {media_count}개 언론사가 일제히 1면 톱기사로 타전한 핵심 이슈는 바로 <b>[{raw_title}]</b>입니다. "
             f"{raw_summary} "
-            f"하지만 겉으로 드러난 단신 보도만으로는 이 사건이 왜 지금 이 시점에 폭발했는지, 그리고 향후 우리 비즈니스와 투자 포트폴리오에 어떤 파장을 미칠지 가늠하기 어렵습니다. "
-            f"이에 본지 리서치팀은 1차 기사의 범위를 넘어 과거 타임라인, 업계 미공개 통계, 그리고 정책 당국과 기업 간의 물밑 이해관계를 입체적으로 추적·분석했습니다."
+            f"겉으로 드러난 단신 보도를 넘어 사건의 발단, 당사자들의 실질적 이해관계, 그리고 향후 예정된 마일스톤을 심층 추적했습니다."
         )
 
-        chapter1 = (
-            f"<b>■ 발단과 전개 과정 (타임라인 & 팩트 체크):</b><br>"
-            f"이 사안의 발단은 오늘 갑작스럽게 불거진 것이 아닙니다. 과거부터 축적되어 온 누적된 원인이 마침내 임계점을 넘어선 것입니다. "
-            f"{bg_text} "
-            f"특히 최근 글로벌 매크로 환경 변화와 통상 규제의 강화가 맞물리면서, 잠재되어 있던 구조적 모순이 수면 위로 급격히 분출되었습니다."
-        )
-
-        chapter2 = (
-            f"<b>■ 2차 심층 조사 데이터 & 숨겨진 팩트:</b><br>"
-            f"일반 보도에서 다루지 않은 2차 조사 데이터를 확인한 결과, 시장의 예상보다 훨씬 막대한 자금과 공급망 재편이 걸려 있는 것으로 확인되었습니다. "
-            f"{data_text} "
-            f"이는 단순한 개별 기업의 이슈를 넘어, 업계 전반의 영업이익률과 원가 구조를 뒤흔들 수 있는 중대한 수치적 변화를 동반하고 있습니다."
-        )
-
-        chapter3 = (
-            f"<b>■ 이해관계자 손익 계산 & 산업 지형도 변화:</b><br>"
-            f"언론의 명분 이면에는 각 주체들의 대단히 치열한 실질적 득실 계산이 자리 잡고 있습니다. "
-            f"{stake_text} "
-            f"결국 이번 사안을 통해 누가 주도권을 잡고 누가 추가 비용을 떠안느냐에 따라, 관련 밸류체인 내 1위 기업과 후발 주자 간의 격차가 극명하게 벌어질 것으로 분석됩니다."
-        )
-
+        chapter1 = f"<b>■ 발단과 전개 과정 (타임라인 & 팩트 체크):</b><br>{bg_text}"
+        chapter2 = f"<b>■ 객관적 팩트 데이터 & 공개된 수치:</b><br>{data_text}"
+        chapter3 = f"<b>■ 이해관계자 손익 계산 & 핵심 쟁점:</b><br>{stake_text}"
         chapter4 = (
-            f"<b>■ 오늘의 핵심 전략 제언 및 시사점:</b><br>"
-            f"향후 발표될 정부의 세부 후속 가이드라인과 글로벌 파트너사들의 공식 반응이 1차 변곡점이 될 것입니다. "
-            f"단기적인 노이즈성 주가 등락에 일희일비하기보다는, 해당 이슈로 인해 장기적인 반사이익을 얻을 수혜 기업군(원자재 다변화 및 규제 대응 완료 기업)을 선별하고 포트폴리오의 안전마진을 확보하는 전략적 접근이 요구됩니다."
+            f"<b>■ 향후 공식 일정 및 실전 관전 포인트:</b><br>"
+            f"향후 발표될 소관 당국의 공식 입장과 주요 당사자들의 후속 대응이 1차 변곡점이 될 것입니다. "
+            f"정해진 일정과 공식 발표를 지속적으로 모니터링하며 실질적인 영향을 점검할 필요가 있습니다."
         )
 
         return {
@@ -626,66 +630,49 @@ class IntelligenceDossierEngine:
     # 🔥 2. [2면 기획 르포] 트렌드 & 2030 라이프스타일 소비 심리 해부
     # =========================================================================
     def expand_trend_story(self, trend_item: dict) -> dict:
-        """트렌드 단신을 넘어 소비 심리, 바이럴 구조, 유통가 PB 전쟁까지 파헤친 르포 기사 편찬"""
-        raw_title = trend_item.get("title", "MZ세대 품절 대란과 신소비 트렌드")
-        raw_summary = trend_item.get("summary", "SNS 화제와 함께 오프라인 매장 오픈런이 이어지고 있습니다.")
+        """트렌드 단신을 넘어 소비 심리, 바이럴 구조, 산업적 수혜까지 파헤친 르포 기사 편찬"""
+        raw_title = trend_item.get("title", "2030 신소비 트렌드 및 바이럴 현상")
+        raw_summary = trend_item.get("summary", "SNS 화제와 함께 대중적 주목을 받고 있습니다.")
         link = trend_item.get("link", "#")
         source = trend_item.get("source", "트렌드포커스")
 
-        # 문맥 전체(주어 + 팝업/소비/트렌드) 정밀 파악
+        # 1. Gemini AI 심층 르포 생성 (활성화 시 최우선)
+        if self.gemini_client and self.gemini_client.is_available():
+            gemini_res = self.gemini_client.expand_trend_story(
+                raw_title=raw_title,
+                raw_summary=raw_summary
+            )
+            if gemini_res and gemini_res.get("chapter1"):
+                return {
+                    "headline": gemini_res.get("headline", raw_title),
+                    "subhead": gemini_res.get("subhead", ""),
+                    "lead": gemini_res.get("lead", raw_summary),
+                    "chapter1": gemini_res.get("chapter1", ""),
+                    "chapter2": gemini_res.get("chapter2", ""),
+                    "chapter3": gemini_res.get("chapter3", ""),
+                    "chapter4": gemini_res.get("chapter4", ""),
+                    "entity": raw_title[:15],
+                    "link": link,
+                    "source": source
+                }
+
+        # 2. 오프라인 폴백 모드 (억지 편의점 템플릿 제거)
         ctx_info = self.extract_contextual_query(raw_title, raw_summary)
         entity = ctx_info["subject"]
-        context_phrase = ctx_info["context_phrase"]
 
-        # 2차 검색 (문맥 복합 쿼리 결합)
-        origin_items = self.search_multi_angle_context(ctx_info["search_query"], angle="배경", limit=4, context_hint="팝업 OR 성수 OR 소비 OR 트렌드 OR MZ", exclude_terms=["오페라", "창작오페라", "정읍사", "판소리", "국악", "전북도립국악원"])
-        retail_items = self.search_multi_angle_context(ctx_info["search_query"], angle="기업", limit=4, context_hint="매출 OR 유통 OR 오픈런 OR 팝업스토어", exclude_terms=["오페라", "창작오페라", "정읍사"])
-
-        origin_sents = []
-        for it in origin_items:
-            origin_sents.extend(self._split_into_clean_sentences(it["summary"]))
-        retail_sents = []
-        for it in retail_items:
-            retail_sents.extend(self._split_into_clean_sentences(it["summary"]))
-
-        origin_text = " ".join(origin_sents[:3]) if origin_sents else f"초기에는 틱톡, 인스타그램 릴스 등 숏폼 플랫폼에서 소수 인플루언서의 솔직한 언박싱 영상으로 시작되었으나, '한정 수량'이라는 희소성이 부각되면서 급속도로 전국적 바이럴을 탔습니다."
-        retail_text = " ".join(retail_sents[:3]) if retail_sents else f"편의점 3사(GS25, CU, 세븐일레븐)와 대형 유통 백화점들은 핵심 점포 팝업스토어 유치와 자체 PB 미투(Me-too) 상품 기획에 전사적 역량을 집중하며 2030 집객 전쟁을 벌이고 있습니다."
-
-        headline = f"🛍️ [트렌드 & 소비 심리 기획 르포] '{entity}' 신드롬의 진원지와 2030 '디토 소비' 메커니즘"
-        subhead = f"숏폼 알고리즘과 희소성 마케팅이 결합된 현대 소비 문법... 유통 대기업들의 물밑 PB 쟁탈전 전격 진단"
+        headline = f"🛍️ [트렌드 심층 르포] '{raw_title}' 신드롬과 소비 심리 메커니즘"
+        subhead = f"디지털 바이럴과 소비 심리가 결합된 신소비 현상 전격 진단"
 
         lead_p = (
-            f"최근 온·오프라인을 가리지 않고 연일 오픈런과 품절 사태를 빚고 있는 화제의 중심에는 바로 <b>[{raw_title}]</b> 현상이 있습니다. "
-            f"매장 문이 열리자마자 전량 매진되고 중고 거래 플랫폼에서 정가의 2~3배가 넘는 웃돈(프리미엄)이 붙는 기현상이 반복되고 있습니다. "
-            f"단순한 1회성 유행으로 치부하기에는 2030 세대의 소비 심리와 유통 대기업들의 마케팅 전략이 정교하게 맞물려 있습니다."
+            f"최근 온·오프라인을 가리지 않고 연일 화제를 모으고 있는 중심에는 바로 <b>[{raw_title}]</b> 현상이 있습니다. "
+            f"{raw_summary} "
+            f"단순한 1회성 유행으로 치부하기에는 대중의 소비 심리와 관련 산업 생태계의 마케팅 전략이 정교하게 맞물려 있습니다."
         )
 
-        chapter1 = (
-            f"<b>■ 유행의 시초와 바이럴 트리거 (어디서 어떻게 시작되었나?):</b><br>"
-            f"이 유행의 발원지를 추적해 보면 아주 명확한 디지털 확산 경로가 드러납니다. "
-            f"{origin_text} "
-            f"특히 알고리즘 기반의 숏폼 콘텐츠가 확산의 촉매제가 되었으며, 일반인들의 '내돈내산' 인증 챌린지가 이어지면서 공급이 수요를 따라가지 못하는 품귀 대란으로 진화했습니다."
-        )
-
-        chapter2 = (
-            f"<b>■ 소비 심리 & 행동 경제학 분석 (왜 웃돈까지 주며 열광하는가?):</b><br>"
-            f"전문가들은 이 현상의 이면에 <b>'디토(Ditto) 소비'</b>와 <b>'FOMO(소외 불안)'</b> 심리가 자리 잡고 있다고 진단합니다. "
-            f"자신이 신뢰하는 인플루언서의 취향을 그대로 추종하는 디토 소비가 확산되면서, '나만 경험해보지 못했다'는 불안감이 구매 욕구를 자극합니다. "
-            f"여기에 고물가 시대 속에서 소소하지만 확실한 만족을 얻으려는 '스몰 럭셔리(Small Luxury)' 소비 행태가 결합된 것입니다."
-        )
-
-        chapter3 = (
-            f"<b>■ 유통 대기업 & 편의점 3사의 물밑 전쟁 (누가 돈을 버는가?):</b><br>"
-            f"소비자들의 열광 뒤에는 발 빠르게 움직이는 유통 대기업들의 치밀한 비즈니스 셈법이 작동하고 있습니다. "
-            f"{retail_text} "
-            f"유통사 입장에서 이러한 메가 히트 아이템은 단순 상품 판매 마진뿐만 아니라, 오프라인 점포로 젊은 고객층을 끌어들이는 강력한 '미끼 상품(Loss Leader)' 역할을 톡톡히 해내고 있습니다."
-        )
-
-        chapter4 = (
-            f"<b>■ 반짝 유행인가, 메가 트렌드인가? (지속 가능성 진단):</b><br>"
-            f"과거 '허니버터칩', '포켓몬빵', '먹태깡' 등의 수명 주기를 되짚어보면, 공급이 폭발적으로 늘어나는 시점에 열풍이 급격히 식는 패턴을 보였습니다. "
-            f"따라서 관련 제조사와 유통사는 무리한 설비 증설보다는 한정판 굿즈 및 콜라보레이션 형태의 유연한 기동성을 유지해야 하며, 투자자 관점에서는 단기 테마성 과열을 경계하고 실질적인 영업이익 기여도를 냉정하게 점검해야 합니다."
-        )
+        chapter1 = f"<b>■ 유행의 시초와 바이럴 트리거:</b><br>{raw_summary} 디지털 플랫폼과 커뮤니티를 통한 자발적 확산이 대중적 관심의 촉매제가 되었습니다."
+        chapter2 = f"<b>■ 대중 심리 & 행동 경제학 분석:</b><br>자신이 신뢰하는 취향을 추종하고 트렌드 경험을 공유하려는 심리가 수요를 견인하고 있습니다."
+        chapter3 = f"<b>■ 산업 생태계 영향 & 기업 비즈니스:</b><br>관련 기업과 플랫폼은 집객 효과와 신규 수익 창출을 위해 기동력 있는 마케팅을 전개하고 있습니다."
+        chapter4 = f"<b>■ 트렌드 수명 주기 & 지속 가능성 진단:</b><br>단기 테마성 과열을 경계하고 본원적 경쟁력과 실질적 효용을 냉정하게 점검해야 합니다."
 
         return {
             "headline": headline,
@@ -713,6 +700,26 @@ class IntelligenceDossierEngine:
         opinion = rep.get("opinion", "BUY")
         ft = rep.get("financial_table", {})
         summary_raw = rep.get("summary_text", "")
+
+        # 1. Gemini AI 분석 활성화 시 최우선 실행
+        if self.gemini_client and self.gemini_client.is_available():
+            gemini_res = self.gemini_client.expand_analyst_report(rep)
+            if gemini_res and gemini_res.get("chapter1"):
+                return {
+                    "headline": gemini_res.get("headline", f"📘 [기업 정밀 해부] {broker} 주목한 '{item_name}'"),
+                    "subhead": gemini_res.get("subhead", f"공식 투자의견: {opinion} • 2026/2027 실적 및 목표주가 행간 해부"),
+                    "lead": gemini_res.get("lead", ""),
+                    "sec_business": gemini_res.get("chapter1", ""),
+                    "sec_thesis": gemini_res.get("chapter2", ""),
+                    "sec_financial": gemini_res.get("chapter3", ""),
+                    "sec_strategy": f"<b>실전 투자자 가이드:</b> 목표가 {tp_str} 및 분기 실적 추이를 확인하며 분할 접근 권고.",
+                    "financial_table": ft,
+                    "item_name": item_name,
+                    "broker": broker,
+                    "target_price": target_price,
+                    "opinion": opinion,
+                    "link": rep.get("pdf_url") or rep.get("link", "#")
+                }
 
         broker_josa = self.attach_josa(broker, "이/가")
         if target_price:

@@ -178,7 +178,7 @@ class NewsCollector:
             return True
         return False
 
-    def collect_all_categories(self, limit_per_feed=15, top_n_per_category=8) -> dict:
+    def collect_all_categories(self, limit_per_feed=20, top_n_per_category=15) -> dict:
         """
         7대 분야별 뉴스 수집 (Global Entity Cap 및 뉴스 임팩트 스코어링 적용)
         """

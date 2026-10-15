@@ -51,10 +51,10 @@ def main():
     base_dir = os.path.dirname(os.path.abspath(__file__))
     txt_config = os.path.join(base_dir, "email_config.txt")
     env_config = os.path.join(base_dir, ".env")
+    if os.path.exists(env_config):
+        load_env(env_config)
     if os.path.exists(txt_config):
         load_env(txt_config)
-    elif os.path.exists(env_config):
-        load_env(env_config)
 
     today = datetime.date.today()
     today_str = today.strftime("%Y-%m-%d")
@@ -149,12 +149,16 @@ def main():
     for disc in special_disclosures[:2]:
         disc["dossier"] = dossier_engine.expand_special_disclosure(disc)
 
-    # 7대 분야별 주요 뉴스 2차 확장 인사이트 분석 및 본문 요약 완성
+    # 7대 분야별 주요 뉴스 2차 확장 인사이트 분석 및 본문 요약 완성 (Gemini 15 RPM 한도 준수 배치 처리)
     for cat_name, items in category_top_picks.items():
-        for item in items:
-            expanded_news = dossier_engine.expand_category_news(cat_name, item)
-            item["content_summary"] = expanded_news["content_summary"]
-            item["expanded_insight"] = expanded_news["expanded_insight"]
+        if dossier_engine.gemini_client and dossier_engine.gemini_client.is_available():
+            print(f"   [Gemini AI] 🤖 {cat_name} ({len(items)}건) 전수 배치 심층 분석 중...")
+            dossier_engine.gemini_client.batch_synthesize_category_news(cat_name, items)
+        else:
+            for item in items:
+                expanded_news = dossier_engine.expand_category_news(cat_name, item)
+                item["content_summary"] = expanded_news["content_summary"]
+                item["expanded_insight"] = expanded_news["expanded_insight"]
 
     newspaper_dossier = {
         "mega_dossier": mega_dossier,
