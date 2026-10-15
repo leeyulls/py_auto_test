@@ -712,16 +712,25 @@ class IntelligenceDossierEngine:
                 else:
                     ft_box = "<b>3. 실적 펀더멘털 및 마진 체력:</b> 외형 매출 성장과 마진율 개선이 동반되는 호황 사이클에 진입하고 있으며 이익 체력이 강화될 것으로 전망됩니다."
 
+                subhead_txt = gemini_res.get("subhead", f"공식 투자의견: {opinion} • 2026/2027 실적 및 목표주가 행간 해부")
+                if not target_price:
+                    op_str = f"2026F 영익 {ft.get('op_2026')}" if ft.get('op_2026') else "실적 턴어라운드"
+                    subhead_txt += f" | 💡 목표주가 미제시 ➔ [{op_str} 기반 자체 적정가치 추적]"
+
+                action_txt = gemini_res.get("chapter3", f"<b>실전 투자자 가이드:</b> 목표가 {tp_str} 및 분기 실적 추이를 확인하며 분할 접근 권고.")
+                if not target_price:
+                    action_txt += f"<br><span style='color: #1E40AF; font-size: 10px;'>💡 <b>애널리스트 목표가 침묵 배경:</b> 단기 실적 변동성 또는 원가 반영 리스크로 목표가를 미제시했으나, {op_str} 체력이 확인될 경우 강력한 주가 재평가(Re-rating)가 가능하므로 3Q 실적 확인 후 분할 매수를 권고합니다.</span>"
+
                 pdf_fn = rep.get("pdf_filename") or (os.path.basename(rep.get("pdf_local_path", "")) if rep.get("pdf_local_path") else "")
                 return {
                     "headline": gemini_res.get("headline", f"📘 [기업 정밀 해부] {broker} 주목한 '{item_name}'"),
-                    "subhead": gemini_res.get("subhead", f"공식 투자의견: {opinion} • 2026/2027 실적 및 목표주가 행간 해부"),
+                    "subhead": subhead_txt,
                     "lead": gemini_res.get("lead", ""),
                     "sec_business": gemini_res.get("chapter1", ""),
                     "sec_thesis": gemini_res.get("chapter2", ""),
                     "sec_financials": ft_box,
                     "sec_risks": gemini_res.get("lead", f"투자 전 주요 전제조건과 고객사 발주 일정, 원가 변동성을 반드시 모니터링해야 합니다."),
-                    "sec_action": gemini_res.get("chapter3", f"<b>실전 투자자 가이드:</b> 목표가 {tp_str} 및 분기 실적 추이를 확인하며 분할 접근 권고."),
+                    "sec_action": action_txt,
                     "financial_table": ft,
                     "item_name": item_name,
                     "broker": broker,

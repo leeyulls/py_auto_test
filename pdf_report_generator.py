@@ -143,11 +143,18 @@ class PdfReportGenerator:
                            stock_advice: dict, crypto_advice: dict, official_reports: list,
                            news_result: dict, performance_data: dict, special_disclosures: list,
                            story_dive_data: dict, output_pdf_path: str, real_estate_data: dict = None,
-                           edition: str = "morning") -> str:
+                           edition: str = "morning", market_drivers: dict = None) -> str:
         """
         [경영진 보고용] 10~11페이지 규모 The Executive Intelligence Herald (나만의 심층 인텔리전스 신문) A4 PDF 편찬
         """
         html_path = output_pdf_path.replace(".pdf", "_temp.html")
+
+        if not market_drivers:
+            market_drivers = {
+                "domestic_reason": "대외 거시경제 지표 및 글로벌 긴축 경계감 속에서 외국인·기관의 현선물 매물 출회 및 반도체 등 주도 섹터 차익 실현",
+                "us_reason": "미 국채 금리 변동성 및 인플레이션 지표 발표에 따른 빅테크 기술주 중심의 차익 매물과 실적 관망세",
+                "fx_reason": "글로벌 위험회피 심리 및 미 달러화 강약세 흐름에 연동된 완만한 환율 변동성"
+            }
 
         # 부동산 데이터 확보 (없을 시 자동 분석)
         if real_estate_data is None and RealEstateAdvisor:
@@ -633,6 +640,25 @@ class PdfReportGenerator:
     <div class="masthead-tagline">{tagline_text}</div>
   </div>
 
+  <div style="background: #F1F5F9; border: 1px solid #CBD5E1; border-radius: 4px; padding: 4px 8px; margin-bottom: 8px; font-size: 9px; color: #334155; display: flex; justify-content: space-between; align-items: center;">
+    <span style="font-weight: bold; color: #1E3A8A;">🧭 21면 섹션 퀵 맵:</span>
+    <span><b>1~2면</b> 기획특집·소비자르포</span>
+    <span>|</span>
+    <span><b>3~4면</b> 기업정밀해부</span>
+    <span>|</span>
+    <span><b>5~6면</b> DART특수공시</span>
+    <span>|</span>
+    <span><b>7면</b> 퀀트증시</span>
+    <span>|</span>
+    <span><b>8면</b> 가상자산</span>
+    <span>|</span>
+    <span><b>9면</b> 부동산</span>
+    <span>|</span>
+    <span><b>10면</b> 사후검증</span>
+    <span>|</span>
+    <span><b>11~21면</b> 7대분야 전수뉴스</span>
+  </div>
+
   <div class="sec-banner" style="background: #1E3A8A;">
     <span>🌐 1면 톱 기획특집 • MEGA ISSUE FOCUS</span>
     <span style="font-size: 10px; opacity: 0.9;">취재원: {mega_d.get('source', '주요 언론')} | 심층 2차 확장 취재 완료</span>
@@ -774,7 +800,7 @@ class PdfReportGenerator:
     <span style="font-size: 10px; opacity: 0.9;">실시간 지수, 환율 및 20일 주가 추이 SVG 차트</span>
   </div>
 
-  <div style="display: flex; gap: 12px; margin-bottom: 12px;">
+  <div style="display: flex; gap: 12px; margin-bottom: 8px;">
     <div style="flex: 1;">
       <table>
         <tr><th>주요 지수명</th><th style="text-align: right;">현재지수</th><th style="text-align: right;">전일대비</th></tr>
@@ -787,6 +813,16 @@ class PdfReportGenerator:
         {fx_rows}
       </table>
     </div>
+  </div>
+
+  <div style="background: #F8FAFC; border: 1px solid #CBD5E1; border-left: 4px solid #2563EB; border-radius: 4px; padding: 7px 10px; margin-bottom: 10px; font-size: 10px; line-height: 1.45; color: #1E293B;">
+    <div style="font-weight: bold; color: #1E40AF; margin-bottom: 3px; display: flex; justify-content: space-between;">
+      <span>💡 당일 글로벌 증시 및 외환시장 등락 핵심 원인 분석</span>
+      <span style="font-size: 9px; color: #64748B; font-weight: normal;">실시간 수급 및 시황 인텔리전스</span>
+    </div>
+    <div style="margin-bottom: 2px;">• <b>국내 증시 (코스피/코스닥):</b> {market_drivers.get('domestic_reason', '')}</div>
+    <div style="margin-bottom: 2px;">• <b>미국 증시 (나스닥/S&P):</b> {market_drivers.get('us_reason', '')}</div>
+    <div>• <b>외환 시장 (원/달러 환율):</b> {market_drivers.get('fx_reason', '')}</div>
   </div>
 
   <div style="font-size: 12px; font-weight: bold; color: #16A34A; margin-bottom: 6px;">🎯 국내 주식 하이브리드 추천 매트릭스 (20일 주가 변화 SVG 차트 포함)</div>

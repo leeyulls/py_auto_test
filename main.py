@@ -275,6 +275,15 @@ def main():
 
     # 12. 출판용 초고해상도 A4 데일리 심층 종합분석 보고서 (PDF 전수 수록 구성) 편찬
     print(f"\n📄 전수 수록 초고해상도 A4 데일리 심층 분석 PDF 보고서 편찬 중...")
+    market_drivers = {}
+    if dossier_engine.gemini_client and dossier_engine.gemini_client.is_available():
+        print("   [Gemini AI] 📈 당일 글로벌 증시 및 환율 등락 핵심 원인 분석 중...")
+        market_drivers = dossier_engine.gemini_client.generate_market_drivers(
+            indices=stock_indices,
+            exchange_rates=exchange_rates,
+            market_news=market_news
+        )
+
     pdf_gen = PdfReportGenerator()
     month_dir = os.path.dirname(daily_excel_path)
     ed_tag = "이브닝" if is_evening else "모닝"
@@ -293,6 +302,7 @@ def main():
         real_estate_data=real_estate_data,
         output_pdf_path=daily_pdf_path,
         edition=edition_type,
+        market_drivers=market_drivers,
     )
 
     # 구글 드라이브 월별(YYYY-MM) 폴더 및 공식 리서치 PDF 동기화

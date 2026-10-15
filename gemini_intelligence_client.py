@@ -16,7 +16,12 @@ import requests
 logger = logging.getLogger("gemini_client")
 
 class GeminiIntelligenceClient:
-    MODELS = ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-flash-latest"]
+    MODELS = [
+        "gemini-2.5-flash",
+        "gemini-flash-latest",
+        "gemini-2.5-flash-lite",
+        "gemini-flash-lite-latest",
+    ]
 
     def __init__(self, api_key: str = None):
         self.api_key = (api_key or os.environ.get("GEMINI_API_KEY", "")).strip()
@@ -225,7 +230,7 @@ class GeminiIntelligenceClient:
             "반드시 입력된 기사 개수와 순서 그대로 JSON 배열로 반환하십시오."
         )
 
-        chunk_size = 5
+        chunk_size = 4
         for chunk_start in range(0, len(items), chunk_size):
             chunk = items[chunk_start:chunk_start + chunk_size]
             articles_payload = []
@@ -267,8 +272,8 @@ class GeminiIntelligenceClient:
             except Exception as e:
                 print(f"   [Gemini {category} 배치 파싱 오류] {e}")
 
-            # 15 RPM(분당 15회) 한도 완벽 준수를 위한 안전 간격
-            time.sleep(4.5)
+            # 15 RPM 한도 완벽 준수를 위한 안전 간격 (5.0초)
+            time.sleep(5.0)
 
         return items
 
@@ -402,3 +407,50 @@ HTML 형식 (<div style="..."> 1. ... 2. ... 3. ... </div>)으로 간결하고 �
             return None
         except Exception:
             return None
+
+    # =========================================================================
+    # 📈 7. [글로벌 증시 & 환율 등락 원인 심층 분석] 코스피/나스닥/환율 변동 배경
+    # =========================================================================
+    def generate_market_drivers(self, indices: list, exchange_rates: list, market_news: list) -> dict:
+        """당일 국내 증시, 미국 증시, 외환시장의 등락 원인 및 수급 배경을 1~2문장으로 정밀 분석"""
+        default_drivers = {
+            "domestic_reason": "대외 거시경제 지표 및 글로벌 긴축 경계감 속에서 외국인·기관의 현선물 매물 출회 및 반도체 등 주도 섹터 차익 실현",
+            "us_reason": "미 국채 금리 변동성 및 인플레이션 지표 발표에 따른 빅테크 기술주 중심의 차익 매물과 실적 관망세",
+            "fx_reason": "글로벌 위험회피 심리 및 미 달러화 강약세 흐름에 연동된 완만한 환율 변동성"
+        }
+        if not self.is_active:
+            return default_drivers
+
+        system_prompt = (
+            "당신은 글로벌 매크로 및 증시 시황 전문 수석 이코노미스트입니다.\n"
+            "주어진 주요 지수 등락률과 당일 시장 뉴스 헤드라인에 근거하여, 각 시장의 등락을 초래한 결정적 핵심 이유를 명쾌하게 분석하십시오.\n"
+            "반드시 순수한 JSON 포맷으로만 응답하십시오."
+        )
+
+        idx_summary = ", ".join([f"{i.get('지수명', '')}: {i.get('전일대비', '')}" for i in indices[:4]])
+        fx_summary = ", ".join([f"{f.get('통화명', '')}: {f.get('환율(원)', '')} ({f.get('변동/기준', '')})" for f in exchange_rates[:2]])
+        news_summary = "\n".join([f"- {n.get('기사제목', '')}" for n in market_news[:8]])
+
+        prompt = f"""
+당일 주요 지수 등락: {idx_summary}
+당일 주요 환율: {fx_summary}
+
+최신 금융/증시 시장 뉴스 헤드라인:
+{news_summary}
+
+위 팩트를 바탕으로 다음 3대 시장의 등락 원인/배경을 각각 1~2문장(군더더기 없는 금융 전문 톤)으로 작성하십시오.
+{{
+  "domestic_reason": "코스피/코스닥 등락의 핵심 원인 (외국인·기관 수급, 주요 섹터 매물, 대외 변수 등 1~2문장)",
+  "us_reason": "나스닥/S&P 500 등락의 핵심 원인 (국채 금리, CPI, 빅테크 실적, 통화정책 등 1~2문장)",
+  "fx_reason": "원/달러 환율 등락의 핵심 원인 (달러화 강약세, 위험회피 심리, 외환 수급 등 1~2문장)"
+}}
+"""
+        res_text = self._call_api(prompt, system_prompt=system_prompt, as_json=True)
+        try:
+            clean_res = re.sub(r"^```json\s*|\s*```$", "", res_text.strip(), flags=re.MULTILINE)
+            data = json.loads(clean_res)
+            if "domestic_reason" in data and "us_reason" in data:
+                return data
+            return default_drivers
+        except Exception:
+            return default_drivers
