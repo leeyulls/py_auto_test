@@ -60,7 +60,7 @@ def main():
     today_str = today.strftime("%Y-%m-%d")
     now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     is_sunday = (today.weekday() == 6) or ("--weekly" in sys.argv)
-    send_mail_enabled = "--send-mail" in sys.argv
+    send_mail_enabled = "--no-mail" not in sys.argv
     month_str = today_str[:7]  # '2026-10'
 
     print("=" * 70)
@@ -322,7 +322,7 @@ def main():
                 attachments=weekly_attachments
             )
         else:
-            print("\n🔕 [이메일 발송 건너뜀] '--send-mail' 옵션이 없어 주간 테스트 메일을 발송하지 않습니다.")
+            print("\n🔕 [이메일 발송 건너뜀] '--no-mail' 옵션이 지정되어 주간 테스트 메일을 발송하지 않습니다.")
     else:
         daily_attachments = [daily_excel_path]
         if os.path.exists(daily_pdf_path):
@@ -346,7 +346,7 @@ def main():
                 real_estate_data=real_estate_data,
             )
         else:
-            print("\n🔕 [이메일 발송 건너뜀] '--send-mail' 옵션이 없어 데일리 테스트 메일을 발송하지 않고 로컬 보고서만 편찬합니다.")
+            print("\n🔕 [이메일 발송 건너뜀] '--no-mail' 옵션이 지정되어 데일리 테스트 메일을 발송하지 않고 로컬 보고서만 편찬합니다.")
 
     # 최종 요약 콘솔 출력
     print("\n" + "=" * 70)
