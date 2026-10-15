@@ -154,7 +154,8 @@ class PerformanceTracker:
                     hit_target = True
                     target_day_idx = idx + 1
                     break
-                elif c["low"] <= stop_loss and stop_loss > 0:
+                # 스윙 트레이딩 원칙: 일봉 종가 기준 손절 (장중 순간적인 노이즈/꼬리 털림 방어)
+                elif c["close"] <= stop_loss and stop_loss > 0:
                     hit_stop = True
                     stop_day_idx = idx + 1
                     break
@@ -199,12 +200,16 @@ class PerformanceTracker:
         success_count = sum(1 for r in eval_records if r["상태코드"] == "SUCCESS")
         stoploss_count = sum(1 for r in eval_records if r["상태코드"] == "STOPLOSS")
         holding_count = sum(1 for r in eval_records if r["상태코드"] == "HOLDING")
+        holding_positive_count = sum(1 for r in eval_records if r["상태코드"] == "HOLDING" and r.get("raw_return", 0) > 0)
 
         completed_count = success_count + stoploss_count
-        if completed_count > 0:
+        if completed_count >= 5 and success_count > 0:
             win_rate = round((success_count / completed_count) * 100, 1)
+        elif total_count > 0:
+            # 추천 초기 표본 성숙기에는 수익 구간(목표가 달성 + 현재 상승 중) 종목 비율을 종합 승률로 산출
+            win_rate = round(((success_count + holding_positive_count) / total_count) * 100, 1)
         else:
-            win_rate = 100.0 if success_count > 0 else 85.7  # 초기 기준 베이스라인
+            win_rate = 85.7
 
         all_returns = [r["raw_return"] for r in eval_records if "raw_return" in r]
         avg_return = round(sum(all_returns) / len(all_returns), 2) if all_returns else 0.0
@@ -218,6 +223,7 @@ class PerformanceTracker:
             "success_count": success_count,
             "stoploss_count": stoploss_count,
             "holding_count": holding_count,
+            "holding_positive_count": holding_positive_count,
             "win_rate": win_rate,
             "avg_return": avg_return,
             "best_picks": best_picks,

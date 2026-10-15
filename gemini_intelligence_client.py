@@ -16,7 +16,7 @@ import requests
 logger = logging.getLogger("gemini_client")
 
 class GeminiIntelligenceClient:
-    MODELS = ["gemini-flash-latest", "gemini-flash-lite-latest"]
+    MODELS = ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-flash-latest"]
 
     def __init__(self, api_key: str = None):
         self.api_key = (api_key or os.environ.get("GEMINI_API_KEY", "")).strip()
@@ -25,8 +25,8 @@ class GeminiIntelligenceClient:
     def is_available(self) -> bool:
         return self.is_active
 
-    def _call_api(self, prompt: str, system_prompt: str = "", temperature: float = 0.2, as_json: bool = False, max_retries: int = 2) -> str:
-        """Gemini REST API 직접 호출 (다중 모델 폴백 및 자동 재시도)"""
+    def _call_api(self, prompt: str, system_prompt: str = "", temperature: float = 0.2, as_json: bool = False, max_retries: int = 3) -> str:
+        """Gemini REST API 직접 호출 (다중 모델 폴백 및 자동 지수 백오프)"""
         if not self.is_active:
             return ""
 
@@ -36,7 +36,7 @@ class GeminiIntelligenceClient:
             "contents": contents,
             "generationConfig": {
                 "temperature": temperature,
-                "maxOutputTokens": 2500,
+                "maxOutputTokens": 4000,
             }
         }
         if system_prompt:
@@ -50,7 +50,7 @@ class GeminiIntelligenceClient:
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={self.api_key}"
             for attempt in range(max_retries):
                 try:
-                    res = requests.post(url, headers=headers, json=body, timeout=30)
+                    res = requests.post(url, headers=headers, json=body, timeout=35)
                     if res.status_code == 200:
                         data = res.json()
                         candidates = data.get("candidates", [])
@@ -59,8 +59,9 @@ class GeminiIntelligenceClient:
                             if parts:
                                 return parts[0].get("text", "").strip()
                     elif res.status_code in (429, 503):
-                        print(f"   [Gemini API ({model_name})] {res.status_code} 일시적 부하 감지 (대기 후 재시도)...")
-                        time.sleep(3)
+                        backoff = (attempt + 1) * 5
+                        print(f"   [Gemini API ({model_name})] {res.status_code} 레이트리밋 감지 -> {backoff}초 대기 후 자동 재시도...")
+                        time.sleep(backoff)
                     else:
                         print(f"   [Gemini API ({model_name})] Status {res.status_code}: {res.text[:120]}")
                         break
@@ -108,7 +109,8 @@ class GeminiIntelligenceClient:
   "chapter1": "<b>■ 사건의 전말과 발단 (타임라인 & 팩트):</b> 왜 지금 이 문제가 터졌는지 발단과 경과를 구체적인 사실에 근거해 3~4문장으로 서술",
   "chapter2": "<b>■ 수면 아래의 물밑 이해관계 & 갈등 구도:</b> 정부, 기업, 정당, 시민사회 등 당사자 간의 실질적 손익 계산과 충돌 지점을 3~4문장으로 서술",
   "chapter3": "<b>■ 공개된 핵심 수치 & 객관적 데이터:</b> 기사에 언급된 예산, 피해액, 인원수, 시장 점유율 등 실질적인 팩트 수치를 3~4문장으로 서술",
-  "chapter4": "<b>■ 향후 공식 일정 & 실전 관전 포인트:</b> 향후 예정된 발표, 법안 심사, 청문회, 재판 등 독자가 주시해야 할 일정과 실전 시사점을 3~4문장으로 서술"
+  "chapter4": "<b>■ 향후 공식 일정 & 실전 관전 포인트:</b> 향후 예정된 발표, 법안 심사, 청문회, 재판 등 독자가 주시해야 할 일정과 실전 시사점을 3~4문장으로 서술",
+  "value_chain": "관련 핵심 수혜 산업 및 상장 종목 3개와 각각의 구체적 비즈니스 수혜 이유 (예: 한화에어로스페이스(엔진/발사체 제작 총괄), 한국항공우주(기체 구조물 제작), 쎄트렉아이(초고해상도 위성 탑재체 공급))"
 }}
 """
         res_text = self._call_api(prompt, system_prompt=system_prompt, as_json=True)
@@ -223,7 +225,7 @@ class GeminiIntelligenceClient:
             "반드시 입력된 기사 개수와 순서 그대로 JSON 배열로 반환하십시오."
         )
 
-        chunk_size = 10
+        chunk_size = 5
         for chunk_start in range(0, len(items), chunk_size):
             chunk = items[chunk_start:chunk_start + chunk_size]
             articles_payload = []
@@ -232,7 +234,7 @@ class GeminiIntelligenceClient:
                     "id": idx,
                     "title": it.get("기사제목", ""),
                     "source": it.get("언론사", ""),
-                    "summary": it.get("요약내용", "")[:400]
+                    "summary": it.get("요약내용", "")[:350]
                 })
 
             prompt = f"""
@@ -246,8 +248,7 @@ class GeminiIntelligenceClient:
     "content_summary": "기사에서 일어난 구체적 사건과 사실관계를 군더더기 없이 정확히 요약한 2~3문장",
     "context_impact": "이 사건이 왜 발생했으며 누구에게 어떤 이익이나 타격을 주는가? (구체적 이해관계자 파장 2문장)",
     "checkpoint_milestone": "독자가 기억해야 할 향후 공식 일정, 재판일, 발표일, 또는 모니터링할 핵심 수치 (1~2문장)"
-  }},
-  ...
+  }}
 ]
 """
             res_text = self._call_api(prompt, system_prompt=system_prompt, as_json=True)
@@ -265,6 +266,9 @@ class GeminiIntelligenceClient:
                         it["expanded_insight"] = f"<b>💡 심층 맥락 & 파장:</b> {impact}<br><b>🔎 핵심 체크포인트 & 일정:</b> {cp}"
             except Exception as e:
                 print(f"   [Gemini {category} 배치 파싱 오류] {e}")
+
+            # 15 RPM(분당 15회) 한도 완벽 준수를 위한 안전 간격
+            time.sleep(4.5)
 
         return items
 
@@ -285,3 +289,116 @@ class GeminiIntelligenceClient:
 HTML 형식 (<div style="..."> 1. ... 2. ... 3. ... </div>)으로 간결하고 명확하게 반환하십시오.
 """
         return self._call_api(prompt, temperature=0.3)
+
+    # =========================================================================
+    # 🏠 6. [부동산 마켓 인텔리전스] 최신 뉴스 기반 실시간 시세/금리/수급 팩트 정밀 추출
+    # =========================================================================
+    def analyze_real_estate(self, news_articles: list) -> dict:
+        """수집된 최신 부동산 기사 팩트를 분석하여 권역별 변동률, 금리, 거래량 지표 정밀 추출"""
+        if not self.is_active or not news_articles:
+            return None
+
+        system_prompt = (
+            "당신은 부동산 금융 및 시장 동향 전문 수석 리서치 애널리스트입니다.\n"
+            "주어진 최신 부동산/금융 뉴스 기사의 실제 보도 내용에 근거하여 한국 시장의 최신 부동산 지표를 작성하십시오.\n"
+            "반드시 순수한 JSON 포맷으로만 응답하십시오."
+        )
+
+        articles_summary = "\n".join([f"- [{a.get('source', '')}] {a.get('title', '')}" for a in news_articles[:8]])
+
+        prompt = f"""
+최신 부동산 관련 뉴스 헤드라인 및 동향:
+{articles_summary}
+
+위 팩트 데이터와 최신 한국 부동산 시장 환경을 반영하여 다음 JSON 구조로 작성하십시오.
+수치와 코멘트는 반드시 기사 내용과 현재 시장 상황에 부합해야 합니다.
+
+{{
+  "regional_trends": [
+    {{
+      "region": "서울 강남3구 (강남·서초·송파)",
+      "sale_change": "+0.15%",
+      "jeonse_change": "+0.10%",
+      "status": "신고가 경신 지속",
+      "status_color": "#16A34A",
+      "summary": "핵심 랜드마크 단지 중심의 매매 동향 및 신고가 거래 흐름 요약 (1~2문장)"
+    }},
+    {{
+      "region": "서울 마용성 (마포·용산·성동)",
+      "sale_change": "+0.09%",
+      "jeonse_change": "+0.08%",
+      "status": "강보합세 유지",
+      "status_color": "#2563EB",
+      "summary": "도심 직주근접 및 전세가 상승에 따른 갭메우기 흐름 요약 (1~2문장)"
+    }},
+    {{
+      "region": "서울 노도강 / 외곽권",
+      "sale_change": "+0.01%",
+      "jeonse_change": "+0.03%",
+      "status": "대출규제 관망세",
+      "status_color": "#D97706",
+      "summary": "중저가 대출 수요 위축 및 관망세 흐름 요약 (1~2문장)"
+    }},
+    {{
+      "region": "경기 1기 신도시 / 선도지구 (분당·평촌)",
+      "sale_change": "+0.12%",
+      "jeonse_change": "+0.07%",
+      "status": "재건축 기대감",
+      "status_color": "#16A34A",
+      "summary": "선도지구 통합 재건축 후보 단지 호가 및 매물 흐름 요약 (1~2문장)"
+    }},
+    {{
+      "region": "경기 외곽 & 인천",
+      "sale_change": "-0.01%",
+      "jeonse_change": "+0.02%",
+      "status": "약보합 / 혼조세",
+      "status_color": "#DC2626",
+      "summary": "입주 물량 및 전세 수요 이동 동향 요약 (1~2문장)"
+    }},
+    {{
+      "region": "지방 5대 광역시",
+      "sale_change": "-0.03%",
+      "jeonse_change": "-0.02%",
+      "status": "침체 / 미분양 적체",
+      "status_color": "#DC2626",
+      "summary": "준공 후 미분양 부담 및 수도권과의 양극화 동향 요약 (1~2문장)"
+    }}
+  ],
+  "mortgage_info": {{
+    "fixed_rate_band": "연 3.65% ~ 4.85%",
+    "variable_rate_band": "연 4.15% ~ 5.75%",
+    "cofix_rate": "3.36% (신규취급액 기준)",
+    "dsr_status": "2단계 스트레스 DSR (수도권 가산금리 적용)",
+    "bank_policy": "시중 5대 은행 주담대 모기지보험 및 다주택자 대출 관리 기조"
+  }},
+  "market_metrics": {{
+    "monthly_volume": "약 3,900건 (서울 아파트 기준)",
+    "listing_inventory": "약 8.4만건 (매수자 우위 시장)",
+    "jeonse_ratio": "54.2% (서울 평균 전세가율)",
+    "bidding_ratio": "수도권 분상제 120:1 vs 지방 0.4:1 (청약 양극화)"
+  }},
+  "action_guides": [
+    {{
+      "target": "무주택자 (내집마련 실수요자)",
+      "tip": "대출 한도와 금리 추세를 고려한 실전 접근 팁"
+    }},
+    {{
+      "target": "1주택자 (상급지 갈아타기)",
+      "tip": "매도 선행 원칙 등 갈아타기 실전 팁"
+    }},
+    {{
+      "target": "투자자 (자산 배분 관점)",
+      "tip": "양극화 국면 자산 압축 전략 팁"
+    }}
+  ]
+}}
+"""
+        res_text = self._call_api(prompt, system_prompt=system_prompt, as_json=True)
+        try:
+            clean_res = re.sub(r"^```json\s*|\s*```$", "", res_text.strip(), flags=re.MULTILINE)
+            data = json.loads(clean_res)
+            if "regional_trends" in data and "mortgage_info" in data:
+                return data
+            return None
+        except Exception:
+            return None

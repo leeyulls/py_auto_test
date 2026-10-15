@@ -227,7 +227,7 @@ def main():
 
     # 10. 대한민국 부동산 시장 동향 분석 (KB부동산/한국부동산원 기반 권역별 시세 & 주담대 금리)
     print("\n[10/11] 🏢 대한민국 부동산 시장 동향 & 대출 규제·청약 지표 분석 중...")
-    real_estate_advisor = RealEstateAdvisor()
+    real_estate_advisor = RealEstateAdvisor(gemini_client=dossier_engine.gemini_client)
     real_estate_data = real_estate_advisor.analyze_market()
     re_trends = real_estate_data.get("regional_trends", [])
     re_mortgage = real_estate_data.get("mortgage_info", {})

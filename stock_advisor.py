@@ -292,6 +292,7 @@ class StockAdvisor:
                     "expected_yield": f"+{expected_yield:.1f}%",
                     "type": long_signal,
                     "reason": long_reason,
+                    "recent_closes": tech.get("recent_closes", []),
                 })
             elif "비중 축소" in long_signal:
                 sell_warning_list.append({
@@ -302,6 +303,7 @@ class StockAdvisor:
                     "type": "장기 추세 하락",
                     "disparity": f"{disp:+.1f}%",
                     "reason": long_reason,
+                    "recent_closes": tech.get("recent_closes", []),
                 })
 
             # 뉴스 모멘텀

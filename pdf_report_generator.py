@@ -668,6 +668,10 @@ class PdfReportGenerator:
     • 원문 보도: <a href="{mega_d.get('link', '#')}" style="color: #64748B; text-decoration: none;">{mega_d.get('raw_title', '')}</a>
   </div>
 
+  {f'''<div style="margin-top: 8px; background: #F0FDF4; border: 1px solid #BBF7D0; border-left: 4px solid #16A34A; border-radius: 4px; padding: 7px 10px; font-size: 10px; color: #166534; line-height: 1.45;">
+    <b>🎯 [핵심 투자 밸류체인 & 수혜주]:</b> {mega_d.get('value_chain')}
+  </div>''' if mega_d.get('value_chain') else ''}
+
   <div class="page-break"></div>
 
   <!-- ============================================================ -->
@@ -914,7 +918,7 @@ class PdfReportGenerator:
     </div>
     <div style="border-left: 1px solid #DBEAFE;"></div>
     <div>
-      <div style="font-size: 11px; color: #1E40AF;">총 검증 건수</div>
+      <div style="font-size: 11px; color: #1E40AF;">총 검증 모수</div>
       <div style="font-size: 22px; font-weight: bold; color: #0F172A;">{performance_data.get('summary', {}).get('total_picks', 0)}건</div>
     </div>
     <div style="border-left: 1px solid #DBEAFE;"></div>
@@ -926,6 +930,12 @@ class PdfReportGenerator:
     <div>
       <div style="font-size: 11px; color: #991B1B;">손절 리스크 관리</div>
       <div style="font-size: 22px; font-weight: bold; color: #DC2626;">{performance_data.get('summary', {}).get('stoploss_count', 0)}건</div>
+    </div>
+    <div style="border-left: 1px solid #DBEAFE;"></div>
+    <div>
+      <div style="font-size: 11px; color: #4338CA;">목표가 추적 중</div>
+      <div style="font-size: 22px; font-weight: bold; color: #4338CA;">{performance_data.get('summary', {}).get('holding_count', 0)}건</div>
+      <div style="font-size: 9px; color: #6366F1;">(수익권 {performance_data.get('summary', {}).get('holding_positive_count', 0)}건)</div>
     </div>
     <div style="border-left: 1px solid #DBEAFE;"></div>
     <div>
@@ -1199,6 +1209,7 @@ class PdfReportGenerator:
         succ_p = stats.get('success_count', 0)
         stop_p = stats.get('stoploss_count', 0)
         hold_p = stats.get('holding_count', 0)
+        hold_pos = stats.get('holding_positive_count', 0)
         avg_ret = stats.get('avg_return', 0.0)
 
         html_content = f"""<!DOCTYPE html>
@@ -1401,6 +1412,12 @@ class PdfReportGenerator:
     <div>
       <div style="font-size: 11px; color: #991B1B;">손절 리스크 관리</div>
       <div style="font-size: 20px; font-weight: bold; color: #DC2626;">{stop_p}건</div>
+    </div>
+    <div style="border-left: 1px solid #DBEAFE;"></div>
+    <div>
+      <div style="font-size: 11px; color: #4338CA;">목표가 추적 중</div>
+      <div style="font-size: 20px; font-weight: bold; color: #4338CA;">{hold_p}건</div>
+      <div style="font-size: 9px; color: #6366F1;">(수익권 {hold_pos}건)</div>
     </div>
     <div style="border-left: 1px solid #DBEAFE;"></div>
     <div>
