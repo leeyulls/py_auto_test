@@ -117,6 +117,72 @@ st.markdown("""
 
 
 # -----------------------------------------------------------------------------
+# 1-1. 보안 인증 게이트 (비밀번호: 8390)
+# -----------------------------------------------------------------------------
+def check_password() -> bool:
+    """비밀번호 인증 게이트 (8390) - 미인증 시 대시보드 렌더링 차단"""
+    if st.session_state.get("authenticated", False):
+        return True
+
+    # 미인증 상태일 때는 사이드바 숨김 및 정돈된 로그인 폼 렌더링
+    st.markdown("""
+    <style>
+        [data-testid="stSidebar"] {
+            display: none !important;
+        }
+        .main .block-container {
+            max-width: 540px !important;
+            padding-top: 5rem !important;
+            margin: auto !important;
+        }
+    </style>
+    """, unsafe_allow_html=True)
+
+    st.markdown("""
+    <div style="background: linear-gradient(135deg, #0F172A 0%, #1E293B 60%, #1E3A8A 100%); 
+                padding: 36px 30px; border-radius: 16px; border: 1px solid #334155; 
+                text-align: center; color: #FFFFFF; box-shadow: 0 10px 30px rgba(0,0,0,0.35); margin-bottom: 24px;">
+        <div style="font-size: 50px; margin-bottom: 10px;">🔐</div>
+        <h2 style="color: #FFFFFF; margin: 0 0 8px 0; font-weight: 800; font-size: 24px; letter-spacing: -0.5px;">
+            AI 금융 & 부동산 인텔리전스
+        </h2>
+        <p style="color: #94A3B8; font-size: 13.5px; margin: 0; line-height: 1.6;">
+            보안 인텔리전스 시스템 접근 인증<br>
+            대시보드를 이용하려면 보안 액세스 비밀번호를 입력하세요.
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    with st.form("auth_form", clear_on_submit=False):
+        pwd = st.text_input(
+            "보안 비밀번호", 
+            type="password", 
+            placeholder="비밀번호(4자리)를 입력하세요", 
+            help="접속 권한이 부여된 비밀번호를 입력하세요."
+        )
+        submitted = st.form_submit_button("대시보드 접속하기 🚀", use_container_width=True, type="primary")
+
+        CORRECT_PASSWORD = os.getenv("DASHBOARD_PASSWORD", "8390")
+        if submitted:
+            if pwd == CORRECT_PASSWORD:
+                st.session_state["authenticated"] = True
+                st.toast("✅ 보안 인증 완료! 잠시 후 대시보드로 이동합니다.", icon="🎉")
+                st.rerun()
+            else:
+                st.error("❌ 비밀번호가 올바르지 않습니다. 다시 확인 후 입력해 주세요.")
+
+    st.markdown("""
+    <div style="text-align: center; margin-top: 20px; font-size: 11.5px; color: #64748B;">
+        🔒 Security Gate Active • End-to-End Encrypted Session
+    </div>
+    """, unsafe_allow_html=True)
+    return False
+
+if not check_password():
+    st.stop()
+
+
+# -----------------------------------------------------------------------------
 # 2. 데이터 로더 & 캐싱
 # -----------------------------------------------------------------------------
 MASTER_EXCEL_PATH = "reports/일자별_누적_데일리_이슈_및_주식_브리핑_마스터.xlsx"
@@ -271,6 +337,14 @@ with st.sidebar:
         st.info("🔵 구글 드라이브 지정 대기 (유효 경로 입력 시 자동 연동)")
 
     st.markdown("---")
+    col_auth1, col_auth2 = st.columns([1.5, 1])
+    with col_auth1:
+        st.caption("🔒 보안 인증 완료 (PIN)")
+    with col_auth2:
+        if st.button("로그아웃", use_container_width=True):
+            st.session_state["authenticated"] = False
+            st.rerun()
+
     st.caption("마스터 데이터: `reports/일자별_누적_...xlsx`")
     st.caption(f"시스템 일시: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}")
 
