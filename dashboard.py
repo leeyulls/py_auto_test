@@ -119,90 +119,190 @@ st.markdown("""
 
 
 # -----------------------------------------------------------------------------
-# 1-1. 보안 인증 게이트 (Salted SHA-256 해시 검증 & Cloud Secrets 지원)
+# 1-1. 보안 인증 게이트 (Google OAuth 2.0 + 이메일 화이트리스트 & Salted SHA-256 PIN)
 # -----------------------------------------------------------------------------
-def check_password() -> bool:
-    """보안 인증 게이트 - 미인증 시 대시보드 렌더링 원천 차단"""
+def get_allowed_emails() -> list[str]:
+    """허용된 구글 이메일 화이트리스트 로드 (Git 비노출, Secrets/.env 기반)"""
+    allowed = []
+    # 1. Streamlit Secrets 확인
+    try:
+        if hasattr(st, "secrets"):
+            if "ALLOWED_GOOGLE_EMAILS" in st.secrets:
+                val = st.secrets["ALLOWED_GOOGLE_EMAILS"]
+                if isinstance(val, list):
+                    allowed.extend([str(e).strip().lower() for e in val if str(e).strip()])
+                elif isinstance(val, str):
+                    allowed.extend([e.strip().lower() for e in val.split(",") if e.strip()])
+            if "auth" in st.secrets and "allowed_emails" in st.secrets["auth"]:
+                val = st.secrets["auth"]["allowed_emails"]
+                if isinstance(val, list):
+                    allowed.extend([str(e).strip().lower() for e in val if str(e).strip()])
+    except Exception:
+        pass
+
+    # 2. 로컬 환경변수(.env) 확인
+    env_emails = os.getenv("ALLOWED_GOOGLE_EMAILS", "")
+    if env_emails:
+        allowed.extend([e.strip().lower() for e in env_emails.split(",") if e.strip()])
+
+    # 기본 수신자 이메일(RECEIVER_EMAIL) 자동 포함
+    receiver = os.getenv("RECEIVER_EMAIL", "")
+    if receiver and receiver not in allowed:
+        allowed.append(receiver.strip().lower())
+
+    return list(set(allowed))
+
+
+def check_auth() -> bool:
+    """통합 보안 인증 게이트 - Google OAuth + 화이트리스트 검증 & PIN 8390 백업"""
     if st.session_state.get("authenticated", False):
         return True
 
-    # 미인증 상태일 때는 사이드바 숨김 및 정돈된 보안 로그인 폼 렌더링
+    allowed_emails = get_allowed_emails()
+
+    # Streamlit 네이티브 OIDC(Google OAuth) 로그인 세션 확인
+    is_oidc_configured = False
+    try:
+        if hasattr(st, "login") and hasattr(st, "user"):
+            if hasattr(st.user, "is_logged_in") and st.user.is_logged_in:
+                user_email = (getattr(st.user, "email", "") or "").strip().lower()
+                user_name = getattr(st.user, "name", user_email)
+
+                # 화이트리스트 검증 (등록된 허용 계정이 있거나 화이트리스트가 비어있지 않은 경우 대조)
+                if not allowed_emails or user_email in allowed_emails:
+                    st.session_state["authenticated"] = True
+                    st.session_state["auth_user"] = user_email
+                    st.session_state["auth_name"] = user_name
+                    st.session_state["auth_method"] = "google_oauth"
+                    st.toast(f"🎉 환영합니다, {user_name}님! (Google 인증 완료)", icon="✅")
+                    st.rerun()
+                else:
+                    # 미인가된 구글 계정 접근 거부 화면
+                    st.markdown("""
+                    <style>
+                        [data-testid="stSidebar"] { display: none !important; }
+                        .main .block-container { max-width: 580px !important; padding-top: 5rem !important; margin: auto !important; }
+                    </style>
+                    """, unsafe_allow_html=True)
+                    st.error(f"🚫 **접근 거부 (Access Denied)**: `{user_email}` 계정은 본 시스템 접근 권한이 없습니다.")
+                    st.warning("이 대시보드는 사전 승인된 Google 관리자 계정만 접근할 수 있는 비공개 인텔리전스 시스템입니다.")
+                    if hasattr(st, "logout"):
+                        st.button("다른 Google 계정으로 로그인", on_click=st.logout, use_container_width=True)
+                    return False
+
+            if hasattr(st, "secrets") and "auth" in st.secrets:
+                is_oidc_configured = True
+    except Exception:
+        pass
+
+    # 로그인 뷰 렌더링
     st.markdown("""
     <style>
-        [data-testid="stSidebar"] {
-            display: none !important;
-        }
+        [data-testid="stSidebar"] { display: none !important; }
         .main .block-container {
             max-width: 540px !important;
-            padding-top: 5rem !important;
+            padding-top: 4.5rem !important;
             margin: auto !important;
+        }
+        .login-card {
+            background: linear-gradient(135deg, #0F172A 0%, #1E293B 60%, #1E3A8A 100%);
+            padding: 34px 28px;
+            border-radius: 16px;
+            border: 1px solid #334155;
+            text-align: center;
+            color: #FFFFFF;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+            margin-bottom: 22px;
         }
     </style>
     """, unsafe_allow_html=True)
 
     st.markdown("""
-    <div style="background: linear-gradient(135deg, #0F172A 0%, #1E293B 60%, #1E3A8A 100%); 
-                padding: 36px 30px; border-radius: 16px; border: 1px solid #334155; 
-                text-align: center; color: #FFFFFF; box-shadow: 0 10px 30px rgba(0,0,0,0.35); margin-bottom: 24px;">
-        <div style="font-size: 50px; margin-bottom: 10px;">🔐</div>
+    <div class="login-card">
+        <div style="font-size: 48px; margin-bottom: 10px;">🛡️</div>
         <h2 style="color: #FFFFFF; margin: 0 0 8px 0; font-weight: 800; font-size: 24px; letter-spacing: -0.5px;">
-            AI 금융 & 부동산 인텔리전스
+            AI 금융 & 부동산 보안 게이트
         </h2>
-        <p style="color: #94A3B8; font-size: 13.5px; margin: 0; line-height: 1.6;">
-            보안 인텔리전스 시스템 접근 인증<br>
-            대시보드를 이용하려면 액세스 보안 비밀번호를 입력하세요.
+        <p style="color: #94A3B8; font-size: 13px; margin: 0; line-height: 1.6;">
+            보안 인텔리전스 시스템 2중 접근 인증<br>
+            Google OAuth 인증 또는 보안 PIN 코드를 입력해 주세요.
         </p>
     </div>
     """, unsafe_allow_html=True)
 
-    with st.form("auth_form", clear_on_submit=False):
-        pwd = st.text_input(
-            "보안 비밀번호", 
-            type="password", 
-            placeholder="비밀번호를 입력하세요", 
-            help="접속 권한이 부여된 비밀번호를 입력하세요."
-        )
-        submitted = st.form_submit_button("대시보드 접속하기 🚀", use_container_width=True, type="primary")
+    tab_google, tab_pin = st.tabs(["🌐 Google 계정 로그인", "🔑 보안 PIN (8390)"])
 
-        # 암호학적 솔트 해시 (깃허브 공개 코드에 평문 비밀번호가 절대 남지 않도록 SHA-256 보호)
-        SALT = "py_sec_salt_2026!"
-        DEFAULT_SALTED_HASH = "a504729732f924e6800b9de9f3995463a673e3c38a028a1d230177da553948f9"
+    with tab_google:
+        st.markdown("<br>", unsafe_allow_html=True)
+        if is_oidc_configured and hasattr(st, "login"):
+            st.markdown("""
+            <div style="text-align: center; margin-bottom: 16px; font-size: 13.5px; color: #334155;">
+                사전 인가된 Google 계정으로 원클릭 로그인하세요.
+            </div>
+            """, unsafe_allow_html=True)
+            st.button("🔴 Google 계정으로 로그인", on_click=st.login, use_container_width=True, type="primary")
+        else:
+            st.markdown("""
+            <div style="background: #F8FAFC; border: 1px dashed #CBD5E1; border-radius: 10px; padding: 18px; text-align: center; font-size: 13px; color: #475569;">
+                <div style="font-size: 24px; margin-bottom: 6px;">🌐</div>
+                <b>Google OAuth 연동 대기 중</b><br>
+                <span style="font-size: 11.5px; color: #64748B;">
+                    Streamlit Secrets에 <code>[auth]</code> 및 <code>ALLOWED_GOOGLE_EMAILS</code>를 등록하시면 구글 로그인이 즉시 활성화됩니다.<br>
+                    우측 <b>'보안 PIN'</b> 탭에서 <code>8390</code>으로 즉시 접속 가능합니다.
+                </span>
+            </div>
+            """, unsafe_allow_html=True)
 
-        # Streamlit Cloud Secrets 또는 환경변수가 설정되어 있으면 커스텀 비밀번호 우선 적용
-        custom_pwd = None
-        try:
-            if hasattr(st, "secrets") and "DASHBOARD_PASSWORD" in st.secrets:
-                custom_pwd = str(st.secrets["DASHBOARD_PASSWORD"])
-        except Exception:
-            pass
-        if not custom_pwd:
-            custom_pwd = os.getenv("DASHBOARD_PASSWORD")
+    with tab_pin:
+        with st.form("pin_auth_form", clear_on_submit=False):
+            pwd = st.text_input(
+                "보안 액세스 코드", 
+                type="password", 
+                placeholder="비밀번호(4자리)를 입력하세요", 
+                help="접속 권한이 부여된 비밀번호를 입력하세요."
+            )
+            submitted = st.form_submit_button("대시보드 접속하기 🚀", use_container_width=True, type="primary")
 
-        if submitted:
-            is_valid = False
-            user_input = str(pwd).strip()
-            if custom_pwd:
-                is_valid = secrets.compare_digest(user_input, custom_pwd.strip())
-            else:
-                input_salted_hash = hashlib.sha256((user_input + SALT).encode("utf-8")).hexdigest()
-                is_valid = secrets.compare_digest(input_salted_hash, DEFAULT_SALTED_HASH)
+            SALT = "py_sec_salt_2026!"
+            DEFAULT_SALTED_HASH = "a504729732f924e6800b9de9f3995463a673e3c38a028a1d230177da553948f9"
 
-            if is_valid:
-                st.session_state["authenticated"] = True
-                st.toast("✅ 보안 인증 완료! 잠시 후 대시보드로 이동합니다.", icon="🎉")
-                st.rerun()
-            else:
-                st.error("❌ 비밀번호가 올바르지 않습니다. 다시 확인 후 입력해 주세요.")
+            custom_pwd = None
+            try:
+                if hasattr(st, "secrets") and "DASHBOARD_PASSWORD" in st.secrets:
+                    custom_pwd = str(st.secrets["DASHBOARD_PASSWORD"])
+            except Exception:
+                pass
+            if not custom_pwd:
+                custom_pwd = os.getenv("DASHBOARD_PASSWORD")
+
+            if submitted:
+                is_valid = False
+                user_input = str(pwd).strip()
+                if custom_pwd:
+                    is_valid = secrets.compare_digest(user_input, custom_pwd.strip())
+                else:
+                    input_salted_hash = hashlib.sha256((user_input + SALT).encode("utf-8")).hexdigest()
+                    is_valid = secrets.compare_digest(input_salted_hash, DEFAULT_SALTED_HASH)
+
+                if is_valid:
+                    st.session_state["authenticated"] = True
+                    st.session_state["auth_user"] = "Master Admin (PIN)"
+                    st.session_state["auth_method"] = "pin"
+                    st.toast("✅ 보안 인증 완료! 잠시 후 대시보드로 이동합니다.", icon="🎉")
+                    st.rerun()
+                else:
+                    st.error("❌ 비밀번호가 올바르지 않습니다. 다시 확인 후 입력해 주세요.")
 
     st.markdown("""
-    <div style="text-align: center; margin-top: 20px; font-size: 11.5px; color: #64748B;">
-        🔒 Security Gate Active • SHA-256 Salted Hash & SSL End-to-End Encrypted
+    <div style="text-align: center; margin-top: 22px; font-size: 11px; color: #64748B;">
+        🔒 Google OAuth 2.0 & Salted SHA-256 Gate Active • SSL End-to-End Encrypted
     </div>
     """, unsafe_allow_html=True)
     return False
 
-if not check_password():
+if not check_auth():
     st.stop()
+
 
 
 # -----------------------------------------------------------------------------
@@ -377,12 +477,22 @@ with st.sidebar:
             st.caption("☁️ 클라우드 동기화 모드로 동작 중")
 
     st.markdown("---")
+    auth_user = st.session_state.get("auth_user", "Master Admin")
+    auth_method = st.session_state.get("auth_method", "pin")
+    badge_label = "🌐 Google 인증됨" if auth_method == "google_oauth" else "🔒 PIN 인증됨"
+
+    st.caption(f"👤 **인증 계정:** `{auth_user}`")
     col_auth1, col_auth2 = st.columns([1.5, 1])
     with col_auth1:
-        st.caption("🔒 보안 인증 완료 (PIN)")
+        st.caption(badge_label)
     with col_auth2:
         if st.button("로그아웃", use_container_width=True):
             st.session_state["authenticated"] = False
+            if hasattr(st, "logout") and auth_method == "google_oauth":
+                try:
+                    st.logout()
+                except Exception:
+                    pass
             st.rerun()
 
     st.caption("마스터 데이터: `reports/일자별_누적_...xlsx`")

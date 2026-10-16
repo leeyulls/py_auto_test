@@ -12,6 +12,8 @@ email_config.txt
 *.token
 *token*.json
 .kis_*
+secrets.toml
+.streamlit/secrets.toml
 
 
 # Logs & temporary files
