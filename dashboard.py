@@ -8,6 +8,8 @@ import os
 import glob
 import re
 import datetime
+import hashlib
+import secrets
 import pandas as pd
 import numpy as np
 import streamlit as st
@@ -117,14 +119,14 @@ st.markdown("""
 
 
 # -----------------------------------------------------------------------------
-# 1-1. 보안 인증 게이트 (비밀번호: 8390)
+# 1-1. 보안 인증 게이트 (Salted SHA-256 해시 검증 & Cloud Secrets 지원)
 # -----------------------------------------------------------------------------
 def check_password() -> bool:
-    """비밀번호 인증 게이트 (8390) - 미인증 시 대시보드 렌더링 차단"""
+    """보안 인증 게이트 - 미인증 시 대시보드 렌더링 원천 차단"""
     if st.session_state.get("authenticated", False):
         return True
 
-    # 미인증 상태일 때는 사이드바 숨김 및 정돈된 로그인 폼 렌더링
+    # 미인증 상태일 때는 사이드바 숨김 및 정돈된 보안 로그인 폼 렌더링
     st.markdown("""
     <style>
         [data-testid="stSidebar"] {
@@ -148,7 +150,7 @@ def check_password() -> bool:
         </h2>
         <p style="color: #94A3B8; font-size: 13.5px; margin: 0; line-height: 1.6;">
             보안 인텔리전스 시스템 접근 인증<br>
-            대시보드를 이용하려면 보안 액세스 비밀번호를 입력하세요.
+            대시보드를 이용하려면 액세스 보안 비밀번호를 입력하세요.
         </p>
     </div>
     """, unsafe_allow_html=True)
@@ -157,14 +159,35 @@ def check_password() -> bool:
         pwd = st.text_input(
             "보안 비밀번호", 
             type="password", 
-            placeholder="비밀번호(4자리)를 입력하세요", 
+            placeholder="비밀번호를 입력하세요", 
             help="접속 권한이 부여된 비밀번호를 입력하세요."
         )
         submitted = st.form_submit_button("대시보드 접속하기 🚀", use_container_width=True, type="primary")
 
-        CORRECT_PASSWORD = os.getenv("DASHBOARD_PASSWORD", "8390")
+        # 암호학적 솔트 해시 (깃허브 공개 코드에 평문 비밀번호가 절대 남지 않도록 SHA-256 보호)
+        SALT = "py_sec_salt_2026!"
+        DEFAULT_SALTED_HASH = "a504729732f924e6800b9de9f3995463a673e3c38a028a1d230177da553948f9"
+
+        # Streamlit Cloud Secrets 또는 환경변수가 설정되어 있으면 커스텀 비밀번호 우선 적용
+        custom_pwd = None
+        try:
+            if hasattr(st, "secrets") and "DASHBOARD_PASSWORD" in st.secrets:
+                custom_pwd = str(st.secrets["DASHBOARD_PASSWORD"])
+        except Exception:
+            pass
+        if not custom_pwd:
+            custom_pwd = os.getenv("DASHBOARD_PASSWORD")
+
         if submitted:
-            if pwd == CORRECT_PASSWORD:
+            is_valid = False
+            user_input = str(pwd).strip()
+            if custom_pwd:
+                is_valid = secrets.compare_digest(user_input, custom_pwd.strip())
+            else:
+                input_salted_hash = hashlib.sha256((user_input + SALT).encode("utf-8")).hexdigest()
+                is_valid = secrets.compare_digest(input_salted_hash, DEFAULT_SALTED_HASH)
+
+            if is_valid:
                 st.session_state["authenticated"] = True
                 st.toast("✅ 보안 인증 완료! 잠시 후 대시보드로 이동합니다.", icon="🎉")
                 st.rerun()
@@ -173,7 +196,7 @@ def check_password() -> bool:
 
     st.markdown("""
     <div style="text-align: center; margin-top: 20px; font-size: 11.5px; color: #64748B;">
-        🔒 Security Gate Active • End-to-End Encrypted Session
+        🔒 Security Gate Active • SHA-256 Salted Hash & SSL End-to-End Encrypted
     </div>
     """, unsafe_allow_html=True)
     return False
