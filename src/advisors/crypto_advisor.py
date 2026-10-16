@@ -123,6 +123,16 @@ class CryptoAdvisor:
         except Exception:
             pass
 
+        # 3. CoinGecko 실시간 글로벌 비트코인 도미넌스(BTC Dominance) 연동
+        try:
+            r_cg = requests.get("https://api.coingecko.com/api/v3/global", headers=self.headers, timeout=5)
+            if r_cg.status_code == 200:
+                btc_dom = r_cg.json().get("data", {}).get("market_cap_percentage", {}).get("btc")
+                if btc_dom:
+                    macro["btc_dominance"] = f"{float(btc_dom):.1f}%"
+        except Exception:
+            pass
+
         # 3. 업비트 24시간 거래대금 최상위 코인 Top 5
         try:
             r_m = requests.get("https://api.upbit.com/v1/market/all", headers=self.headers, timeout=5)

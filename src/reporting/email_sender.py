@@ -112,7 +112,7 @@ class EmailSender:
                 if ft.get("has_table"):
                     ft_box = f"""
                     <div style="margin: 6px 0; background: #DCFCE7; border: 1px dashed #16A34A; padding: 6px 10px; border-radius: 4px; font-size: 11px; color: #14532D;">
-                        📊 <b>PDF 핵심 실적 표:</b> 2026F 매출 {ft.get('rev_2026', '-')} / 영익 {ft.get('op_2026', '-')} &nbsp;|&nbsp; 2027F 매출 {ft.get('rev_2027', '-')} / 영익 {ft.get('op_2027', '-')}
+                        📊 <b>PDF 핵심 실적 표:</b> {ft.get('year1_label', f'{datetime.date.today().year}F')} 매출 {ft.get('rev_year1', ft.get('rev_2026', '-'))} / 영익 {ft.get('op_year1', ft.get('op_2026', '-'))} &nbsp;|&nbsp; {ft.get('year2_label', f'{datetime.date.today().year + 1}F')} 매출 {ft.get('rev_year2', ft.get('rev_2027', '-'))} / 영익 {ft.get('op_year2', ft.get('op_2027', '-'))}
                         <div style="color: #166534; margin-top: 3px;">📈 <i>{ft.get('yoy_summary', '')}</i></div>
                     </div>
                     """
@@ -340,23 +340,28 @@ class EmailSender:
         # 지수 및 환율 테이블
         indices_rows = ""
         for idx in stock_indices:
-            color = "#16A34A" if ("+" in idx["전일대비"] or "▲" in idx["전일대비"]) else "#DC2626"
+            idx_name = idx.get("지수명") or idx.get("name", "-")
+            idx_val = idx.get("현재지수") or idx.get("price", "-")
+            idx_diff = idx.get("전일대비") or idx.get("change", "-")
+            color = "#16A34A" if ("+" in str(idx_diff) or "▲" in str(idx_diff)) else ("#DC2626" if ("-" in str(idx_diff) or "▼" in str(idx_diff)) else "#475569")
             indices_rows += f"""
             <tr>
-                <td style="padding: 6px 10px; border: 1px solid #E5E7EB; font-weight: bold;">{idx['지수명']}</td>
-                <td style="padding: 6px 10px; border: 1px solid #E5E7EB; text-align: right; font-weight: bold;">{idx['현재지수']}</td>
-                <td style="padding: 6px 10px; border: 1px solid #E5E7EB; text-align: right; color: {color}; font-weight: bold;">{idx['전일대비']}</td>
+                <td style="padding: 6px 10px; border: 1px solid #E5E7EB; font-weight: bold;">{idx_name}</td>
+                <td style="padding: 6px 10px; border: 1px solid #E5E7EB; text-align: right; font-weight: bold;">{idx_val}</td>
+                <td style="padding: 6px 10px; border: 1px solid #E5E7EB; text-align: right; color: {color}; font-weight: bold;">{idx_diff}</td>
             </tr>
             """
 
         rates_rows = ""
         for fx in exchange_rates:
             fx_diff = fx.get('전일대비') or fx.get('변동/기준', '')
-            fx_col = "#16A34A" if ("+" in fx_diff or "▲" in fx_diff) else ("#DC2626" if ("-" in fx_diff or "▼" in fx_diff) else "#6B7280")
+            fx_name = fx.get('통화명') or fx.get('currency', '-')
+            fx_rate = fx.get('환율(원)') or fx.get('rate', '-')
+            fx_col = "#16A34A" if ("+" in str(fx_diff) or "▲" in str(fx_diff)) else ("#DC2626" if ("-" in str(fx_diff) or "▼" in str(fx_diff)) else "#6B7280")
             rates_rows += f"""
             <tr>
-                <td style="padding: 6px 10px; border: 1px solid #E5E7EB;">{fx['통화명']}</td>
-                <td style="padding: 6px 10px; border: 1px solid #E5E7EB; text-align: right; font-weight: bold;">{fx['환율(원)']}원</td>
+                <td style="padding: 6px 10px; border: 1px solid #E5E7EB;">{fx_name}</td>
+                <td style="padding: 6px 10px; border: 1px solid #E5E7EB; text-align: right; font-weight: bold;">{fx_rate}원</td>
                 <td style="padding: 6px 10px; border: 1px solid #E5E7EB; text-align: right; color: {fx_col}; font-weight: bold; font-size: 12px;">{fx_diff}</td>
             </tr>
             """
@@ -407,7 +412,7 @@ class EmailSender:
                 if total_cat_cnt > len(display_items):
                     more_notice = f"""
                     <div style="font-size: 11px; color: #64748B; text-align: right; margin-top: 6px; font-weight: 500;">
-                        👉 <i>{icon_title} 분야 전체 {total_cat_cnt}건 기사 전수 분석 및 상세 카드는 첨부된 [PDF 상세본]에 수록되어 있습니다.</i>
+                        👉 <i>{icon_title} 분야 전체 {total_cat_cnt}건 기사 전수 분석 및 상세 카드는 첨부된 [모바일 웹리포트 HTML] 및 구글 드라이브 PDF에 수록되어 있습니다.</i>
                     </div>
                     """
 
@@ -461,7 +466,7 @@ class EmailSender:
                     <div>• ⏳ <b>향후 일정 & 관전 포인트:</b> {ch4_brief}</div>
                 </div>
                 <div style="margin-top: 10px; background: #EFF6FF; border: 1px solid #BFDBFE; padding: 7px 10px; border-radius: 5px; font-size: 11px; color: #1E40AF; text-align: center;">
-                    📎 <b>4대 챕터 심층 르포 전문과 팩트 분석은 첨부된 [PDF 상세본 1면]에 전수 수록되어 있습니다.</b>
+                    📎 <b>4대 챕터 심층 르포 전문과 팩트 분석은 첨부된 [모바일 웹리포트 HTML] 및 구글 드라이브 PDF 1면에 전수 수록되어 있습니다.</b>
                 </div>
             </div>
             """
@@ -502,10 +507,10 @@ class EmailSender:
                     {trend_d.get('lead')}
                 </div>
                 <div style="margin-top: 10px; background: #FEF9C3; border: 1px solid #FDE047; padding: 7px 10px; border-radius: 5px; font-size: 11.5px; color: #713F12; line-height: 1.45;">
-                    💡 <b>1분 핵심 용어:</b> <b>디토(Ditto) 소비</b>는 인플루언서·전문가 취향 추종 소비, <b>스몰 럭셔리</b>는 불황기 소소한 고품질 소비재를 통한 심리적 만족 극대화 행동입니다.
+                    💡 <b>1분 핵심 용어:</b> {(trend_d.get('term_tip') or '대중적 화제성과 개성 표출 욕구가 결합되어 실물 구매로 이어지는 현대적 신소비 메커니즘입니다.').replace('**', '').replace('📌 ', '')}
                 </div>
                 <div style="margin-top: 10px; background: #FFF1F2; border: 1px solid #FECDD3; padding: 7px 10px; border-radius: 5px; font-size: 11px; color: #9F1239; text-align: center;">
-                    📎 <b>소비 심리 역학 및 비즈니스 수혜/리스크 상세 르포는 첨부된 [PDF 상세본 2면]에서 확인하실 수 있습니다.</b>
+                    📎 <b>소비 심리 역학 및 비즈니스 수혜/리스크 상세 르포는 첨부된 [모바일 웹리포트 HTML] 및 구글 드라이브 PDF 2면에서 확인하실 수 있습니다.</b>
                 </div>
             </div>
             """
@@ -728,7 +733,7 @@ class EmailSender:
         elif long_buys:
             asset_brief = f"<b>[적립 투자]</b> <b>{long_buys[0].get('name')}</b> 등 실적 우량주 중심 분할 매수 밴드 유효"
 
-        pdf_brief = f"20일 주가 변화 차트, 기업 실적 추정치 표 및 DART 공시 투자전략이 수록된 8페이지 정식 신문판(<code>{date_str}_데일리_심층_종합분석_보고서.pdf</code>)이 구글 드라이브(<code>{date_str[:7]}/</code>)에 업로드되었습니다 (본 메일 첨부 확인 가능)."
+        pdf_brief = f"20일 주가 변화 차트, 기업 실적 추정치 표 및 DART 공시 투자전략이 수록된 8페이지 정식 신문판(<code>{date_str}_데일리_심층_종합분석_보고서.pdf</code>)이 구글 드라이브(<code>{date_str[:7]}/</code>)에 보관되었습니다 (본 메일에는 반응형 HTML 웹리포트 단독 첨부)."
 
         exec_summary_html = f"""
         <div style="background: #F8FAFC; border: 2px solid #1E3A8A; border-radius: 8px; padding: 16px 18px; margin-bottom: 22px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
@@ -774,7 +779,7 @@ class EmailSender:
                     <div style="background: #EFF6FF; border: 1px solid #BFDBFE; border-left: 4px solid #1D4ED8; border-radius: 6px; padding: 12px 14px; margin-bottom: 20px; font-size: 12px; color: #1E3A8A; line-height: 1.55;">
                         <div style="font-weight: bold; font-size: 13.5px; margin-bottom: 6px;">🎯 오늘의 핵심 경영 & 투자 결단 체크포인트 (Executive Action Checklist)</div>
                         <div>1. <b>거시 리스크 관리:</b> 글로벌 증시 및 환율 변동성 국면에서 무리한 추격 매수를 지양하고 방어적 현금 25% 유지</div>
-                        <div>2. <b>실적 기반 선별 압축:</b> 2026/2027 공인 실적 턴어라운드 및 수주 잔고가 확정된 우량주 중심 분할 매수</div>
+                        <div>2. <b>실적 기반 선별 압축:</b> 중장기 공인 실적 턴어라운드 및 수주 잔고가 확정된 우량주 중심 분할 매수</div>
                         <div>3. <b>자산 양극화 방어:</b> 서울 핵심지(강남·마용성·여의도/영등포) 및 1기 신도시 재건축 선도지구 압축 보유 지속</div>
                     </div>
                     
@@ -863,7 +868,7 @@ class EmailSender:
                         📁 <b>구글 드라이브 심층 보고서 보관함 안내:</b><br>
                         • <b>데일리 심층 PDF:</b> <code>{date_str[:7]}/{date_str}_데일리_심층_종합분석_보고서.pdf</code> (20일 주가 변화 SVG 차트, 실적 추정치 표, DART 공시 투자전략 전문 수록)<br>
                         • <b>공식 증권사 원본 PDF:</b> <code>{date_str[:7]}/공식_리서치_PDF/</code> (여의도 애널리스트 공인 원본 보고서 보관)<br>
-                        📎 <b>첨부 파일 안내:</b> 빠른 열람을 위해 당일 심층 PDF 보고서 및 8개 시트 종합 엑셀(<code>.xlsx</code>)이 동시 첨부되어 있습니다.
+                        📎 <b>첨부 파일 안내:</b> 스마트폰 및 브라우저에서 편리하게 열람할 수 있도록 반응형 모바일 웹리포트(<code>.html</code>) 파일이 단독 첨부되어 있습니다. (상세 PDF 및 엑셀은 구글 드라이브 보관함에서 확인 가능)
                     </div>
 
                 </div>
@@ -1079,7 +1084,7 @@ class EmailSender:
             </div>
             <ul style="margin: 0; padding-left: 18px; font-size: 12.5px; color: #1E293B; line-height: 1.7;">
                 <li style="margin-bottom: 4px;"><b>AI 포트폴리오 성과:</b> 누적 적중 승률 <b>{win_rate}%</b>, 평균 수익률 <b>{avg_ret:+.2f}%</b> 달성으로 시장 대비 견고한 초과 수익률 유지</li>
-                <li style="margin-bottom: 4px;"><b>차주 시장 포커스:</b> 미국 금리 기조 및 환율 변동성 대비 현금 비중 20% 유지, 2026/2027 실적 상향 반도체·방산 섹터 분할 매수 유효</li>
+                <li style="margin-bottom: 4px;"><b>차주 시장 포커스:</b> 미국 금리 기조 및 환율 변동성 대비 현금 비중 20% 유지, 중장기 실적 상향 반도체·방산 섹터 분할 매수 유효</li>
                 <li><b>구글 드라이브 전략 백서:</b> 표지 및 목차를 포함한 12~15페이지 분량의 <b>『{date_str}_주간_글로벌_금융_전략_백서.pdf』</b>가 구글 드라이브(<code>{date_str[:7]}/</code>)에 적재 완료되었습니다.</li>
             </ul>
         </div>
@@ -1168,7 +1173,7 @@ class EmailSender:
                     <div style="background: #F8FAFC; border: 1px solid #CBD5E1; border-left: 4px solid #1E3A8A; border-radius: 6px; padding: 14px; font-size: 12px; color: #334155; line-height: 1.6;">
                         📁 <b>구글 드라이브 주간 전략 백서 보관함 안내:</b><br>
                         • <b>주간 종합 백서 PDF:</b> <code>{date_str[:7]}/{date_str}_주간_글로벌_금융_전략_백서.pdf</code> (정식 표지, 목차, 6대 챕터 종합 결산 수록)<br>
-                        📎 <b>첨부 파일 안내:</b> 주간 종합 백서 PDF 및 한 주간의 누적 데이터를 모두 집계한 주간 총결산 엑셀 파일(<code>.xlsx</code>)이 첨부되어 있습니다.
+                        📎 <b>첨부 파일 안내:</b> 스마트폰 및 브라우저에서 편리하게 열람할 수 있도록 반응형 웹리포트(<code>.html</code>) 파일이 단독 첨부되어 있습니다. (상세 백서 PDF 및 누적 집계 엑셀은 구글 드라이브에 보관)
                     </div>
 
                 </div>
@@ -1215,12 +1220,14 @@ class EmailSender:
             )
             msg.attach(MIMEText(html_content, "html", "utf-8"))
 
-            # 다중 첨부파일 지원 (Excel 및 PDF)
+            # 사용자 요청: 첨부파일에는 HTML 파일만 단독 첨부
             file_list = []
             if attachments:
                 file_list.extend(attachments)
             if attachment_path and attachment_path not in file_list:
                 file_list.append(attachment_path)
+
+            file_list = [f for f in file_list if f and f.lower().endswith(".html")]
 
             for fpath in file_list:
                 if fpath and os.path.exists(fpath):
@@ -1262,6 +1269,8 @@ class EmailSender:
                 file_list.extend(attachments)
             if attachment_path and attachment_path not in file_list:
                 file_list.append(attachment_path)
+
+            file_list = [f for f in file_list if f and f.lower().endswith(".html")]
 
             for fpath in file_list:
                 if fpath and os.path.exists(fpath):

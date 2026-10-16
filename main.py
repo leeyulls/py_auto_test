@@ -179,7 +179,7 @@ def main():
     story_engine = StoryDiveEngine(history_mgr=history_mgr)
     story_dive_data = story_engine.generate_two_track_stories(general_news=general_news, mega_issue=mega_issue)
     trend_candidates = story_engine.fetch_trend_candidates()
-    trend_target = trend_candidates[0] if trend_candidates else {"title": "2030 디토 소비와 신소비 트렌드", "summary": "숏폼 바이럴을 통한 품절 대란 확산"}
+    trend_target = trend_candidates[0] if trend_candidates else {"title": "2030 가치 소비와 신소비 트렌드", "summary": "숏폼 바이럴을 통한 품절 대란 확산"}
     trend_dossier = dossier_engine.expand_trend_story(trend_target)
 
     # 증권사 공식 리포트 Top 2 기업 심층 해부
@@ -402,14 +402,13 @@ def main():
         else:
             print("\n🔕 [이메일 발송 건너뜀] '--no-mail' 옵션이 지정되어 주간 테스트 메일을 발송하지 않습니다.")
     else:
-        daily_attachments = [daily_excel_path]
-        if os.path.exists(daily_pdf_path):
-            daily_attachments.append(daily_pdf_path)
+        # 사용자 요청: 이메일 첨부파일에는 모바일 웹리포트 HTML 파일만 단독 첨부
+        daily_attachments = []
         if os.path.exists(daily_mobile_html_path):
             daily_attachments.append(daily_mobile_html_path)
 
         if send_mail_enabled:
-            print(f"\n📧 나만의 데일리 브리핑 이메일 발송 중 ({edition_name_ko} - 엑셀 + 심층 PDF + 모바일 웹진 첨부)...")
+            print(f"\n📧 나만의 데일리 브리핑 이메일 발송 중 ({edition_name_ko} - 모바일 웹리포트 HTML 단독 첨부)...")
             sender.send_report(
                 date_str=today_str,
                 stock_indices=stock_indices,

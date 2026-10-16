@@ -652,6 +652,7 @@ class IntelligenceDossierEngine:
                     "chapter3": gemini_res.get("chapter3", ""),
                     "chapter4": gemini_res.get("chapter4", ""),
                     "entity": raw_title[:15],
+                    "term_tip": trend_item.get("term_tip") or gemini_res.get("term_tip") or f"<b>{raw_title[:10]} 트렌드:</b> 대중적 화제성과 심리적 만족감이 결합된 최신 라이프스타일 소비 현상입니다.",
                     "link": link,
                     "source": source
                 }
@@ -674,6 +675,8 @@ class IntelligenceDossierEngine:
         chapter3 = f"<b>■ 산업 생태계 영향 & 기업 비즈니스:</b><br>관련 기업과 플랫폼은 집객 효과와 신규 수익 창출을 위해 기동력 있는 마케팅을 전개하고 있습니다."
         chapter4 = f"<b>■ 트렌드 수명 주기 & 지속 가능성 진단:</b><br>단기 테마성 과열을 경계하고 본원적 경쟁력과 실질적 효용을 냉정하게 점검해야 합니다."
 
+        term_tip = trend_item.get("term_tip") or f"<b>{entity} 소비 트렌드:</b> 대중적 화제성과 개성 표출 욕구가 결합되어 실물 구매 및 SNS 공유로 이어지는 신소비 메커니즘입니다."
+
         return {
             "headline": headline,
             "subhead": subhead,
@@ -683,6 +686,7 @@ class IntelligenceDossierEngine:
             "chapter3": chapter3,
             "chapter4": chapter4,
             "entity": entity,
+            "term_tip": term_tip,
             "link": link,
             "source": source
         }

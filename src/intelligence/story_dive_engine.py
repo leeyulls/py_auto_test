@@ -16,10 +16,10 @@ class StoryDiveEngine:
     """오늘의 심층 테마 리포트 생성 엔진 (구 StoryDiveEngine)"""
     def __init__(self, history_mgr=None):
         self.history_mgr = history_mgr
-        # 트렌드 검색 범위를 라이프스타일, F&B, 팝업, 역주행, 디토소비, 숏폼 등 전방위로 대폭 확장
+        # 트렌드 검색 범위를 라이프스타일, F&B, 팝업, 역주행, 신상품, 숏폼 등 전방위로 확장
         self.trend_feeds = [
             "https://news.google.com/rss/search?q=" + quote("품절대란 OR 오픈런 OR \"유행 열풍\" OR \"신상품 화제\" OR \"소비 트렌드\" OR 팝업스토어") + "&hl=ko&gl=KR&ceid=KR:ko",
-            "https://news.google.com/rss/search?q=" + quote('"MZ세대" OR "핫플" OR "입소문" OR "신드롬" OR "대세" OR "SNS 화제" OR "역주행" OR "디토 소비"') + "&hl=ko&gl=KR&ceid=KR:ko",
+            "https://news.google.com/rss/search?q=" + quote('"MZ세대" OR "핫플" OR "입소문" OR "신드롬" OR "대세" OR "SNS 화제" OR "역주행" OR "가치 소비"') + "&hl=ko&gl=KR&ceid=KR:ko",
             "https://news.google.com/rss/search?q=" + quote('"소비자 열광" OR "완판" OR "품귀" OR "줄서는" OR "인기 폭발" OR "바이럴 마케팅" OR "디저트 열풍"') + "&hl=ko&gl=KR&ceid=KR:ko"
         ]
 
@@ -68,9 +68,10 @@ class StoryDiveEngine:
 
     VIRAL_TERMS = {
         "품절": 25, "대란": 25, "오픈런": 30, "완판": 25, "웨이팅": 20, "줄서는": 20,
-        "디토": 25, "핫플": 20, "역주행": 25, "신드롬": 25, "열광": 20, "품귀": 25,
-        "흑백요리사": 35, "팝업": 20, "성수": 15, "MZ": 15, "인기폭발": 25, "소비트렌드": 20,
-        "트렌드": 15, "바이럴": 20, "신상품": 15, "웃돈": 25, "품귀현상": 25
+        "핫플": 20, "역주행": 25, "신드롬": 25, "열광": 20, "품귀": 25,
+        "팝업": 20, "성수": 15, "MZ": 15, "인기폭발": 25, "소비트렌드": 20,
+        "트렌드": 15, "바이럴": 20, "신상품": 15, "웃돈": 25, "품귀현상": 25,
+        "완판행진": 25, "가치소비": 20, "품절대란": 30
     }
     PR_EXCLUDE_TERMS = {"출시했다", "선보인다", "공개했다", "오픈했다", "협약", "MOU", "체결했다"}
 
@@ -154,14 +155,34 @@ class StoryDiveEngine:
             print(f"[경고] 심층 콘텍스트 검색 오류 ({keyword}): {e}")
         return results
 
+    @staticmethod
+    def _strip_josa(word: str) -> str:
+        """한국어 끝 조사를 자연스럽게 분리 제거"""
+        if not word or len(word) <= 1:
+            return word
+        # 2글자 이상 조사 우선 제거 후 1글자 조사 제거
+        josa_patterns = [
+            r'(?:에서|으로|부터|까지|에게|에는|에도|과의|와의|하고|이나|이란|라는|라며)$',
+            r'(?:은|는|이|가|을|를|에|의|로|와|과|도|만|서)$'
+        ]
+        res = word
+        for pat in josa_patterns:
+            trimmed = re.sub(pat, '', res)
+            if len(trimmed) >= 2:
+                res = trimmed
+                break
+        return res
+
     def extract_core_entity(self, title: str) -> str:
-        """기사 제목에서 핵심 키워드/주제명 추출"""
+        """기사 제목에서 핵심 키워드/주제명 추출 및 조사 제거"""
         quote_match = re.search(r"['\"]([^'\"]+)['\"]", title)
         if quote_match and len(quote_match.group(1)) >= 2:
-            return quote_match.group(1).strip()
+            return self._strip_josa(quote_match.group(1).strip())
         clean = re.sub(r"\[[^\]]+\]|\(.*?\)|\<.*?\>", "", title).strip()
         words = [w for w in re.split(r"[\s,‥…·]+", clean) if len(w) >= 2 and w not in ["오늘", "결국", "왜", "논란", "충격", "발표", "주장", "전망", "속보", "단독"]]
-        return words[0] if words else "주요이슈"
+        if words:
+            return self._strip_josa(words[0])
+        return "주요이슈"
 
     def _infer_term_explanation(self, entity: str, title: str, summary: str, is_trend: bool = False) -> str:
         """주제에 걸맞은 1분 핵심 용어 사전 팁 생성"""
@@ -169,14 +190,14 @@ class StoryDiveEngine:
         
         dict_db = {
             "관세": "📌 **상호주의 관세(Reciprocal Tariff)**: 상대국이 자국 상품에 매기는 관세율과 동일한 수준으로 보복 관세를 부과하여 무역 불균형을 시정하려는 강력한 통상 압박 정책입니다.",
-            "트럼프": "📌 **리쇼어링(Reshoring)**: 해외로 이전했던 자국 기업의 생산 기지를 세제 혜택이나 관세 압박을 통해 다시 본국으로 복귀시키는 제조업 부흥 전략입니다.",
+            "리쇼어링": "📌 **리쇼어링(Reshoring)**: 해외로 이전했던 자국 기업의 생산 기지를 세제 혜택이나 관세 압박을 통해 다시 본국으로 복귀시키는 제조업 부흥 전략입니다.",
             "금리": "📌 **피벗(Pivot)**: 중앙은행이 기존의 긴축적 통화 정책 기조를 끝내고 금리 인하 등 통화 완화로 통화 정책의 방향을 180도 전환하는 것을 의미합니다.",
             "반도체": "📌 **HBM(고대역폭 메모리)**: D램을 수직으로 높게 쌓아 데이터 처리 속도를 획기적으로 끌어올린 인공지능(AI) 그래픽처리장치(GPU) 필수 탑재 메모리입니다.",
             "자사주": "📌 **자사주 소각(Cancellation)**: 기업이 사들인 자기 회사 주식을 소멸시켜 전체 유통 주식 수를 줄임으로써, 주당순이익(EPS)을 끌어올리고 주가를 부양하는 강력한 주주환원책입니다.",
             "오픈런": "📌 **오픈런(Open Run)**: 매장 영업이 시작되자마자 한정판이나 희소 상품을 선점하기 위해 새벽부터 줄을 서서 달려가는 소비 현상입니다.",
             "팝업": "📌 **팝업스토어(Pop-up Store)**: 짧은 기간 동안 임시로 운영되는 매장으로, 단순 물건 판매를 넘어 소비자에게 특별한 브랜드 체험과 인증샷을 유도하는 현대 유통의 핵심 집객 전략입니다.",
-            "디토": "📌 **디토(Ditto) 소비**: '나도 마찬가지'라는 뜻처럼, 특정 인플루언서나 인기 콘텐츠의 취향을 신뢰하고 그대로 따라 구매하는 요즘 세대의 대표적 소비 형태입니다.",
-            "블루 아카이브": "📌 **서브컬처 팬덤 비즈니스**: 만화·게임 등 탄탄한 마니아층을 보유한 지식재산권(IP)이 편의점, 패션, F&B와 결합하여 대중적 품절 대란을 유발하는 IP 확장 모델입니다.",
+            "가치 소비": "📌 **가치 소비(Value Consumption)**: 단순한 가격이나 브랜드보다 자신의 신념, 가치관, 심리적 만족감에 부합하는 제품에 기꺼이 지갑을 여는 소비 행태입니다.",
+            "스몰 럭셔리": "📌 **스몰 럭셔리(Small Luxury)**: 경기 둔화 속에서 고가 대형 자산 대신 프리미엄 디저트나 니치 향수 등 소액의 고급 소비재로 즉각적인 심리적 만족을 얻는 소비 형태입니다.",
             "숏폼": "📌 **숏폼 바이럴(Short-form Viral)**: 1분 미만의 틱톡, 릴스, 쇼츠 영상을 통해 폭발적으로 입소문이 번져 오프라인 매장의 실물 상품 구매로 직결되는 유행 확산 구조입니다."
         }
         
@@ -329,7 +350,7 @@ class StoryDiveEngine:
             stage3 = (
                 f"소비자들이 기꺼이 시간과 비용을 들여 줄을 서는 심리적 이유를 쉽게 풀어보았습니다.<br>"
                 f"• <b>소비 심리:</b> {psy_synth}<br>"
-                f"• <b>심리적 기제:</b> 단순히 제품의 기능 때문이 아니라, '희소한 트렌드를 남들보다 빠르게 경험하고 인증했다'는 심리적 만족감과 소속감(디토 소비 및 포모 심리)이 지갑을 열게 만드는 핵심 동기입니다."
+                f"• <b>심리적 기제:</b> 단순히 제품의 기능 때문이 아니라, '희소한 트렌드를 남들보다 빠르게 경험하고 인증했다'는 심리적 만족감과 소속감(동조 소비 및 포모(FOMO) 심리)이 지갑을 열게 만드는 핵심 동기입니다."
             )
         else:
             stage3 = (

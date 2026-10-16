@@ -319,13 +319,24 @@ class ResearchManager:
 
     @staticmethod
     def extract_financial_table_from_pdf(pdf_path: str) -> dict:
-        """애널리스트 PDF 원본의 1~3페이지로부터 2026/2027 예상 실적 표(매출/영업익/YoY) 자동 발췌"""
+        """애널리스트 PDF 원본의 1~3페이지로부터 당해/차기 예상 실적 표(매출/영업익/YoY) 자동 발췌"""
+        cur_year = datetime.date.today().year
+        next_year = cur_year + 1
+        y1_label = f"{cur_year}F"
+        y2_label = f"{next_year}F"
+
         default_res = {
+            "year1_label": y1_label,
+            "year2_label": y2_label,
+            "rev_year1": "-",
+            "op_year1": "-",
+            "rev_year2": "-",
+            "op_year2": "-",
             "rev_2026": "-",
             "op_2026": "-",
             "rev_2027": "-",
             "op_2027": "-",
-            "yoy_summary": "2026~2027 연간 실적 성장세 추정",
+            "yoy_summary": f"{cur_year}~{next_year} 연간 실적 성장세 추정",
             "has_table": False,
         }
         if not pdf_path or not os.path.exists(pdf_path):
@@ -338,30 +349,30 @@ class ResearchManager:
             for page in reader.pages[:3]:
                 extracted_text += (page.extract_text() or "") + "\n"
 
-            # 1. 2026 / 2027 연간 추정치 표 매칭
+            # 1. 당해 및 차기년도 추정치 표 매칭
             rev_match = re.search(r'매출액[^\d\n]*([0-9,.]+)\s+([0-9,.]+)\s+([0-9,.]+)\s+([0-9,.]+)', extracted_text)
             op_match = re.search(r'영업이익[^\d\n]*([0-9,.-]+)\s+([0-9,.-]+)\s+([0-9,.-]+)\s+([0-9,.-]+)', extracted_text)
-            preview_matches = re.findall(r'(?:2026년|3Q26|4Q26|연결)[^\n.]{0,80}(?:매출액|영업이익)[^\n.]{0,80}(?:YoY|QoQ|원|%)[^\n.]*', extracted_text)
+            preview_matches = re.findall(rf'(?:{cur_year}년|3Q\d\d|4Q\d\d|연결)[^\n.]{{0,80}}(?:매출액|영업이익)[^\n.]{{0,80}}(?:YoY|QoQ|원|%)[^\n.]*', extracted_text)
 
-            rev_2026 = "-"
-            rev_2027 = "-"
-            op_2026 = "-"
-            op_2027 = "-"
+            rev_y1 = "-"
+            rev_y2 = "-"
+            op_y1 = "-"
+            op_y2 = "-"
             has_table = False
 
             if rev_match:
                 vals = rev_match.groups()
-                rev_2026 = f"{vals[2]}십억원"
-                rev_2027 = f"{vals[3]}십억원"
+                rev_y1 = f"{vals[2]}십억원"
+                rev_y2 = f"{vals[3]}십억원"
                 has_table = True
 
             if op_match:
                 vals = op_match.groups()
-                op_2026 = f"{vals[2]}십억원"
-                op_2027 = f"{vals[3]}십억원"
+                op_y1 = f"{vals[2]}십억원"
+                op_y2 = f"{vals[3]}십억원"
                 has_table = True
 
-            yoy_summary = preview_matches[0].strip() if preview_matches else "2026/2027 실적 성장세 및 기업가치 재평가 전망"
+            yoy_summary = preview_matches[0].strip() if preview_matches else f"{cur_year}/{next_year} 실적 성장세 및 기업가치 재평가 전망"
             yoy_summary = yoy_summary[:120].strip()
             # 괄호 짝 맞춤 보정 (열린 괄호가 닫히지 않은 경우 자동 보정)
             open_p = yoy_summary.count("(")
@@ -369,18 +380,23 @@ class ResearchManager:
             if open_p > close_p:
                 yoy_summary += ")" * (open_p - close_p)
             elif close_p > open_p:
-                # 닫는 괄호가 더 많은 경우 초과분 제거
                 yoy_summary = re.sub(r'\)+$', '', yoy_summary)
 
             return {
-                "rev_2026": rev_2026,
-                "op_2026": op_2026,
-                "rev_2027": rev_2027,
-                "op_2027": op_2027,
+                "year1_label": y1_label,
+                "year2_label": y2_label,
+                "rev_year1": rev_y1,
+                "op_year1": op_y1,
+                "rev_year2": rev_y2,
+                "op_year2": op_y2,
+                "rev_2026": rev_y1,
+                "op_2026": op_y1,
+                "rev_2027": rev_y2,
+                "op_2027": op_y2,
                 "yoy_summary": yoy_summary,
                 "has_table": has_table,
             }
-        except Exception as e:
+        except Exception:
             return default_res
 
 

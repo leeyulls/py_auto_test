@@ -125,10 +125,10 @@ class ReportGenerator:
                         "리포트제목": r.get("title", ""),
                         "공인_목표주가": tp_str,
                         "투자의견": r.get("opinion", "BUY"),
-                        "2026F_예상매출": ft.get("rev_2026", "-"),
-                        "2026F_예상영업익": ft.get("op_2026", "-"),
-                        "2027F_예상매출": ft.get("rev_2027", "-"),
-                        "2027F_예상영업익": ft.get("op_2027", "-"),
+                        f"{datetime.date.today().year}F_예상매출": ft.get("rev_year1", ft.get("rev_2026", "-")),
+                        f"{datetime.date.today().year}F_예상영업익": ft.get("op_year1", ft.get("op_2026", "-")),
+                        f"{datetime.date.today().year + 1}F_예상매출": ft.get("rev_year2", ft.get("rev_2027", "-")),
+                        f"{datetime.date.today().year + 1}F_예상영업익": ft.get("op_year2", ft.get("op_2027", "-")),
                         "실적요약_YoY": ft.get("yoy_summary", ""),
                         "시장조회수": r.get("read_count", 0),
                         "핵심요약": r.get("summary_text", ""),
@@ -269,10 +269,10 @@ class ReportGenerator:
                     "리포트제목": r.get("title", ""),
                     "목표주가": tp_str,
                     "투자의견": r.get("opinion", "BUY"),
-                    "2026F_예상매출": ft.get("rev_2026", "-"),
-                    "2026F_예상영업익": ft.get("op_2026", "-"),
-                    "2027F_예상매출": ft.get("rev_2027", "-"),
-                    "2027F_예상영업익": ft.get("op_2027", "-"),
+                    f"{datetime.date.today().year}F_예상매출": ft.get("rev_year1", ft.get("rev_2026", "-")),
+                    f"{datetime.date.today().year}F_예상영업익": ft.get("op_year1", ft.get("op_2026", "-")),
+                    f"{datetime.date.today().year + 1}F_예상매출": ft.get("rev_year2", ft.get("rev_2027", "-")),
+                    f"{datetime.date.today().year + 1}F_예상영업익": ft.get("op_year2", ft.get("op_2027", "-")),
                     "실적전망요약": ft.get("yoy_summary", ""),
                     "핵심요약": r.get("summary_text", ""),
                     "PDF파일명": r.get("pdf_filename", ""),
@@ -511,18 +511,20 @@ class ReportGenerator:
                 "## 📄 4. 증권사 공식 애널리스트 Top 10 리포트 & 핵심 실적 추정치 표 (YoY)",
                 "> 5대 신뢰도 지표(기관 공신력, 정량 목표가, 변동 모멘텀, 조회수, 집중도)로 엄선된 공식 리포트입니다. 원본 PDF는 구글 드라이브 월별 폴더(`공식_리서치_PDF`)에 자동 보관됩니다.",
                 "",
-                "| 종목명 (증권사) | 공인 목표주가 | 투자의견 | 2026F 예상 실적 | 2027F 예상 실적 | 실적 요약 (YoY) | 신뢰도 |",
+                f"| 종목명 (증권사) | 공인 목표주가 | 투자의견 | {datetime.date.today().year}F 예상 실적 | {datetime.date.today().year + 1}F 예상 실적 | 실적 요약 (YoY) | 신뢰도 |",
                 "| :--- | :--- | :--- | :--- | :--- | :--- | :--- |",
             ])
             for r in official_reports:
                 tp = r.get("target_price")
                 tp_str = f"{int(tp):,}원" if tp else "-"
                 ft = r.get("financial_table", {})
-                f_2026 = f"매출 {ft.get('rev_2026', '-')}<br>영익 {ft.get('op_2026', '-')}"
-                f_2027 = f"매출 {ft.get('rev_2027', '-')}<br>영익 {ft.get('op_2027', '-')}"
+                y1 = ft.get("year1_label", f"{datetime.date.today().year}F")
+                y2 = ft.get("year2_label", f"{datetime.date.today().year + 1}F")
+                f_y1 = f"매출 {ft.get('rev_year1', ft.get('rev_2026', '-'))}<br>영익 {ft.get('op_year1', ft.get('op_2026', '-'))}"
+                f_y2 = f"매출 {ft.get('rev_year2', ft.get('rev_2027', '-'))}<br>영익 {ft.get('op_year2', ft.get('op_2027', '-'))}"
                 lines.append(
                     f"| **{r.get('item_name', '')}**<br>({r.get('broker', '')}) | **{tp_str}** | "
-                    f"`{r.get('opinion', 'BUY')}` | {f_2026} | {f_2027} | "
+                    f"`{r.get('opinion', 'BUY')}` | {f_y1} | {f_y2} | "
                     f"{ft.get('yoy_summary', '')} | ⭐ {r.get('credibility_score', 0)}점 |"
                 )
             lines.extend(["", "---", ""])

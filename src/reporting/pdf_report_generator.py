@@ -748,7 +748,7 @@ class PdfReportGenerator:
   </div>
 
   <div style="margin-top: 14px; background: #FEF9C3; border: 1px solid #FDE047; padding: 8px 12px; border-radius: 6px; font-size: 11px; color: #713F12; line-height: 1.5;">
-    💡 <b>1분 핵심 용어 사전:</b> <b>디토(Ditto) 소비</b>는 특정 인물이나 채널의 취향을 추종하여 제품을 구매하는 현대적 소비 행태를 뜻하며, <b>스몰 럭셔리(Small Luxury)</b>는 불황기 속에서 고가 대형 상품 대신 고급 디저트나 니치 향수 등 소액 프리미엄을 통해 심리적 만족을 극대화하는 행동 경제학적 선택입니다.
+    💡 <b>1분 핵심 용어 사전:</b> {(trend_d.get('term_tip') or '대중적 화제성과 개성 표출 욕구가 결합되어 실물 구매로 이어지는 현대적 신소비 메커니즘입니다.').replace('**', '').replace('📌 ', '')}
   </div>
 
   <div class="page-break"></div>
@@ -1434,7 +1434,7 @@ class PdfReportGenerator:
       🔥 2030 트렌드 및 유통가 소비 심리 변화 요약
     </div>
     <div style="font-size: 12px; color: #374151; line-height: 1.6;">
-      • <b>가치 소비 및 디토(Ditto) 소비의 일상화:</b> 유명 인플루언서 및 알고리즘 추천 기반의 '품귀 현상'이 식품, 뷰티, 패션 전반으로 즉각 확산되는 양상입니다.<br>
+      • <b>가치 소비 및 취향 동조 소비의 일상화:</b> 유명 인플루언서 및 알고리즘 추천 기반의 '품귀 현상'이 식품, 뷰티, 패션 전반으로 즉각 확산되는 양상입니다.<br>
       • <b>불황형 프리미엄의 양극화:</b> 일상 소비재는 PB 및 초저가를 지향하는 반면, 스몰 럭셔리(향수, 디저트 팝업, 한정판 굿즈)에는 지출을 아끼지 않는 이중적 소비 형태가 뚜렷합니다.<br>
       • <b>기업 실전 대응 제언:</b> 기존의 대규모 매스 마케팅보다는 타깃 세그먼트별 핀셋 팝업 스토어 및 숏폼 챌린지 중심의 기동성 있는 마케팅 집행이 필수적입니다.
     </div>
@@ -1683,7 +1683,7 @@ class PdfReportGenerator:
                     <div style="background: #FFF1F2; padding: 12px; border-radius: 6px; color: #9F1239; border: 1px solid #FECDD3;">{trend_d.get('chapter4', '')}</div>
                 </div>
                 <div style="margin-top: 12px; background: #FEF9C3; border: 1px solid #FDE047; padding: 10px 14px; border-radius: 6px; font-size: 12.5px; color: #713F12; line-height: 1.55;">
-                    💡 <b>1분 핵심 용어 사전:</b> <b>디토(Ditto) 소비</b>는 인플루언서·전문가 취향 추종 소비 행태를 뜻하며, <b>스몰 럭셔리(Small Luxury)</b>는 불황기 소액 고품질 소비재를 통해 심리적 만족을 극대화하는 행동 경제학적 선택입니다.
+                    💡 <b>1분 핵심 용어 사전:</b> {(trend_d.get('term_tip') or '대중적 화제성과 개성 표출 욕구가 결합되어 실물 구매로 이어지는 현대적 신소비 메커니즘입니다.').replace('**', '').replace('📌 ', '')}
                 </div>
             </div>
             """
@@ -2349,9 +2349,9 @@ class PdfReportGenerator:
   </div>
 
   <div style="background: #F8FAFC; border-top: 1px solid #E2E8F0; padding: 22px 16px; text-align: center; font-size: 12px; color: #64748B; line-height: 1.7;">
-    본 모바일 인텔리전스 보고서는 Google Gemini 2026 AI & Quantitative Quant Engine에 의해 자동 편찬되었습니다.<br>
+    본 모바일 인텔리전스 보고서는 Google Gemini AI & Quantitative Quant Engine에 의해 자동 편찬되었습니다.<br>
     클라우드 구글 드라이브(월별 폴더)에 초고해상도 A4 신문판 PDF가 함께 동기화 보존됩니다.<br>
-    © 2026 The Executive Intelligence Herald. All Rights Reserved.
+    © {datetime.date.today().year} The Executive Intelligence Herald. All Rights Reserved.
   </div>
 </div>
 </body>
