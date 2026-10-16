@@ -443,28 +443,29 @@ with st.sidebar:
     )
     saved_gdrive_url = st.session_state.get(
         "custom_gdrive_url",
-        os.environ.get("GOOGLE_DRIVE_URL", "https://drive.google.com/drive/my-drive")
+        os.environ.get("GOOGLE_DRIVE_FOLDER_URL", os.environ.get("GOOGLE_DRIVE_URL", "https://drive.google.com/drive/my-drive"))
     )
-    st.success("🟢 구글 드라이브 (항상 연동 활성화)")
+    st.success("🟢 구글 드라이브 (브리핑 폴더 격리 연동)")
 
     st.markdown("---")
-    st.subheader("☁️ 구글 드라이브 보관함")
-    st.link_button("🌐 내 구글 드라이브 웹 열기 ↗", saved_gdrive_url, use_container_width=True)
+    st.subheader("☁️ 브리핑 전용 드라이브")
+    st.link_button("📂 브리핑 전용 폴더 웹 열기 ↗", saved_gdrive_url, use_container_width=True)
 
-    with st.expander("⚙️ 드라이브 경로 / 웹 링크 설정", expanded=False):
+    with st.expander("⚙️ 브리핑 폴더 경로 / 웹 링크 설정", expanded=False):
+        st.caption("🔒 **개인정보 보호**: 전체 드라이브가 아닌 **[브리핑 전용 폴더]**로만 접근이 엄격히 한정됩니다.")
         gdrive_url_input = st.text_input(
-            "구글 드라이브 웹 링크(URL)",
+            "브리핑 폴더 웹 주소 (URL)",
             value=saved_gdrive_url,
-            help="내 구글 드라이브 또는 데일리_브리핑_수집 폴더의 웹 주소"
+            help="구글 드라이브에서 '데일리_브리핑_수집' 폴더 우클릭 > 링크 복사한 URL"
         )
         if gdrive_url_input != saved_gdrive_url:
             st.session_state["custom_gdrive_url"] = gdrive_url_input
             st.rerun()
 
         gdrive_input = st.text_input(
-            "PC 로컬 연동 폴더 경로",
+            "PC 로컬 브리핑 폴더 경로",
             value=saved_gdrive,
-            help="PC에 마운트된 구글 드라이브(G:\\내 드라이브 등) 폴더 경로"
+            help="PC에 마운트된 구글 드라이브 내 브리핑 폴더 경로"
         )
         if gdrive_input != saved_gdrive:
             st.session_state["custom_gdrive_folder"] = gdrive_input
@@ -1076,20 +1077,20 @@ with tab5:
     )
     current_gdrive_url = st.session_state.get(
         "custom_gdrive_url",
-        os.environ.get("GOOGLE_DRIVE_URL", "https://drive.google.com/drive/my-drive")
+        os.environ.get("GOOGLE_DRIVE_FOLDER_URL", os.environ.get("GOOGLE_DRIVE_URL", "https://drive.google.com/drive/my-drive"))
     )
     gdrive_exists = os.path.exists(current_gdrive_path)
 
-    # 1. 구글 드라이브 상시 연동 헤더 배너
+    # 1. 구글 드라이브 상시 연동 헤더 배너 (브리핑 폴더 한정 보안 격리)
     st.markdown(f"""
     <div style="background: linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%); border: 1.5px solid #3B82F6; border-radius: 12px; padding: 14px 18px; margin-bottom: 16px;">
         <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
             <div>
                 <div style="font-size: 15px; font-weight: 800; color: #1E3A8A; display: flex; align-items: center; gap: 8px;">
-                    ☁️ <span>구글 드라이브(Google Drive) 상시 연동: <b style="color: #16A34A;">🟢 정상 연결됨 (Active)</b></span>
+                    ☁️ <span>구글 드라이브 연동: <b style="color: #16A34A;">🟢 브리핑 전용 폴더 보안 연결됨 (Active)</b></span>
                 </div>
                 <div style="font-size: 12px; color: #1D4ED8; margin-top: 3px;">
-                    {'📁 PC 마운트 폴더 감지: <code>' + current_gdrive_path + '</code>' if gdrive_exists else '☁️ 클라우드 저장소 연동 모드 가동 중 • 웹 드라이브 원클릭 즉시 접속 가능'}
+                    🔒 <b>보안 격리 적용:</b> 개인 드라이브 전체가 아닌 <b>[데일리/주간 브리핑 수집 폴더]</b>로만 접근이 엄격히 한정되어 다른 개인 파일은 원천 보호됩니다.
                 </div>
             </div>
         </div>
@@ -1107,7 +1108,7 @@ with tab5:
     with top_c2:
         c_btn1, c_btn2 = st.columns(2)
         with c_btn1:
-            st.link_button("🌐 구글 드라이브 열기 ↗", current_gdrive_url, use_container_width=True, type="primary")
+            st.link_button("📂 브리핑 폴더 열기 ↗", current_gdrive_url, use_container_width=True, type="primary")
         with c_btn2:
             if st.button("🔄 리포트 즉시 동기화", use_container_width=True):
                 with st.spinner("구글 드라이브로 리포트 복사 및 동기화 중..."):
