@@ -120,10 +120,12 @@ class MolitRealEstateCollector:
             {
                 "apt_name": "래미안원베일리",
                 "district": "서울 서초구 반포동",
+                "dong": "반포동",
                 "area": "84.9㎡ (25.7평형)",
                 "price": "60억 0,000만원",
                 "price_raw": 600000,
                 "floor": "9층",
+                "build_year": "2023",
                 "deal_date": f"{cur_year}-10-12",
                 "badge": "🔥 신고가 경신",
                 "badge_type": "HIGH",
@@ -132,10 +134,12 @@ class MolitRealEstateCollector:
             {
                 "apt_name": "아크로리버파크",
                 "district": "서울 서초구 반포동",
+                "dong": "반포동",
                 "area": "84.9㎡ (25.7평형)",
                 "price": "54억 0,000만원",
                 "price_raw": 540000,
                 "floor": "16층",
+                "build_year": "2016",
                 "deal_date": f"{cur_year}-10-09",
                 "badge": "🟢 전고점 회복",
                 "badge_type": "RECOVER",
@@ -144,10 +148,12 @@ class MolitRealEstateCollector:
             {
                 "apt_name": "헬리오시티",
                 "district": "서울 송파구 가락동",
+                "dong": "가락동",
                 "area": "84.9㎡ (25.7평형)",
                 "price": "24억 5,000만원",
                 "price_raw": 245000,
                 "floor": "18층",
+                "build_year": "2018",
                 "deal_date": f"{cur_year}-10-14",
                 "badge": "🟢 강보합 거래",
                 "badge_type": "STEADY",
@@ -156,10 +162,12 @@ class MolitRealEstateCollector:
             {
                 "apt_name": "마포래미안푸르지오",
                 "district": "서울 마포구 아현동",
+                "dong": "아현동",
                 "area": "84.8㎡ (25.7평형)",
                 "price": "19억 8,000만원",
                 "price_raw": 198000,
                 "floor": "14층",
+                "build_year": "2014",
                 "deal_date": f"{cur_year}-10-11",
                 "badge": "🟢 전고점 근접",
                 "badge_type": "STEADY",
@@ -168,10 +176,12 @@ class MolitRealEstateCollector:
             {
                 "apt_name": "목동신시가지7단지",
                 "district": "서울 양천구 목동",
+                "dong": "목동",
                 "area": "66.6㎡ (20.1평형)",
                 "price": "22억 3,000만원",
                 "price_raw": 223000,
                 "floor": "7층",
+                "build_year": "1986",
                 "deal_date": f"{cur_year}-10-10",
                 "badge": "🔥 신고가 경신",
                 "badge_type": "HIGH",
@@ -180,10 +190,12 @@ class MolitRealEstateCollector:
             {
                 "apt_name": "시범한양 (여의도)",
                 "district": "서울 영등포구 여의도동",
+                "dong": "여의도동",
                 "area": "105.2㎡ (31.8평형)",
                 "price": "26억 5,000만원",
                 "price_raw": 265000,
                 "floor": "11층",
+                "build_year": "1975",
                 "deal_date": f"{cur_year}-10-08",
                 "badge": "🔥 최고가 갱신",
                 "badge_type": "HIGH",
@@ -192,10 +204,12 @@ class MolitRealEstateCollector:
             {
                 "apt_name": "파크뷰 (분당)",
                 "district": "경기 성남 분당구 정자동",
+                "dong": "정자동",
                 "area": "84.9㎡ (25.7평형)",
                 "price": "19억 5,000만원",
                 "price_raw": 195000,
                 "floor": "22층",
+                "build_year": "2004",
                 "deal_date": f"{cur_year}-10-13",
                 "badge": "🔥 신고가 경신",
                 "badge_type": "HIGH",
@@ -204,10 +218,12 @@ class MolitRealEstateCollector:
             {
                 "apt_name": "상계주공7단지",
                 "district": "서울 노원구 상계동",
+                "dong": "상계동",
                 "area": "59.3㎡ (17.9평형)",
                 "price": "6억 9,000만원",
                 "price_raw": 69000,
                 "floor": "5층",
+                "build_year": "1988",
                 "deal_date": f"{cur_year}-10-07",
                 "badge": "🟡 보합/급매 관망",
                 "badge_type": "CAUTION",
@@ -215,4 +231,12 @@ class MolitRealEstateCollector:
             },
         ]
 
+        # 모든 반환 항목에 dong, district 기본값 보장
+        for item in benchmark_trades:
+            if not item.get("dong") and item.get("district"):
+                item["dong"] = item["district"].split()[-1]
+            if not item.get("district") and item.get("dong"):
+                item["district"] = item["dong"]
+
         return benchmark_trades[:limit]
+

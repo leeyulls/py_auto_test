@@ -393,8 +393,9 @@ class PdfReportGenerator:
             badge_col = "#DC2626" if "신고가" in badge else ("#16A34A" if "회복" in badge or "급매" in badge else "#2563EB")
             re_trades_rows += f"""
             <tr style="border-bottom: 1px solid #E2E8F0;">
-                <td style="padding: 4px 6px; font-weight: bold; color: #0F172A; font-size: 10px;">{t.get('apt_name')} <span style="font-size: 9px; color: #64748B;">({t.get('dong')})</span></td>
+                <td style="padding: 4px 6px; font-weight: bold; color: #0F172A; font-size: 10px;">{t.get('apt_name')} <span style="font-size: 9px; color: #64748B;">({t.get('dong') or t.get('district', '')})</span></td>
                 <td style="padding: 4px 6px; text-align: center; color: #475569; font-size: 9.5px;">{t.get('area')}</td>
+
                 <td style="padding: 4px 6px; text-align: right; font-weight: bold; color: #0F172A; font-size: 10px;">{t.get('price')}</td>
                 <td style="padding: 4px 6px; text-align: center; color: #64748B; font-size: 9.5px;">{t.get('floor')}</td>
                 <td style="padding: 4px 6px; text-align: center; color: #64748B; font-size: 9.5px;">{t.get('deal_date')}</td>
@@ -2024,9 +2025,10 @@ class PdfReportGenerator:
             trades_cards_html += f"""
             <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 6px; padding: 10px 12px; margin-bottom: 8px;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-                    <span style="font-weight: bold; font-size: 13.5px; color: #0F172A;">{t.get('apt_name')} <span style="font-size: 11px; color: #64748B;">({t.get('dong')})</span></span>
+                    <span style="font-weight: bold; font-size: 13.5px; color: #0F172A;">{t.get('apt_name')} <span style="font-size: 11px; color: #64748B;">({t.get('dong') or t.get('district', '')})</span></span>
                     <span style="background: #FFFFFF; color: {badge_col}; border: 1px solid #CBD5E1; font-size: 10.5px; font-weight: bold; padding: 2px 7px; border-radius: 10px;">{badge}</span>
                 </div>
+
                 <div style="display: flex; justify-content: space-between; font-size: 12.5px; color: #334155;">
                     <span>전용 {t.get('area')} • {t.get('floor')}</span>
                     <span style="font-weight: 800; color: #0F172A; font-size: 13.5px;">{t.get('price')}</span>

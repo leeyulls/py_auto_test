@@ -254,8 +254,9 @@ class EmailSender:
             badge_col = "#DC2626" if "신고가" in badge else ("#16A34A" if "회복" in badge or "급매" in badge else "#2563EB")
             trades_rows_html += f"""
             <tr style="border-bottom: 1px solid #E2E8F0;">
-                <td style="padding: 5px 8px; font-weight: bold; color: #0F172A;">{t.get('apt_name')} <span style="font-size: 10px; color: #64748B;">({t.get('dong')})</span></td>
+                <td style="padding: 5px 8px; font-weight: bold; color: #0F172A;">{t.get('apt_name')} <span style="font-size: 10px; color: #64748B;">({t.get('dong') or t.get('district', '')})</span></td>
                 <td style="padding: 5px 8px; text-align: center; color: #475569; font-size: 11px;">{t.get('area')}</td>
+
                 <td style="padding: 5px 8px; text-align: right; font-weight: bold; color: #0F172A;">{t.get('price')}</td>
                 <td style="padding: 5px 8px; text-align: center; color: #64748B; font-size: 11px;">{t.get('floor')}</td>
                 <td style="padding: 5px 8px; text-align: center; color: #64748B; font-size: 11px;">{t.get('deal_date')}</td>

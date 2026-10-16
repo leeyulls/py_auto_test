@@ -539,11 +539,27 @@ with tab3:
     with col_re_t:
         st.markdown("##### 🏢 최근 수도권 핵심 단지 실거래 & 신고가 포착 일람")
         if not df_trades.empty:
-            display_trades = df_trades[["apt_name", "dong", "area", "price", "floor", "deal_date", "badge"]]
-            display_trades.columns = ["단지명", "법정동", "전용면적", "거래금액", "층수", "계약일", "거래특징"]
+            if "dong" not in df_trades.columns:
+                if "district" in df_trades.columns:
+                    df_trades["dong"] = df_trades["district"].apply(lambda d: str(d).split()[-1] if pd.notna(d) else "-")
+                else:
+                    df_trades["dong"] = "-"
+            
+            col_map = {
+                "apt_name": "단지명",
+                "dong": "법정동",
+                "area": "전용면적",
+                "price": "거래금액",
+                "floor": "층수",
+                "deal_date": "계약일",
+                "badge": "거래특징"
+            }
+            target_cols = [c for c in col_map.keys() if c in df_trades.columns]
+            display_trades = df_trades[target_cols].rename(columns=col_map)
             st.dataframe(display_trades, use_container_width=True, hide_index=True)
         else:
             st.info("실거래 데이터 로딩 중...")
+
 
     with col_re_chart:
         st.markdown("##### 📊 7대 권역별 주간 아파트 매매·전세 변동률")
