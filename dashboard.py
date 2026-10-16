@@ -441,11 +441,12 @@ with st.sidebar:
         "custom_gdrive_folder",
         os.environ.get("GOOGLE_DRIVE_FOLDER", detected_gdrive or r"G:\내 드라이브\데일리_브리핑_수집")
     )
+    DEFAULT_GDRIVE_URL = "https://drive.google.com/drive/folders/1-haXkilzNot3-4vbKUO-t2VP4hEJXIST?usp=drive_link"
     saved_gdrive_url = st.session_state.get(
         "custom_gdrive_url",
-        os.environ.get("GOOGLE_DRIVE_FOLDER_URL", os.environ.get("GOOGLE_DRIVE_URL", "https://drive.google.com/drive/my-drive"))
+        os.environ.get("GOOGLE_DRIVE_FOLDER_URL", DEFAULT_GDRIVE_URL)
     )
-    st.success("🟢 구글 드라이브 (브리핑 폴더 격리 연동)")
+    st.success("🟢 구글 드라이브 (브리핑 폴더 직통 연동)")
 
     st.markdown("---")
     st.subheader("☁️ 브리핑 전용 드라이브")
@@ -1075,9 +1076,10 @@ with tab5:
         "custom_gdrive_folder",
         os.environ.get("GOOGLE_DRIVE_FOLDER", g_sync_tool.get_archive_folder() or r"G:\내 드라이브\데일리_브리핑_수집")
     )
+    DEFAULT_GDRIVE_URL = "https://drive.google.com/drive/folders/1-haXkilzNot3-4vbKUO-t2VP4hEJXIST?usp=drive_link"
     current_gdrive_url = st.session_state.get(
         "custom_gdrive_url",
-        os.environ.get("GOOGLE_DRIVE_FOLDER_URL", os.environ.get("GOOGLE_DRIVE_URL", "https://drive.google.com/drive/my-drive"))
+        os.environ.get("GOOGLE_DRIVE_FOLDER_URL", DEFAULT_GDRIVE_URL)
     )
     gdrive_exists = os.path.exists(current_gdrive_path)
 
@@ -1087,10 +1089,10 @@ with tab5:
         <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
             <div>
                 <div style="font-size: 15px; font-weight: 800; color: #1E3A8A; display: flex; align-items: center; gap: 8px;">
-                    ☁️ <span>구글 드라이브 연동: <b style="color: #16A34A;">🟢 브리핑 전용 폴더 보안 연결됨 (Active)</b></span>
+                    ☁️ <span>구글 드라이브 연동: <b style="color: #16A34A;">🟢 브리핑 전용 폴더 직통 연결됨 (Active)</b></span>
                 </div>
                 <div style="font-size: 12px; color: #1D4ED8; margin-top: 3px;">
-                    🔒 <b>보안 격리 적용:</b> 개인 드라이브 전체가 아닌 <b>[데일리/주간 브리핑 수집 폴더]</b>로만 접근이 엄격히 한정되어 다른 개인 파일은 원천 보호됩니다.
+                    🔒 <b>보안 격리 적용:</b> <code>1-haXkilzNot3-4vbKUO-t2VP4hEJXIST</code> • 개인 드라이브 전체가 아닌 <b>[브리핑 전용 폴더]</b>로만 접근이 엄격히 한정되어 타 개인 파일은 원천 보호됩니다.
                 </div>
             </div>
         </div>
@@ -1119,6 +1121,11 @@ with tab5:
                         st.rerun()
                     else:
                         st.error(sync_res.get("message"))
+
+    with st.expander("👁️ 구글 드라이브 브리핑 전용 폴더 웹 뷰어", expanded=False):
+        st.caption("구글 계정 로그인 상태에서 실시간 폴더 목록을 바로 확인할 수 있습니다. 새 창에서 크게 보려면 위의 [📂 브리핑 폴더 열기 ↗] 버튼을 누르세요.")
+        embed_url = "https://drive.google.com/embeddedfolderview?id=1-haXkilzNot3-4vbKUO-t2VP4hEJXIST#list"
+        st.components.v1.iframe(embed_url, height=400, scrolling=True)
 
     is_gdrive_selected = "구글 드라이브" in storage_choice
     target_scan_dir = current_gdrive_path if (is_gdrive_selected and gdrive_exists) else "reports"
