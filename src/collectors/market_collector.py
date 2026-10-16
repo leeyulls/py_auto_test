@@ -6,7 +6,7 @@ market_collector.py
 import datetime
 import requests
 import feedparser
-from crawler_config import FINANCE_FEEDS, NAVER_RESEARCH_API, REQUEST_HEADERS
+from src.config.crawler_config import FINANCE_FEEDS, NAVER_RESEARCH_API, REQUEST_HEADERS
 
 
 class MarketCollector:

@@ -7,12 +7,13 @@ weekly_advisor.py
 import os
 import datetime
 import pandas as pd
+from src.config.crawler_config import MASTER_EXCEL_FILE
 
 
 class WeeklyAdvisor:
     def __init__(self, master_file_path=None):
         if master_file_path is None:
-            self.master_file = os.path.join(os.path.dirname(__file__), "reports", "일자별_누적_데일리_이슈_및_주식_브리핑_마스터.xlsx")
+            self.master_file = MASTER_EXCEL_FILE
         else:
             self.master_file = master_file_path
 
@@ -164,7 +165,7 @@ class WeeklyAdvisor:
         # -------------------------------------------------------------
         # 5. 🎯 추천 종목 사후 검증(Backtesting) 및 주간 적중률 집계 (Feature 1)
         # -------------------------------------------------------------
-        from performance_tracker import PerformanceTracker
+        from .performance_tracker import PerformanceTracker
         pt = PerformanceTracker(master_file_path=self.master_file)
         performance_res = pt.evaluate_performance(current_date_str=target_date.strftime("%Y-%m-%d"))
 

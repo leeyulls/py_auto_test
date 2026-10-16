@@ -13,14 +13,20 @@ from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
 
 try:
-    from intelligence_dossier_engine import IntelligenceDossierEngine
+    from src.intelligence.intelligence_dossier_engine import IntelligenceDossierEngine
 except ImportError:
-    IntelligenceDossierEngine = None
+    try:
+        from intelligence_dossier_engine import IntelligenceDossierEngine
+    except ImportError:
+        IntelligenceDossierEngine = None
 
 try:
-    from real_estate_advisor import RealEstateAdvisor
+    from src.advisors.real_estate_advisor import RealEstateAdvisor
 except ImportError:
-    RealEstateAdvisor = None
+    try:
+        from real_estate_advisor import RealEstateAdvisor
+    except ImportError:
+        RealEstateAdvisor = None
 
 
 class EmailSender:

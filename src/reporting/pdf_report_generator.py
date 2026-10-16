@@ -14,14 +14,20 @@ import subprocess
 import shutil
 
 try:
-    from intelligence_dossier_engine import IntelligenceDossierEngine
+    from src.intelligence.intelligence_dossier_engine import IntelligenceDossierEngine
 except ImportError:
-    IntelligenceDossierEngine = None
+    try:
+        from intelligence_dossier_engine import IntelligenceDossierEngine
+    except ImportError:
+        IntelligenceDossierEngine = None
 
 try:
-    from real_estate_advisor import RealEstateAdvisor
+    from src.advisors.real_estate_advisor import RealEstateAdvisor
 except ImportError:
-    RealEstateAdvisor = None
+    try:
+        from real_estate_advisor import RealEstateAdvisor
+    except ImportError:
+        RealEstateAdvisor = None
 
 # Windows cp949 인코딩 에러 방지
 if hasattr(sys.stdout, "reconfigure"):

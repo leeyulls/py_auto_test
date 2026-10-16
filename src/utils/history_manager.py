@@ -8,8 +8,7 @@ import difflib
 import json
 import os
 import re
-
-HISTORY_FILE = os.path.join(os.path.dirname(__file__), "data", "history.json")
+from src.config.crawler_config import HISTORY_FILE
 
 
 class HistoryManager:

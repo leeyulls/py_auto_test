@@ -9,7 +9,7 @@ import datetime
 import html
 import re
 import feedparser
-from crawler_config import NEWS_FEEDS
+from src.config.crawler_config import NEWS_FEEDS
 
 
 class NewsCollector:

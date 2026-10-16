@@ -10,6 +10,8 @@ import datetime
 import requests
 from bs4 import BeautifulSoup
 
+from src.config.crawler_config import REPORTS_DIR
+
 TIER_1_BROKERS = [
     "삼성증권", "미래에셋증권", "한국투자증권", "NH투자증권",
     "KB증권", "신한투자증권", "하나증권"
@@ -37,7 +39,7 @@ CORE_MARKET_LEADERS = {
 class ResearchManager:
     def __init__(self, output_dir=None, history_mgr=None):
         if output_dir is None:
-            self.output_dir = os.path.join(os.path.dirname(__file__), "reports")
+            self.output_dir = REPORTS_DIR
         else:
             self.output_dir = output_dir
 

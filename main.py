@@ -17,22 +17,35 @@ if hasattr(sys.stdout, "reconfigure"):
     except Exception:
         pass
 
-from history_manager import HistoryManager
-from market_collector import MarketCollector
-from news_collector import NewsCollector
-from stock_advisor import StockAdvisor
-from crypto_advisor import CryptoAdvisor
-from research_manager import ResearchManager
-from weekly_advisor import WeeklyAdvisor
-from report_generator import ReportGenerator
-from google_drive_sync import GoogleDriveSync
-from email_sender import EmailSender
-from performance_tracker import PerformanceTracker
-from disclosure_collector import DisclosureCollector
-from story_dive_engine import StoryDiveEngine
-from pdf_report_generator import PdfReportGenerator
-from intelligence_dossier_engine import IntelligenceDossierEngine
-from real_estate_advisor import RealEstateAdvisor
+# sys.path에 프로젝트 루트 등록
+base_dir = os.path.dirname(os.path.abspath(__file__))
+if base_dir not in sys.path:
+    sys.path.insert(0, base_dir)
+
+from src.utils import HistoryManager
+from src.collectors import (
+    MarketCollector,
+    NewsCollector,
+    DisclosureCollector,
+    ResearchManager,
+)
+from src.advisors import (
+    StockAdvisor,
+    CryptoAdvisor,
+    RealEstateAdvisor,
+    PerformanceTracker,
+    WeeklyAdvisor,
+)
+from src.intelligence import (
+    StoryDiveEngine,
+    IntelligenceDossierEngine,
+)
+from src.reporting import (
+    ReportGenerator,
+    PdfReportGenerator,
+    EmailSender,
+)
+from src.sync import GoogleDriveSync
 
 
 def load_env(env_path):

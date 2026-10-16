@@ -4,7 +4,7 @@ stock_analyzer.py
 """
 
 import requests
-from crawler_config import REQUEST_HEADERS
+from src.config.crawler_config import REQUEST_HEADERS
 
 
 class StockAnalyzer:

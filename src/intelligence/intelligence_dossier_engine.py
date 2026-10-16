@@ -12,7 +12,7 @@ import datetime
 import collections
 from urllib.parse import quote
 import feedparser
-from gemini_intelligence_client import GeminiIntelligenceClient
+from .gemini_intelligence_client import GeminiIntelligenceClient
 
 try:
     import trafilatura

@@ -10,12 +10,13 @@ import os
 import pandas as pd
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
+from src.config.crawler_config import REPORTS_DIR
 
 
 class ReportGenerator:
     def __init__(self, output_dir=None):
         if output_dir is None:
-            self.output_dir = os.path.join(os.path.dirname(__file__), "reports")
+            self.output_dir = REPORTS_DIR
         else:
             self.output_dir = output_dir
         os.makedirs(self.output_dir, exist_ok=True)

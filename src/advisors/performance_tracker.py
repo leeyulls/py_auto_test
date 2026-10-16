@@ -10,14 +10,13 @@ import os
 import re
 import pandas as pd
 import requests
-from crawler_config import REQUEST_HEADERS
+from src.config.crawler_config import REQUEST_HEADERS, MASTER_EXCEL_FILE
 
 
 class PerformanceTracker:
     def __init__(self, master_file_path=None):
         if master_file_path is None:
-            base_dir = os.path.dirname(os.path.abspath(__file__))
-            self.master_file = os.path.join(base_dir, "reports", "일자별_누적_데일리_이슈_및_주식_브리핑_마스터.xlsx")
+            self.master_file = MASTER_EXCEL_FILE
         else:
             self.master_file = master_file_path
 

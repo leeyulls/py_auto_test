@@ -1,7 +1,11 @@
-"""
-crawler_config.py
-7대 분야별(정치, 사회/사건사고, 거시경제, 주식/금융, 세계, IT/신상품, 연예) 수집 출처 및 설정
-"""
+import os
+
+# 프로젝트 기준 디렉토리 설정
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+DATA_DIR = os.path.join(PROJECT_ROOT, "data")
+REPORTS_DIR = os.path.join(PROJECT_ROOT, "reports")
+HISTORY_FILE = os.path.join(DATA_DIR, "history.json")
+MASTER_EXCEL_FILE = os.path.join(REPORTS_DIR, "일자별_누적_데일리_이슈_및_주식_브리핑_마스터.xlsx")
 
 # 7대 핵심 카테고리별 RSS 피드 (구글 뉴스 탑 + 연합뉴스 전문 피드)
 NEWS_FEEDS = {
