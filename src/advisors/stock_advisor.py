@@ -336,6 +336,9 @@ class StockAdvisor:
             }
             all_evaluations.append(item_dict)
 
+        # 외국인/기관 실시간 수급 쌍끌이 레이더 분석
+        investor_flow_radar = self.get_investor_flow_radar()
+
         # 미국 빅테크 4대장 별도 선별
         us_bigtech_list = [e for e in all_evaluations if e.get("is_us")]
 
@@ -346,5 +349,85 @@ class StockAdvisor:
             "sell_warning_picks": sell_warning_list,
             "us_bigtech_picks": us_bigtech_list,
             "cooldown_map": cooldown_map,
+            "investor_flow_radar": investor_flow_radar,
         }
+
+    def get_investor_flow_radar(self) -> list:
+        """주요 코스피/코스닥 대형주 대상 실시간 외국인/기관 수급 쌍끌이 레이더 분석"""
+        radar_list = []
+        target_stocks = [
+            ("005930", "삼성전자", "반도체"),
+            ("000660", "SK하이닉스", "반도체"),
+            ("012450", "한화에어로스페이스", "방산/항공"),
+            ("005380", "현대차", "자동차"),
+            ("000270", "기아", "자동차"),
+            ("035420", "NAVER", "인터넷/플랫폼"),
+            ("030200", "KT", "통신/AI"),
+            ("068270", "셀트리온", "바이오"),
+            ("105560", "KB금융", "금융/지주"),
+            ("051910", "LG화학", "화학/소재"),
+            ("005490", "POSCO홀딩스", "철강/이차전지"),
+            ("028260", "삼성물산", "지주/상사"),
+        ]
+        import requests
+        for code, name, sector in target_stocks:
+            try:
+                url = f"https://m.stock.naver.com/api/stock/{code}/trend"
+                r = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=4)
+                if r.status_code == 200:
+                    data = r.json()
+                    if data and isinstance(data, list):
+                        latest = data[0]
+                        f_quant = latest.get("foreignerPureBuyQuant", "0")
+                        o_quant = latest.get("organPureBuyQuant", "0")
+                        f_ratio = latest.get("foreignerHoldRatio", "-")
+                        close_p = latest.get("closePrice", "0")
+                        f_pos = "+" in str(f_quant)
+                        o_pos = "+" in str(o_quant)
+
+                        consec_f = 0
+                        for row in data:
+                            if "+" in str(row.get("foreignerPureBuyQuant", "")):
+                                consec_f += 1
+                            else:
+                                break
+
+                        consec_o = 0
+                        for row in data:
+                            if "+" in str(row.get("organPureBuyQuant", "")):
+                                consec_o += 1
+                            else:
+                                break
+
+                        if f_pos and o_pos:
+                            badge = "🔥 외인·기관 쌍끌이"
+                            score = 3
+                        elif f_pos:
+                            badge = "🟢 외인 순매수"
+                            score = 2
+                        elif o_pos:
+                            badge = "🔵 기관 순매수"
+                            score = 2
+                        else:
+                            badge = "⚪ 개인 순매수"
+                            score = 1
+
+                        radar_list.append({
+                            "code": code,
+                            "name": name,
+                            "sector": sector,
+                            "close_price": close_p,
+                            "badge": badge,
+                            "score": score,
+                            "foreign_quant": f_quant,
+                            "organ_quant": o_quant,
+                            "foreign_ratio": f_ratio,
+                            "consec_foreign": consec_f,
+                            "consec_organ": consec_o,
+                        })
+            except Exception:
+                pass
+
+        radar_list.sort(key=lambda x: (x["score"], x["consec_foreign"] + x["consec_organ"]), reverse=True)
+        return radar_list
 

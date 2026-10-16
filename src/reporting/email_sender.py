@@ -337,6 +337,50 @@ class EmailSender:
         else:
             sell_html = "<div style='color: #6B7280; font-size: 13px; padding: 6px 0;'>- 단기 과열권 종목 없음 (안정적 추세)</div>"
 
+        # ---------------------------------------------------------
+        # 🔥 외국인·기관 실시간 수급 쌍끌이 레이더 (Smart Money Flow)
+        # ---------------------------------------------------------
+        radar_list = stock_advice.get("investor_flow_radar", []) if isinstance(stock_advice, dict) else []
+        radar_rows_html = ""
+        if radar_list:
+            for item in radar_list[:6]:
+                score = item.get("score", 1)
+                bg_col = "#F0FDF4" if score == 3 else "#FFFFFF"
+                badge = item.get("badge", "")
+                badge_style = "background: #DCFCE7; color: #166534;" if "쌍끌이" in badge else ("background: #DBEAFE; color: #1E40AF;" if "외인" in badge else "background: #F3E8FF; color: #6B21A8;")
+                f_q = str(item.get("foreign_quant", "-"))
+                o_q = str(item.get("organ_quant", "-"))
+                f_color = "#16A34A" if "+" in f_q else ("#DC2626" if "-" in f_q else "#64748B")
+                o_color = "#16A34A" if "+" in o_q else ("#DC2626" if "-" in o_q else "#64748B")
+                radar_rows_html += f"""
+                <tr style="background: {bg_col}; border-bottom: 1px solid #E2E8F0;">
+                    <td style="padding: 6px 8px; font-weight: bold; color: #1E293B;">{item['name']} <span style="font-size: 11px; color: #64748B;">({item['sector']})</span></td>
+                    <td style="padding: 6px 8px; text-align: center;"><span style="{badge_style} font-weight: bold; font-size: 11px; padding: 2px 6px; border-radius: 4px;">{badge}</span></td>
+                    <td style="padding: 6px 8px; text-align: right; color: {f_color}; font-weight: 600;">{f_q}</td>
+                    <td style="padding: 6px 8px; text-align: right; color: {o_color}; font-weight: 600;">{o_q}</td>
+                </tr>
+                """
+
+        radar_section_html = ""
+        if radar_rows_html:
+            radar_section_html = f"""
+            <div style="background: #FFFFFF; border: 1px solid #CBD5E1; border-top: 3px solid #2563EB; border-radius: 8px; padding: 12px 14px; margin-top: 14px; margin-bottom: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+                <div style="font-size: 13.5px; font-weight: bold; color: #1E3A8A; margin-bottom: 8px; display: flex; align-items: center;">
+                    <span>🔥 [수급 레이더] 대형주 외국인 & 기관 실시간 순매수 집중 포착</span>
+                    <span style="margin-left: auto; font-size: 10.5px; background: #DBEAFE; color: #1E40AF; padding: 1px 6px; border-radius: 4px; font-weight: bold;">Smart Money Flow</span>
+                </div>
+                <table style="width: 100%; border-collapse: collapse; font-size: 11.5px;">
+                    <tr style="background: #F1F5F9; color: #475569;">
+                        <th style="padding: 6px 8px; text-align: left; border-bottom: 2px solid #CBD5E1;">종목 (섹터)</th>
+                        <th style="padding: 6px 8px; text-align: center; border-bottom: 2px solid #CBD5E1;">수급 진단</th>
+                        <th style="padding: 6px 8px; text-align: right; border-bottom: 2px solid #CBD5E1;">외인 순매수</th>
+                        <th style="padding: 6px 8px; text-align: right; border-bottom: 2px solid #CBD5E1;">기관 순매수</th>
+                    </tr>
+                    {radar_rows_html}
+                </table>
+            </div>
+            """
+
         # 지수 및 환율 테이블
         indices_rows = ""
         for idx in stock_indices:
@@ -749,6 +793,40 @@ class EmailSender:
         </div>
         """
 
+        # ---------------------------------------------------------
+        # ⚡ 오늘의 1분 액션 체크리스트 (Executive Quick Action Cube)
+        # ---------------------------------------------------------
+        best_p = None
+        if performance_data and isinstance(performance_data, dict) and performance_data.get("best_picks"):
+            best_p = performance_data["best_picks"][0]
+
+        buy_act = f"<b>{today_buys[0].get('name')}</b> (매수가: {today_buys[0].get('buy_price')})" if today_buys else "단기 과열 방어, 실적 우량주 분할 매수"
+        hold_act = f"<b>{best_p.get('종목명')}</b> ({best_p.get('실현수익률')} 순항 중)" if best_p else "기존 보유 포지션 손절선(-3.5%) 및 목표가 밴드 준수"
+        risk_act = "WTI 유가·환율 변동성 주시, 현금 비중 20% 이상 유지"
+
+        action_cube_html = f"""
+        <div style="background: #FFFFFF; border: 2px solid #1E3A8A; border-radius: 8px; padding: 14px 16px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.06);">
+            <div style="font-size: 13.5px; font-weight: bold; color: #1E3A8A; margin-bottom: 10px; display: flex; align-items: center;">
+                <span>⚡ 오늘의 1분 액션 체크리스트 (Executive Quick Action Cube)</span>
+                <span style="margin-left: auto; font-size: 11px; background: #DBEAFE; color: #1E40AF; padding: 2px 8px; border-radius: 10px; font-weight: bold;">30초 의사결정</span>
+            </div>
+            <div style="display: flex; gap: 8px;">
+                <div style="flex: 1; background: #F0FDF4; border: 1px solid #BBF7D0; border-top: 3px solid #16A34A; border-radius: 6px; padding: 9px 10px; font-size: 11.5px;">
+                    <div style="font-weight: bold; color: #166534; font-size: 12px; margin-bottom: 3px;">🟢 오늘 매수 관심</div>
+                    <div style="color: #14532D; line-height: 1.4;">{buy_act}</div>
+                </div>
+                <div style="flex: 1; background: #FFFBEB; border: 1px solid #FEF3C7; border-top: 3px solid #D97706; border-radius: 6px; padding: 9px 10px; font-size: 11.5px;">
+                    <div style="font-weight: bold; color: #92400E; font-size: 12px; margin-bottom: 3px;">🟡 보유/추적 대응</div>
+                    <div style="color: #78350F; line-height: 1.4;">{hold_act}</div>
+                </div>
+                <div style="flex: 1; background: #FEF2F2; border: 1px solid #FECACA; border-top: 3px solid #DC2626; border-radius: 6px; padding: 9px 10px; font-size: 11.5px;">
+                    <div style="font-weight: bold; color: #991B1B; font-size: 12px; margin-bottom: 3px;">🔴 리스크 주의보</div>
+                    <div style="color: #7F1D1D; line-height: 1.4;">{risk_act}</div>
+                </div>
+            </div>
+        </div>
+        """
+
         html = f"""
         <!DOCTYPE html>
         <html>
@@ -775,13 +853,8 @@ class EmailSender:
 
                 <div style="padding: 24px;">
 
-                    <!-- 🎯 오늘의 핵심 3대 경영/투자 결단 체크포인트 -->
-                    <div style="background: #EFF6FF; border: 1px solid #BFDBFE; border-left: 4px solid #1D4ED8; border-radius: 6px; padding: 12px 14px; margin-bottom: 20px; font-size: 12px; color: #1E3A8A; line-height: 1.55;">
-                        <div style="font-weight: bold; font-size: 13.5px; margin-bottom: 6px;">🎯 오늘의 핵심 경영 & 투자 결단 체크포인트 (Executive Action Checklist)</div>
-                        <div>1. <b>거시 리스크 관리:</b> 글로벌 증시 및 환율 변동성 국면에서 무리한 추격 매수를 지양하고 방어적 현금 25% 유지</div>
-                        <div>2. <b>실적 기반 선별 압축:</b> 중장기 공인 실적 턴어라운드 및 수주 잔고가 확정된 우량주 중심 분할 매수</div>
-                        <div>3. <b>자산 양극화 방어:</b> 서울 핵심지(강남·마용성·여의도/영등포) 및 1기 신도시 재건축 선도지구 압축 보유 지속</div>
-                    </div>
+                    <!-- ⚡ 오늘의 1분 액션 체크리스트 (Executive Action Cube) -->
+                    {action_cube_html}
                     
                     <!-- 📋 나만의 3대 핵심 요약 (Daily Summary) -->
                     {exec_summary_html}
@@ -831,6 +904,9 @@ class EmailSender:
                             <div style="font-size: 14px; font-weight: bold; color: #DC2626; margin-bottom: 6px;">[주의 / 팔면 좋은 주식 - 권고 매도가 & 리스크 관리]</div>
                             {sell_html}
                         </div>
+
+                        <!-- 🔥 외인·기관 실시간 수급 쌍끌이 레이더 -->
+                        {radar_section_html}
                     </div>
 
                     <!-- 🪙 가상자산 전용 인텔리전스 섹션 -->

@@ -108,6 +108,10 @@ class MarketCollector:
         yahoo_symbols.extend([
             ("^IXIC", "나스닥 (NASDAQ)"),
             ("^GSPC", "S&P 500"),
+            ("CL=F", "WTI 원유 ($/bbl)"),
+            ("GC=F", "국제 금 ($/oz)"),
+            ("^VIX", "VIX 변동성 지수"),
+            ("^TNX", "미국 10년물 국채 (%)"),
         ])
 
         for sym, name in yahoo_symbols:

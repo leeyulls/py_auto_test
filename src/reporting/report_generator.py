@@ -411,6 +411,23 @@ class ReportGenerator:
             "",
         ]
 
+        # ⚡ 오늘의 1분 액션 체크리스트 (Executive Action Cube)
+        today_buys = stock_advice.get("today_buy_picks", []) if isinstance(stock_advice, dict) else []
+        best_p = (performance_data or {}).get("best_picks", [{}])[0] if performance_data else {}
+        buy_pick_str = f"**{today_buys[0].get('name')}** (매수: {today_buys[0].get('buy_price')} ➔ 목표: {today_buys[0].get('sell_price')})" if today_buys else "단기 과열 방어 및 실적 우량주 분할 매수"
+        hold_pick_str = f"**{best_p.get('종목명')}** ({best_p.get('실현수익률')} 순항 중)" if best_p.get('종목명') else "기존 보유 포지션 손절선(-3.5%) 및 목표가 밴드 준수"
+        risk_str = "미 국채 10년물 금리 및 WTI 유가 변동성 주시, 방어적 현금 20% 유지"
+
+        lines.extend([
+            "### ⚡ 오늘의 1분 액션 체크리스트 (Executive Action Cube)",
+            f"- 🟢 **오늘 매수 관심**: {buy_pick_str}",
+            f"- 🟡 **보유/추적 대응**: {hold_pick_str}",
+            f"- 🔴 **시장 리스크 주의**: {risk_str}",
+            "",
+            "---",
+            ""
+        ])
+
         # 🔥 메가 핫토픽
         mega = news_result.get("mega_issue")
         if mega:
@@ -591,6 +608,22 @@ class ReportGenerator:
         else:
             lines.append("- 현재 과열권 진입 종목 또는 급격한 악재 종목 없음")
         lines.append("")
+
+        # 🔥 외국인·기관 실시간 수급 쌍끌이 레이더 (Smart Money Flow)
+        radar_list = stock_advice.get("investor_flow_radar", []) if isinstance(stock_advice, dict) else []
+        if radar_list:
+            lines.extend([
+                "### 🔥 [수급 레이더] 외국인 & 기관 실시간 순매수 집중 포착 (Smart Money Flow)",
+                "",
+                "| 종목명 (섹터) | 현재가 | 수급 진단 | 외인 순매수 | 기관 순매수 | 외인 지분율 |",
+                "| :--- | :--- | :--- | :--- | :--- | :--- |",
+            ])
+            for r_item in radar_list[:8]:
+                lines.append(
+                    f"| **{r_item['name']}** ({r_item['sector']}) | {r_item['close_price']}원 | "
+                    f"`{r_item['badge']}` | **{r_item['foreign_quant']}** | **{r_item['organ_quant']}** | {r_item['foreign_ratio']} |"
+                )
+            lines.append("")
 
         # 4. 주요 종목별 상세 기술 지표 표
         lines.extend([

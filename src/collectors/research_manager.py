@@ -271,51 +271,63 @@ class ResearchManager:
 
         return scored
 
+    def _process_single_pdf(self, rep: dict, pdf_dir: str, date_str: str) -> dict:
+        """단일 PDF 다운로드 및 실적 표 파싱 워커"""
+        url = rep.get("attach_url")
+        cur_y = datetime.date.today().year
+        default_fin = {
+            "year1_label": f"{cur_y}F",
+            "year2_label": f"{cur_y + 1}F",
+            "rev_2026": "-", "op_2026": "-", "rev_2027": "-", "op_2027": "-",
+            "yoy_summary": "실적 데이터 미기재", "has_table": False
+        }
+        if not url:
+            rep["financial_table"] = default_fin
+            return rep
+
+        broker = self._clean_filename(rep.get("broker", "증권사"))
+        item = self._clean_filename(rep.get("item_name") or "산업분석")
+        title = self._clean_filename(rep.get("title", "리포트"))
+        filename = f"{date_str}_{broker}_{item}_{title}.pdf"
+        file_path = os.path.join(pdf_dir, filename)
+
+        rep["pdf_filename"] = filename
+        rep["pdf_local_path"] = file_path
+
+        # 이미 다운로드되어 있지 않다면 다운로드
+        if not os.path.exists(file_path):
+            try:
+                r = requests.get(url, headers=self.headers, timeout=15)
+                if r.status_code == 200 and len(r.content) > 1000:
+                    with open(file_path, "wb") as f:
+                        f.write(r.content)
+                    rep["pdf_downloaded"] = True
+                else:
+                    rep["pdf_downloaded"] = False
+            except Exception as e:
+                print(f"[경고] PDF 다운로드 실패 ({filename}): {e}")
+                rep["pdf_downloaded"] = False
+        else:
+            rep["pdf_downloaded"] = True
+
+        # PDF 핵심 실적 표(예상 매출 및 영업익) 자동 발췌
+        if os.path.exists(file_path):
+            rep["financial_table"] = self.extract_financial_table_from_pdf(file_path)
+        else:
+            rep["financial_table"] = default_fin
+
+        return rep
+
     def download_top_pdfs(self, top_reports: list, month_str: str, date_str: str) -> list:
-        """선별된 Top 10 리포트의 공식 원본 PDF 파일 다운로드"""
+        """선별된 Top 10 리포트의 공식 원본 PDF 파일 병렬 고속 다운로드 및 파싱 (5개 스레드)"""
+        from concurrent.futures import ThreadPoolExecutor
+
         pdf_dir = os.path.join(self.output_dir, month_str, "공식_리서치_PDF")
         os.makedirs(pdf_dir, exist_ok=True)
 
-        for rep in top_reports:
-            url = rep.get("attach_url")
-            if not url:
-                continue
-
-            broker = self._clean_filename(rep["broker"])
-            item = self._clean_filename(rep["item_name"] or "산업분석")
-            title = self._clean_filename(rep["title"])
-            filename = f"{date_str}_{broker}_{item}_{title}.pdf"
-            file_path = os.path.join(pdf_dir, filename)
-
-            rep["pdf_filename"] = filename
-            rep["pdf_local_path"] = file_path
-
-            # 이미 다운로드되어 있지 않다면 다운로드
-            if not os.path.exists(file_path):
-                try:
-                    r = requests.get(url, headers=self.headers, timeout=15)
-                    if r.status_code == 200 and len(r.content) > 1000:
-                        with open(file_path, "wb") as f:
-                            f.write(r.content)
-                        rep["pdf_downloaded"] = True
-                    else:
-                        rep["pdf_downloaded"] = False
-                except Exception as e:
-                    print(f"[경고] PDF 다운로드 실패 ({filename}): {e}")
-                    rep["pdf_downloaded"] = False
-            else:
-                rep["pdf_downloaded"] = True
-
-            # PDF 핵심 실적 표(2026/2027 예상 매출 및 영업익) 자동 발췌
-            if os.path.exists(file_path):
-                rep["financial_table"] = self.extract_financial_table_from_pdf(file_path)
-            else:
-                rep["financial_table"] = {
-                    "rev_2026": "-", "op_2026": "-", "rev_2027": "-", "op_2027": "-",
-                    "yoy_summary": "실적 데이터 미기재", "has_table": False
-                }
-
-        return top_reports
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            futures = [executor.submit(self._process_single_pdf, rep, pdf_dir, date_str) for rep in top_reports]
+            return [f.result() for f in futures]
 
     @staticmethod
     def extract_financial_table_from_pdf(pdf_path: str) -> dict:

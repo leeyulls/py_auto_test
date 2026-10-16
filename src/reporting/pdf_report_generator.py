@@ -1843,6 +1843,37 @@ class PdfReportGenerator:
                 """
 
         # =========================================================================
+        # 6-1. 🔥 외국인·기관 실시간 수급 쌍끌이 레이더 (Smart Money Flow)
+        # =========================================================================
+        radar_list = stock_advice.get("investor_flow_radar", []) if isinstance(stock_advice, dict) else []
+        radar_cards_html = ""
+        for item in radar_list[:8]:
+            score = item.get("score", 1)
+            bg_col = "#F0FDF4" if score == 3 else "#FFFFFF"
+            badge = item.get("badge", "")
+            badge_style = "background: #DCFCE7; color: #166534;" if "쌍끌이" in badge else ("background: #DBEAFE; color: #1E40AF;" if "외인" in badge else "background: #F3E8FF; color: #6B21A8;")
+            f_q = str(item.get("foreign_quant", "-"))
+            o_q = str(item.get("organ_quant", "-"))
+            f_col = "#16A34A" if "+" in f_q else ("#DC2626" if "-" in f_q else "#64748B")
+            o_col = "#16A34A" if "+" in o_q else ("#DC2626" if "-" in o_q else "#64748B")
+            radar_cards_html += f"""
+            <div style="background: {bg_col}; border: 1px solid #E2E8F0; border-radius: 8px; padding: 12px; margin-bottom: 8px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                    <div>
+                        <b style="font-size: 15px; color: #0F172A;">{item['name']}</b>
+                        <span style="font-size: 11.5px; color: #64748B;">({item['sector']} / 현재가: {item['close_price']}원)</span>
+                    </div>
+                    <span style="{badge_style} font-size: 11px; font-weight: bold; padding: 2px 8px; border-radius: 12px;">{badge}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 12.5px; background: #F8FAFC; padding: 6px 10px; border-radius: 4px;">
+                    <span>외인 순매수: <b style="color: {f_col};">{f_q}</b></span>
+                    <span>기관 순매수: <b style="color: {o_col};">{o_q}</b></span>
+                    <span>외인보유: <b>{item.get('foreign_ratio', '-')}</b></span>
+                </div>
+            </div>
+            """
+
+        # =========================================================================
         # 7. 🇺🇸 미국 글로벌 빅테크 4대장 집중 분석 (20일 SVG 차트)
         # =========================================================================
         us_bigtech_cards = ""
@@ -2198,13 +2229,14 @@ class PdfReportGenerator:
   </div>
 
   <div class="nav-bar">
-    <a href="#action" class="nav-item">🎯 3대결단</a>
+    <a href="#action" class="nav-item">⚡ 1분체크</a>
     <a href="#macro" class="nav-item">📊 증시/환율</a>
     <a href="#mega" class="nav-item">🌐 1면기획</a>
     <a href="#trend" class="nav-item">🛍️ 2면트렌드</a>
     <a href="#rep_dossier" class="nav-item">📘 3면기업해부</a>
     <a href="#dart" class="nav-item">🏛️ 4·5면공시</a>
     <a href="#stocks" class="nav-item">📈 국내주식</a>
+    <a href="#radar" class="nav-item">🔥 외인·기관수급</a>
     <a href="#bigtech" class="nav-item">🇺🇸 미국빅테크</a>
     <a href="#crypto" class="nav-item">🪙 가상자산</a>
     <a href="#re" class="nav-item">🏢 부동산(7대권역)</a>
@@ -2215,13 +2247,31 @@ class PdfReportGenerator:
 
   <div class="content">
 
-    <!-- 1. 3대 결단 체크리스트 -->
-    <div id="action" class="card" style="background: #EFF6FF; border: 1px solid #BFDBFE; border-left: 5px solid #2563EB;">
-      <div style="font-weight: 800; font-size: 15.5px; color: #1E40AF; margin-bottom: 8px;">🎯 오늘의 핵심 경영 & 투자 결단 체크포인트 (Executive Action Checklist)</div>
-      <div style="font-size: 13.5px; color: #1E3A8A; line-height: 1.65;">
-        1. <b>거시 리스크 관리:</b> 글로벌 증시 및 환율 변동성 국면에서 무리한 추격 매수를 지양하고 방어적 현금 25% 유지<br>
-        2. <b>실적 턴어라운드 압축:</b> 2026/2027 예상 실적 급증 및 확정 수주 모멘텀 보유주 중심 분할 매수<br>
-        3. <b>자산 양극화 방어:</b> 서울 핵심지(강남·마용성·여의도/영등포) 및 1기 신도시 재건축 선도지구 압축 보유 지속
+    <!-- 1. ⚡ 오늘의 1분 액션 체크리스트 (Executive Quick Action Cube) -->
+    <div id="action" class="card" style="background: #FFFFFF; border: 2px solid #1E3A8A; padding: 14px;">
+      <div style="font-weight: 800; font-size: 15.5px; color: #1E3A8A; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
+        <span>⚡ 오늘의 1분 액션 체크리스트 (Executive Action Cube)</span>
+        <span style="font-size: 11px; background: #DBEAFE; color: #1E40AF; padding: 2px 8px; border-radius: 10px; font-weight: bold;">30초 의사결정</span>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 8px;">
+        <div style="background: #F0FDF4; border: 1px solid #BBF7D0; border-left: 4px solid #16A34A; border-radius: 6px; padding: 10px; font-size: 12.5px;">
+          <div style="font-weight: bold; color: #166534; margin-bottom: 3px;">🟢 오늘 매수 관심 (Top 1 Pick)</div>
+          <div style="color: #14532D; line-height: 1.45;">
+            {f"<b>{today_buys[0].get('name')}</b> (추천매수가: {today_buys[0].get('buy_price')} ➔ 목표가: {today_buys[0].get('sell_price')})" if today_buys else "시장 변동성 확대 국면, 단기 무리한 추격 매수 자제 및 실적주 분할 매수"}
+          </div>
+        </div>
+        <div style="background: #FFFBEB; border: 1px solid #FEF3C7; border-left: 4px solid #D97706; border-radius: 6px; padding: 10px; font-size: 12.5px;">
+          <div style="font-weight: bold; color: #92400E; margin-bottom: 3px;">🟡 보유/추적 대응 (Holding & Trailing)</div>
+          <div style="color: #78350F; line-height: 1.45;">
+            {f"<b>{p_sum.get('best_picks', [{}])[0].get('종목명', '보유주')}</b> ({p_sum.get('best_picks', [{}])[0].get('실현수익률', '+7.2%')} 순항 중, 저항선 분할 익절 준비)" if p_sum.get('best_picks') else "기존 보유 포지션 손절선(-3.5%) 및 목표가 밴드 기계적 준수"}
+          </div>
+        </div>
+        <div style="background: #FEF2F2; border: 1px solid #FECACA; border-left: 4px solid #DC2626; border-radius: 6px; padding: 10px; font-size: 12.5px;">
+          <div style="font-weight: bold; color: #991B1B; margin-bottom: 3px;">🔴 시장 리스크 주의보 (Macro Caution)</div>
+          <div style="color: #7F1D1D; line-height: 1.45;">
+            미 국채 10년물 금리 및 WTI 유가 변동성 주시, 안전자산 및 방어적 현금 20% 이상 유지
+          </div>
+        </div>
       </div>
     </div>
 
@@ -2262,6 +2312,18 @@ class PdfReportGenerator:
     <div id="stocks" class="card">
       <div class="sec-title">📈 [6면] 국내 주식 하이브리드 추천 매트릭스 (20일 주가 변화 차트)</div>
       {domestic_stock_cards}
+    </div>
+
+    <!-- 7-1. 🔥 대형주 외국인 & 기관 실시간 수급 쌍끌이 레이더 -->
+    <div id="radar" class="card">
+      <div class="sec-title">
+        <span>🔥 외국인·기관 실시간 수급 쌍끌이 레이더</span>
+        <span style="font-size: 11px; background: #DBEAFE; color: #1E40AF; padding: 2px 8px; border-radius: 10px; font-weight: bold;">Smart Money Flow</span>
+      </div>
+      <div style="font-size: 12.5px; color: #64748B; margin-bottom: 10px;">
+        💡 여의도 기관 및 외국인 투자자의 연속 순매수(쌍끌이 유입) 여부와 외인 지분율 변동을 실시간 추적합니다.
+      </div>
+      {radar_cards_html}
     </div>
 
     <!-- 8. 미국 글로벌 빅테크 4대장 집중 분석 -->
