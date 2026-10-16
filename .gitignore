@@ -21,6 +21,5 @@ secrets.toml
 .DS_Store
 Thumbs.db
 
-# Heavy downloaded PDFs (keep html and md tracked for Streamlit Cloud dashboard viewing)
+# Heavy downloaded third-party PDFs (keep our daily generated deep reports tracked for dashboard viewing)
 reports/**/공식_리서치_PDF/
-reports/**/*.pdf

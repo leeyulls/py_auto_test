@@ -10,6 +10,7 @@ import re
 import datetime
 import hashlib
 import secrets
+import base64
 import pandas as pd
 import numpy as np
 import streamlit as st
@@ -283,22 +284,34 @@ def fetch_live_smart_money():
 
 @st.cache_data(ttl=30)
 def load_report_archives(target_dir: str = None, is_gdrive_mode: bool = False):
-    """지정된 디렉토리(구글 드라이브 또는 로컬 reports) 내 생성된 리포트 파일 목록 수집"""
+    """지정된 디렉토리(구글 드라이브 또는 로컬 reports) 내 생성된 브리핑 및 심층 보고서 파일 목록 수집"""
     search_dir = target_dir if target_dir and os.path.exists(target_dir) else "reports"
     reports = []
     if os.path.exists(search_dir):
         for root, _, files in os.walk(search_dir):
+            # 대용량 3자 증권사 리서치 원본 PDF는 제외하고 당사 자체 생성 브리핑/보고서만 추출
+            if "공식_리서치_PDF" in root:
+                continue
             for f in files:
-                if f.endswith((".md", ".html", ".pdf")):
+                ext = os.path.splitext(f)[1].lower()
+                if ext in [".html", ".pdf", ".ppt", ".pptx", ".md"]:
                     full_p = os.path.join(root, f)
                     date_match = re.search(r"(\d{4}-\d{2}-\d{2})", f)
                     date_str = date_match.group(1) if date_match else "기타"
                     is_gdrive = is_gdrive_mode or ("reports" not in os.path.abspath(full_p).lower()) or ("데일리_브리핑_수집" in full_p)
+                    
+                    # 브리핑(HTML/MD) vs 보고서(PPT/PDF) 카테고리 분류
+                    if ext in [".html", ".md"]:
+                        cat = "briefing"  # 오늘의 브리핑 HTML
+                    else:
+                        cat = "report"    # 오늘의 보고서 PPT/PDF
+
                     reports.append({
                         "date": date_str,
                         "filename": f,
                         "path": full_p,
-                        "ext": os.path.splitext(f)[1].lower(),
+                        "ext": ext,
+                        "category": cat,
                         "size_kb": round(os.path.getsize(full_p) / 1024, 1),
                         "source": "☁️ 구글 드라이브 (Cloud)" if is_gdrive else "💻 로컬 보관함 (Local)"
                     })
@@ -375,7 +388,7 @@ tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
 
 
 # =============================================================================
-# TAB 1: 📑 데일리 브리핑 (최신 리포트 기본 자동 열람)
+# TAB 1: 📑 데일리 브리핑 & 보고서 (기본: 오늘자 HTML 브리핑 자동 열람)
 # =============================================================================
 with tab1:
     from src.sync.google_drive_sync import GoogleDriveSync
@@ -397,51 +410,105 @@ with tab1:
     
     if not df_archives.empty:
         dates = sorted(df_archives["date"].unique(), reverse=True)
-        html_df = df_archives[df_archives["ext"] == ".html"]
-        if not html_df.empty:
-            latest_html_row = html_df.sort_values(by=["date", "filename"], ascending=[False, False]).iloc[0]
-            default_date = latest_html_row["date"]
-            default_filename = latest_html_row["filename"]
-        else:
-            default_date = dates[0]
-            default_filename = df_archives[df_archives["date"] == default_date]["filename"].iloc[0]
-
-        # 상단 컴팩트 컨트롤러 (발행일, 리포트 선택 및 구글 드라이브 열기)
-        col_c1, col_c2, col_c3 = st.columns([1.2, 2.5, 1.3])
-        with col_c1:
-            date_idx = dates.index(default_date) if default_date in dates else 0
-            selected_date = st.selectbox("📅 발행일", dates, index=date_idx, label_visibility="collapsed")
+        
+        # 1. 상단 컨트롤러 (발행일 선택, 리포트 종류 선택: 브리핑 HTML vs 보고서 PPT/PDF)
+        ctrl_col1, ctrl_col2, ctrl_col3 = st.columns([1.2, 1.8, 1.4])
+        
+        with ctrl_col1:
+            selected_date = st.selectbox("📅 발행일 선택", dates, index=0)
             
         sub_reports = df_archives[df_archives["date"] == selected_date]
-        filenames = sub_reports["filename"].tolist()
-        fn_idx = 0
-        if selected_date == default_date and default_filename in filenames:
-            fn_idx = filenames.index(default_filename)
-        else:
-            html_in_sub = [f for f in filenames if f.endswith(".html")]
-            if html_in_sub:
-                fn_idx = filenames.index(html_in_sub[0])
-                
-        with col_c2:
-            selected_report = st.selectbox("📄 리포트", filenames, index=fn_idx, label_visibility="collapsed")
+        briefing_items = sub_reports[sub_reports["category"] == "briefing"]
+        report_items = sub_reports[sub_reports["category"] == "report"]
+        
+        # 종류 선택 옵션 (기본: 오늘의 브리핑 HTML)
+        type_options = []
+        if not briefing_items.empty:
+            type_options.append("📱 오늘의 브리핑 (HTML)")
+        if not report_items.empty:
+            type_options.append("📊 오늘의 보고서 (심층 보고서 PPT/PDF)")
+        if not type_options:
+            type_options = ["📄 전체 리포트"]
+
+        with ctrl_col2:
+            selected_type = st.selectbox("📑 리포트 종류", type_options, index=0)
             
-        with col_c3:
-            st.link_button("☁️ 구글 드라이브 ↗", current_gdrive_url, use_container_width=True)
+        # 선택된 종류에 따른 대상 그룹 지정
+        if "브리핑" in selected_type:
+            target_group = briefing_items if not briefing_items.empty else sub_reports
+        elif "보고서" in selected_type:
+            target_group = report_items if not report_items.empty else sub_reports
+        else:
+            target_group = sub_reports
 
-        row_match = df_archives[df_archives["filename"] == selected_report].iloc[0]
-        target_path = row_match["path"]
+        # 세부 회차 선택 (모닝 / 이브닝 등 복수 존재 시)
+        with ctrl_col3:
+            filenames = target_group["filename"].tolist()
+            if len(filenames) > 1:
+                display_names = []
+                for fn in filenames:
+                    if "이브닝" in fn:
+                        display_names.append("🌙 이브닝 에디션")
+                    elif "모닝" in fn:
+                        display_names.append("☀️ 모닝 에디션")
+                    elif "주간" in fn:
+                        display_names.append("🏆 주간 종합 백서")
+                    else:
+                        display_names.append(fn)
+                
+                # 이브닝 우선 기본 선택
+                def_idx = 0
+                for i, d in enumerate(display_names):
+                    if "이브닝" in d:
+                        def_idx = i
+                        break
+                        
+                sel_display = st.selectbox("🕒 발행 회차", display_names, index=def_idx)
+                selected_filename = filenames[display_names.index(sel_display)]
+            elif len(filenames) == 1:
+                selected_filename = filenames[0]
+                fn_clean = selected_filename
+                if "이브닝" in fn_clean:
+                    st.caption("🌙 이브닝 에디션 자동 로드됨")
+                elif "모닝" in fn_clean:
+                    st.caption("☀️ 모닝 에디션 자동 로드됨")
+                elif "주간" in fn_clean:
+                    st.caption("🏆 주간 종합 백서 자동 로드됨")
+                else:
+                    st.caption(f"📄 {fn_clean}")
+            else:
+                selected_filename = None
 
-        # 본문 리포트 렌더링 (모바일 반응형 전체화면)
-        if target_path.endswith(".html"):
-            with open(target_path, "r", encoding="utf-8") as f:
-                html_code = f.read()
-            st.components.v1.html(html_code, height=920, scrolling=True)
-        elif target_path.endswith(".md"):
-            with open(target_path, "r", encoding="utf-8") as f:
-                content = f.read()
-            st.markdown(content)
-        elif target_path.endswith(".pdf"):
-            st.info(f"📄 PDF 보고서 보관: `{row_match['filename']}` ({row_match['size_kb']} KB)")
+        if selected_filename:
+            row_match = target_group[target_group["filename"] == selected_filename].iloc[0]
+            target_path = row_match["path"]
+
+            # 본문 리포트 렌더링 (순수 열람 전용: 다운로드/수정/삭제 원천 차단)
+            if target_path.endswith(".html"):
+                with open(target_path, "r", encoding="utf-8") as f:
+                    html_code = f.read()
+                st.components.v1.html(html_code, height=950, scrolling=True)
+            elif target_path.endswith(".pdf"):
+                with open(target_path, "rb") as f:
+                    pdf_b64 = base64.b64encode(f.read()).decode("utf-8")
+                pdf_embed = f'''
+                <div style="border: 1px solid #CBD5E1; border-radius: 10px; overflow: hidden; background: #FFFFFF; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); margin-top: 10px;">
+                    <iframe src="data:application/pdf;base64,{pdf_b64}#toolbar=0&navpanes=0"
+                            width="100%" height="960px"
+                            style="border: none;"
+                            type="application/pdf">
+                    </iframe>
+                </div>
+                '''
+                st.components.v1.html(pdf_embed, height=980, scrolling=True)
+            elif target_path.endswith(".md"):
+                with open(target_path, "r", encoding="utf-8") as f:
+                    content = f.read()
+                st.markdown(content)
+            elif target_path.endswith((".ppt", ".pptx")):
+                st.info(f"📊 프레젠테이션 보고서: `{selected_filename}`")
+        else:
+            st.info("선택된 분류에 해당하는 리포트가 없습니다.")
     else:
         st.warning(f"⚠️ `{target_scan_dir}` 디렉토리에 열람 가능한 리포트 파일이 없습니다.")
 

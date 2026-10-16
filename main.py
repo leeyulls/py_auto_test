@@ -473,6 +473,23 @@ def main():
     print("=" * 70)
     print("🎉 7대 개편(DART독립면, 가상자산독립면, 부동산신설, 기사/인사이트문장개선, 비전문가용리포트해설) 적용 및 구글 드라이브 동기화가 완료되었습니다!")
 
+    # 웹 대시보드(Streamlit Cloud) 최신 브리핑/보고서 자동 무중단 배포
+    auto_sync_to_cloud()
+
+
+def auto_sync_to_cloud():
+    """웹 대시보드(Streamlit Cloud)에 최신 리포트 자동 배포 (Git Commit & Push)"""
+    import subprocess
+    try:
+        git_cmd = r"C:\Users\jjht7\AppData\Local\Microsoft\WinGet\Packages\Git.MinGit_Microsoft.Winget.Source_8wekyb3d8bbwe\cmd\git.exe"
+        if not os.path.exists(git_cmd):
+            git_cmd = "git"
+        subprocess.run([git_cmd, "add", "reports/"], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.run([git_cmd, "commit", "-m", f"auto: publish daily briefing reports {datetime.date.today().strftime('%Y-%m-%d')}"], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.run([git_cmd, "push", "origin", "main"], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        print("☁️ [Streamlit Cloud 웹 대시보드] 최신 리포트 자동 배포 완료!")
+    except Exception as e:
+        print(f"[안내] 웹 대시보드 자동 배포 스킵: {e}")
 
 
 if __name__ == "__main__":
