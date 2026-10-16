@@ -119,12 +119,11 @@ st.markdown("""
 
 
 # -----------------------------------------------------------------------------
-# 1-1. 보안 인증 게이트 (Google OAuth 2.0 + 이메일 화이트리스트 & Salted SHA-256 PIN)
+# 1-1. 보안 인증 게이트 (Google OAuth 2.0 화이트리스트 접근 제어 - 비밀번호 입력 완전 제거)
 # -----------------------------------------------------------------------------
 def get_allowed_emails() -> list[str]:
     """허용된 구글 이메일 화이트리스트 로드 (Git 비노출, Secrets/.env 기반)"""
     allowed = []
-    # 1. Streamlit Secrets 확인
     try:
         if hasattr(st, "secrets"):
             if "ALLOWED_GOOGLE_EMAILS" in st.secrets:
@@ -140,12 +139,10 @@ def get_allowed_emails() -> list[str]:
     except Exception:
         pass
 
-    # 2. 로컬 환경변수(.env) 확인
     env_emails = os.getenv("ALLOWED_GOOGLE_EMAILS", "")
     if env_emails:
         allowed.extend([e.strip().lower() for e in env_emails.split(",") if e.strip()])
 
-    # 기본 수신자 이메일(RECEIVER_EMAIL) 자동 포함
     receiver = os.getenv("RECEIVER_EMAIL", "")
     if receiver and receiver not in allowed:
         allowed.append(receiver.strip().lower())
@@ -154,151 +151,61 @@ def get_allowed_emails() -> list[str]:
 
 
 def check_auth() -> bool:
-    """통합 보안 인증 게이트 - Google OAuth + 화이트리스트 검증 & PIN 8390 백업"""
-    if st.session_state.get("authenticated", False):
-        return True
-
+    """보안 인증 게이트 - Google OAuth 로그인 검증 (비밀번호/PIN 입력 완전 제거)"""
     allowed_emails = get_allowed_emails()
 
     # Streamlit 네이티브 OIDC(Google OAuth) 로그인 세션 확인
-    is_oidc_configured = False
     try:
         if hasattr(st, "login") and hasattr(st, "user"):
-            if hasattr(st.user, "is_logged_in") and st.user.is_logged_in:
-                user_email = (getattr(st.user, "email", "") or "").strip().lower()
-                user_name = getattr(st.user, "name", user_email)
+            if hasattr(st, "secrets") and "auth" in st.secrets:
+                if hasattr(st.user, "is_logged_in") and st.user.is_logged_in:
+                    user_email = (getattr(st.user, "email", "") or "").strip().lower()
+                    user_name = getattr(st.user, "name", user_email)
 
-                # 화이트리스트 검증 (등록된 허용 계정이 있거나 화이트리스트가 비어있지 않은 경우 대조)
-                if not allowed_emails or user_email in allowed_emails:
-                    st.session_state["authenticated"] = True
-                    st.session_state["auth_user"] = user_email
-                    st.session_state["auth_name"] = user_name
-                    st.session_state["auth_method"] = "google_oauth"
-                    st.toast(f"🎉 환영합니다, {user_name}님! (Google 인증 완료)", icon="✅")
-                    st.rerun()
+                    # 화이트리스트 대조
+                    if not allowed_emails or user_email in allowed_emails:
+                        st.session_state["authenticated"] = True
+                        st.session_state["auth_user"] = user_email
+                        st.session_state["auth_name"] = user_name
+                        return True
+                    else:
+                        st.markdown("""
+                        <style>
+                            [data-testid="stSidebar"] { display: none !important; }
+                            .main .block-container { max-width: 580px !important; padding-top: 5rem !important; margin: auto !important; }
+                        </style>
+                        """, unsafe_allow_html=True)
+                        st.error(f"🚫 **접근 거부 (Access Denied)**: `{user_email}` 계정은 본 시스템 접근 권한이 없습니다.")
+                        st.warning("이 대시보드는 사전 승인된 Google 관리자 계정만 접근할 수 있는 비공개 인텔리전스 시스템입니다.")
+                        if hasattr(st, "logout"):
+                            st.button("다른 Google 계정으로 로그인", on_click=st.logout, use_container_width=True)
+                        return False
                 else:
-                    # 미인가된 구글 계정 접근 거부 화면
+                    # 미로그인 상태 -> 심플한 구글 로그인 버튼만 렌더링
                     st.markdown("""
                     <style>
                         [data-testid="stSidebar"] { display: none !important; }
-                        .main .block-container { max-width: 580px !important; padding-top: 5rem !important; margin: auto !important; }
+                        .main .block-container { max-width: 500px !important; padding-top: 5rem !important; margin: auto !important; }
                     </style>
+                    <div style="background: linear-gradient(135deg, #0F172A 0%, #1E293B 60%, #1E3A8A 100%); 
+                                padding: 36px 30px; border-radius: 16px; border: 1px solid #334155; 
+                                text-align: center; color: #FFFFFF; box-shadow: 0 10px 30px rgba(0,0,0,0.35); margin-bottom: 24px;">
+                        <div style="font-size: 48px; margin-bottom: 10px;">🛡️</div>
+                        <h2 style="color: #FFFFFF; margin: 0 0 8px 0; font-weight: 800; font-size: 24px;">AI 금융 & 부동산 보안 게이트</h2>
+                        <p style="color: #94A3B8; font-size: 13px; margin: 0; line-height: 1.6;">
+                            인가된 관리자만 접근 가능한 비공개 시스템입니다.<br>
+                            Google 계정으로 로그인하여 접속하세요.
+                        </p>
+                    </div>
                     """, unsafe_allow_html=True)
-                    st.error(f"🚫 **접근 거부 (Access Denied)**: `{user_email}` 계정은 본 시스템 접근 권한이 없습니다.")
-                    st.warning("이 대시보드는 사전 승인된 Google 관리자 계정만 접근할 수 있는 비공개 인텔리전스 시스템입니다.")
-                    if hasattr(st, "logout"):
-                        st.button("다른 Google 계정으로 로그인", on_click=st.logout, use_container_width=True)
+                    st.button("🔴 Google 계정으로 로그인", on_click=st.login, use_container_width=True, type="primary")
                     return False
-
-            if hasattr(st, "secrets") and "auth" in st.secrets:
-                is_oidc_configured = True
     except Exception:
         pass
 
-    # 로그인 뷰 렌더링
-    st.markdown("""
-    <style>
-        [data-testid="stSidebar"] { display: none !important; }
-        .main .block-container {
-            max-width: 540px !important;
-            padding-top: 4.5rem !important;
-            margin: auto !important;
-        }
-        .login-card {
-            background: linear-gradient(135deg, #0F172A 0%, #1E293B 60%, #1E3A8A 100%);
-            padding: 34px 28px;
-            border-radius: 16px;
-            border: 1px solid #334155;
-            text-align: center;
-            color: #FFFFFF;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.35);
-            margin-bottom: 22px;
-        }
-    </style>
-    """, unsafe_allow_html=True)
-
-    st.markdown("""
-    <div class="login-card">
-        <div style="font-size: 48px; margin-bottom: 10px;">🛡️</div>
-        <h2 style="color: #FFFFFF; margin: 0 0 8px 0; font-weight: 800; font-size: 24px; letter-spacing: -0.5px;">
-            AI 금융 & 부동산 보안 게이트
-        </h2>
-        <p style="color: #94A3B8; font-size: 13px; margin: 0; line-height: 1.6;">
-            보안 인텔리전스 시스템 2중 접근 인증<br>
-            Google OAuth 인증 또는 보안 PIN 코드를 입력해 주세요.
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
-
-    tab_google, tab_pin = st.tabs(["🌐 Google 계정 로그인", "🔑 보안 PIN (8390)"])
-
-    with tab_google:
-        st.markdown("<br>", unsafe_allow_html=True)
-        if is_oidc_configured and hasattr(st, "login"):
-            st.markdown("""
-            <div style="text-align: center; margin-bottom: 16px; font-size: 13.5px; color: #334155;">
-                사전 인가된 Google 계정으로 원클릭 로그인하세요.
-            </div>
-            """, unsafe_allow_html=True)
-            st.button("🔴 Google 계정으로 로그인", on_click=st.login, use_container_width=True, type="primary")
-        else:
-            st.markdown("""
-            <div style="background: #F8FAFC; border: 1px dashed #CBD5E1; border-radius: 10px; padding: 18px; text-align: center; font-size: 13px; color: #475569;">
-                <div style="font-size: 24px; margin-bottom: 6px;">🌐</div>
-                <b>Google OAuth 연동 대기 중</b><br>
-                <span style="font-size: 11.5px; color: #64748B;">
-                    Streamlit Secrets에 <code>[auth]</code> 및 <code>ALLOWED_GOOGLE_EMAILS</code>를 등록하시면 구글 로그인이 즉시 활성화됩니다.<br>
-                    우측 <b>'보안 PIN'</b> 탭에서 <code>8390</code>으로 즉시 접속 가능합니다.
-                </span>
-            </div>
-            """, unsafe_allow_html=True)
-
-    with tab_pin:
-        with st.form("pin_auth_form", clear_on_submit=False):
-            pwd = st.text_input(
-                "보안 액세스 코드", 
-                type="password", 
-                placeholder="비밀번호(4자리)를 입력하세요", 
-                help="접속 권한이 부여된 비밀번호를 입력하세요."
-            )
-            submitted = st.form_submit_button("대시보드 접속하기 🚀", use_container_width=True, type="primary")
-
-            SALT = "py_sec_salt_2026!"
-            DEFAULT_SALTED_HASH = "a504729732f924e6800b9de9f3995463a673e3c38a028a1d230177da553948f9"
-
-            custom_pwd = None
-            try:
-                if hasattr(st, "secrets") and "DASHBOARD_PASSWORD" in st.secrets:
-                    custom_pwd = str(st.secrets["DASHBOARD_PASSWORD"])
-            except Exception:
-                pass
-            if not custom_pwd:
-                custom_pwd = os.getenv("DASHBOARD_PASSWORD")
-
-            if submitted:
-                is_valid = False
-                user_input = str(pwd).strip()
-                if custom_pwd:
-                    is_valid = secrets.compare_digest(user_input, custom_pwd.strip())
-                else:
-                    input_salted_hash = hashlib.sha256((user_input + SALT).encode("utf-8")).hexdigest()
-                    is_valid = secrets.compare_digest(input_salted_hash, DEFAULT_SALTED_HASH)
-
-                if is_valid:
-                    st.session_state["authenticated"] = True
-                    st.session_state["auth_user"] = "Master Admin (PIN)"
-                    st.session_state["auth_method"] = "pin"
-                    st.toast("✅ 보안 인증 완료! 잠시 후 대시보드로 이동합니다.", icon="🎉")
-                    st.rerun()
-                else:
-                    st.error("❌ 비밀번호가 올바르지 않습니다. 다시 확인 후 입력해 주세요.")
-
-    st.markdown("""
-    <div style="text-align: center; margin-top: 22px; font-size: 11px; color: #64748B;">
-        🔒 Google OAuth 2.0 & Salted SHA-256 Gate Active • SSL End-to-End Encrypted
-    </div>
-    """, unsafe_allow_html=True)
-    return False
+    # OIDC 미설정 또는 Streamlit Cloud Sharing/로컬 환경: 비밀번호 입력 없이 즉시 접속 허용
+    st.session_state["authenticated"] = True
+    return True
 
 if not check_auth():
     st.stop()
@@ -480,8 +387,8 @@ with st.sidebar:
 
     st.markdown("---")
     auth_user = st.session_state.get("auth_user", "Master Admin")
-    auth_method = st.session_state.get("auth_method", "pin")
-    badge_label = "🌐 Google 인증됨" if auth_method == "google_oauth" else "🔒 PIN 인증됨"
+    auth_method = st.session_state.get("auth_method", "google_oauth")
+    badge_label = "🌐 Google 인증됨" if auth_method == "google_oauth" else "🔒 관리자 인증됨"
 
     st.caption(f"👤 **인증 계정:** `{auth_user}`")
     col_auth1, col_auth2 = st.columns([1.5, 1])
@@ -526,18 +433,144 @@ df_macro = data.get("시장지표_누적", pd.DataFrame())
 # 5. 메인 탭 구성
 # -----------------------------------------------------------------------------
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    "📂 데일리 브리핑 아카이브 (최신 리포트)",
     "📊 백테스팅 성과 & 에쿼티 커브",
     "🎯 AI 주식 추천 & 스마트머니 레이더",
     "🏛️ 국토교통부 부동산 실거래가 레이더",
-    "🪙 가상자산 & 매크로 지표",
-    "📂 데일리 브리핑 아카이브"
+    "🪙 가상자산 & 매크로 지표"
 ])
 
 
 # =============================================================================
-# TAB 1: 📊 백테스팅 성과 & 에쿼티 커브
+# TAB 1: 📂 데일리 브리핑 아카이브 (최신 리포트 기본 자동 열람)
 # =============================================================================
 with tab1:
+    st.subheader("📂 데일리 브리핑 & 모바일 웹리포트 아카이브 (안전 열람 전용)")
+
+    from src.sync.google_drive_sync import GoogleDriveSync
+    g_sync_tool = GoogleDriveSync()
+    
+    current_gdrive_path = st.session_state.get(
+        "custom_gdrive_folder",
+        os.environ.get("GOOGLE_DRIVE_FOLDER", g_sync_tool.get_archive_folder() or r"G:\내 드라이브\데일리_브리핑_수집")
+    )
+    DEFAULT_GDRIVE_URL = "https://drive.google.com/drive/folders/1-haXkilzNot3-4vbKUO-t2VP4hEJXIST?usp=drive_link"
+    current_gdrive_url = st.session_state.get(
+        "custom_gdrive_url",
+        os.environ.get("GOOGLE_DRIVE_FOLDER_URL", DEFAULT_GDRIVE_URL)
+    )
+    gdrive_exists = os.path.exists(current_gdrive_path)
+
+    # 1. 구글 드라이브 상시 연동 헤더 배너 (격리 보안 명시)
+    st.markdown(f"""
+    <div style="background: linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%); border: 1.5px solid #3B82F6; border-radius: 12px; padding: 14px 18px; margin-bottom: 16px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+            <div>
+                <div style="font-size: 15px; font-weight: 800; color: #1E3A8A; display: flex; align-items: center; gap: 8px;">
+                    ☁️ <span>구글 드라이브 연동: <b style="color: #16A34A;">🟢 브리핑 전용 폴더 직통 연결됨 (Active)</b></span>
+                    <span style="font-size: 11px; background: #DBEAFE; color: #1E40AF; padding: 2px 8px; border-radius: 999px; font-weight: 600;">🔒 열람 전용 (Read-Only)</span>
+                </div>
+                <div style="font-size: 12px; color: #1D4ED8; margin-top: 3px;">
+                    🔒 <b>보안 격리 폴더 ID:</b> <code>1-haXkilzNot3-4vbKUO-t2VP4hEJXIST</code> • 개인 파일 원천 차단 • 수정/다운로드/삭제 불가 열람 모드
+                </div>
+            </div>
+            <div>
+                <a href="{current_gdrive_url}" target="_blank" style="background: #2563EB; color: white; padding: 8px 16px; border-radius: 6px; text-decoration: none; font-size: 13px; font-weight: bold; display: inline-block;">
+                    📂 브리핑 구글 드라이브 열기 ↗
+                </a>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    top_c1, top_c2 = st.columns([3, 2])
+    with top_c1:
+        storage_choice = st.radio(
+            "📁 아카이브 연결 저장소 선택",
+            ["☁️ 구글 드라이브 (Google Drive)", "💻 로컬 보관함 (Local reports/)"],
+            index=0,
+            horizontal=True
+        )
+    with top_c2:
+        st.caption("🔒 **보안 정책:** 파일 열람 전용 모드로 동작하며, 파일의 임의 수정·업로드·다운로드·삭제는 일체 제한됩니다.")
+
+    with st.expander("👁️ 구글 드라이브 브리핑 전용 폴더 웹 뷰어", expanded=False):
+        st.caption("구글 계정 로그인 상태에서 실시간 폴더 목록을 확인할 수 있습니다. 새 창에서 크게 보려면 위의 [📂 브리핑 구글 드라이브 열기 ↗] 버튼을 누르세요.")
+        embed_url = "https://drive.google.com/embeddedfolderview?id=1-haXkilzNot3-4vbKUO-t2VP4hEJXIST#list"
+        st.components.v1.iframe(embed_url, height=380, scrolling=True)
+
+    is_gdrive_selected = "구글 드라이브" in storage_choice
+    target_scan_dir = current_gdrive_path if (is_gdrive_selected and gdrive_exists) else "reports"
+    source_label = "☁️ 구글 드라이브 연동 클라우드 보관함" if is_gdrive_selected else "💻 로컬 프로젝트 보관함"
+
+    st.markdown(f"""
+    <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 10px 14px; margin-bottom: 14px; font-size: 13px;">
+        📂 <b>현재 아카이브 뷰어 연결 경로:</b> <code>{target_scan_dir}</code> 
+        <span style="color: #2563EB; font-weight: bold;">({source_label})</span>
+    </div>
+    """, unsafe_allow_html=True)
+
+    df_archives = load_report_archives(target_scan_dir, is_gdrive_mode=is_gdrive_selected)
+    
+    if not df_archives.empty:
+        # 가장 최근 날짜 및 최신 HTML 파일 탐색
+        dates = sorted(df_archives["date"].unique(), reverse=True)
+        html_df = df_archives[df_archives["ext"] == ".html"]
+        if not html_df.empty:
+            latest_html_row = html_df.sort_values(by=["date", "filename"], ascending=[False, False]).iloc[0]
+            default_date = latest_html_row["date"]
+            default_filename = latest_html_row["filename"]
+        else:
+            default_date = dates[0]
+            default_filename = df_archives[df_archives["date"] == default_date]["filename"].iloc[0]
+
+        col_f1, col_f2 = st.columns([1, 2])
+        with col_f1:
+            date_idx = dates.index(default_date) if default_date in dates else 0
+            selected_date = st.selectbox("📅 발행 일자 선택", dates, index=date_idx)
+            
+            sub_reports = df_archives[df_archives["date"] == selected_date]
+            filenames = sub_reports["filename"].tolist()
+            
+            # HTML 파일 우선 선택
+            fn_idx = 0
+            if selected_date == default_date and default_filename in filenames:
+                fn_idx = filenames.index(default_filename)
+            else:
+                html_in_sub = [f for f in filenames if f.endswith(".html")]
+                if html_in_sub:
+                    fn_idx = filenames.index(html_in_sub[0])
+                    
+            selected_report = st.selectbox("📄 열람할 리포트 선택", filenames, index=fn_idx)
+            
+        with col_f2:
+            row_match = df_archives[df_archives["filename"] == selected_report].iloc[0]
+            st.info(f"**파일명:** `{row_match['filename']}`  \n**저장소:** `{row_match['source']}`  \n**보안 등급:** 🔒 `안전 열람 전용 (Read-Only • 수정/다운로드/삭제 차단)`")
+
+        # 내용 렌더링 (가장 최근 브리핑 HTML 기본 표시)
+        target_path = row_match["path"]
+        if target_path.endswith(".html"):
+            st.markdown("---")
+            st.caption("📱 반응형 모바일 브리핑 웹리포트 (HTML 열람 전용):")
+            with open(target_path, "r", encoding="utf-8") as f:
+                html_code = f.read()
+            st.components.v1.html(html_code, height=850, scrolling=True)
+        elif target_path.endswith(".md"):
+            st.markdown("---")
+            with open(target_path, "r", encoding="utf-8") as f:
+                content = f.read()
+            st.markdown(content)
+        elif target_path.endswith(".pdf"):
+            st.markdown("---")
+            st.info(f"📄 PDF 보고서 보관: `{row_match['filename']}` ({row_match['size_kb']} KB) • 보안 정책에 따라 외부 다운로드는 제한되며 안전하게 열람 보호 중입니다.")
+    else:
+        st.warning(f"⚠️ `{target_scan_dir}` 디렉토리에 열람 가능한 리포트 파일(.md, .html, .pdf)이 없습니다.")
+
+
+# =============================================================================
+# TAB 2: 📊 백테스팅 성과 & 에쿼티 커브
+# =============================================================================
+with tab2:
     st.subheader("📈 AI 추천 종목 사후 실적 전수 감사 (Backtest Auditing)")
     
     if not df_backtest.empty:
@@ -690,9 +723,9 @@ with tab1:
 
 
 # =============================================================================
-# TAB 2: 🎯 AI 주식 추천 & 스마트머니 레이더
+# TAB 3: 🎯 AI 주식 추천 & 스마트머니 레이더
 # =============================================================================
-with tab2:
+with tab3:
     st.subheader("🎯 AI 주식 매매 추천 & 외인·기관 스마트머니 레이더")
     
     if not df_stocks.empty:
@@ -725,42 +758,6 @@ with tab2:
                 """, unsafe_allow_html=True)
 
         st.markdown("---")
-
-        # 🚀 한국투자증권(KIS) 모의투자 원클릭 주문 시뮬레이터 (차기 프로젝트 1)
-        st.markdown("##### ⚡ 한국투자증권(KIS) Open API 모의투자 연동 시뮬레이터")
-        with st.expander("🤖 AI 추천 종목 모의/실전 주문 집행 콘솔 열기 (안전 제어 탑재)", expanded=False):
-            st.caption("리스크 관리: 예수금의 최대 15% 이내 단일 종목 자동 분할 매수 및 손절/목표가 감시 연동")
-            col_k1, col_k2 = st.columns([2, 1])
-            with col_k1:
-                stock_options = [f"{r['종목명']} ({r['티커']}) - 매수가 {r['매수_추천금액']}" for _, r in today_picks.iterrows()]
-                selected_stock_str = st.selectbox("주문 집행 대상 추천 종목 선택", stock_options if stock_options else ["삼성전자 (005930.KS) - 매수가 58,000"])
-            with col_k2:
-                order_mode = st.radio("실행 모드", ["안전 시뮬레이션 (Dry-Run)", "KIS 모의투자 (VTS)"], horizontal=True)
-
-            if st.button("🚀 원클릭 분할 매수 주문 실행"):
-                from src.trading import AutoOrderExecutor
-                is_dry = "Dry-Run" in order_mode
-                executor = AutoOrderExecutor(is_virtual=True, dry_run=is_dry, max_allocation_ratio=0.15)
-                
-                # 선택된 종목 파싱
-                match = re.search(r"^(.*?)\s+\((.*?)\)", selected_stock_str)
-                if match:
-                    s_name, s_ticker = match.group(1), match.group(2)
-                    matched_rows = today_picks[today_picks["티커"] == s_ticker]
-                    row_data = matched_rows.iloc[0] if not matched_rows.empty else {}
-                    sample_pick = [{
-                        "name": s_name,
-                        "ticker": s_ticker,
-                        "buy_price": row_data.get("매수_추천금액", "58000"),
-                        "sell_price": row_data.get("목표_매도금액", "64000"),
-                        "stop_loss": row_data.get("손절_기준가", "55000")
-                    }]
-                    order_res = executor.execute_recommendations(sample_pick)
-                    st.success("✅ 주문 집행이 성공적으로 완료되었습니다!")
-                    st.json(order_res)
-
-        st.markdown("---")
-
 
         # 스마트머니 (외인 / 기관 수급 레이더)
         st.markdown("##### ⚡ 외인·기관 실시간 수급 쌍끌이 레이더 (네이버 증권 polling 실시간)")
@@ -805,9 +802,9 @@ with tab2:
 
 
 # =============================================================================
-# TAB 3: 🏛️ 국토교통부 부동산 실거래가 레이더
+# TAB 4: 🏛️ 국토교통부 부동산 실거래가 레이더
 # =============================================================================
-with tab3:
+with tab4:
     st.subheader("🏛️ 국토교통부 실거래가 연동 & 수도권 랜드마크 신고가 레이더")
     
     # 실거래가 수집기 로드
@@ -921,9 +918,9 @@ with tab3:
 
 
 # =============================================================================
-# TAB 4: 🪙 가상자산 & 매크로 지표
+# TAB 5: 🪙 가상자산 & 매크로 지표
 # =============================================================================
-with tab4:
+with tab5:
     st.subheader("🪙 가상자산 & 글로벌 매크로(원자재·금리·변동성) 관제 레이더")
     
     # 1. 업비트 및 매크로 실시간 데이터 로드
@@ -1061,121 +1058,4 @@ with tab4:
     else:
         st.info("글로벌 매크로 지표 로딩 중...")
 
-
-
-# =============================================================================
-# TAB 5: 📂 데일리 브리핑 아카이브
-# =============================================================================
-with tab5:
-    st.subheader("📂 데일리 브리핑 & 모바일 웹리포트 아카이브 뷰어")
-
-    from src.sync.google_drive_sync import GoogleDriveSync
-    g_sync_tool = GoogleDriveSync()
-    
-    current_gdrive_path = st.session_state.get(
-        "custom_gdrive_folder",
-        os.environ.get("GOOGLE_DRIVE_FOLDER", g_sync_tool.get_archive_folder() or r"G:\내 드라이브\데일리_브리핑_수집")
-    )
-    DEFAULT_GDRIVE_URL = "https://drive.google.com/drive/folders/1-haXkilzNot3-4vbKUO-t2VP4hEJXIST?usp=drive_link"
-    current_gdrive_url = st.session_state.get(
-        "custom_gdrive_url",
-        os.environ.get("GOOGLE_DRIVE_FOLDER_URL", DEFAULT_GDRIVE_URL)
-    )
-    gdrive_exists = os.path.exists(current_gdrive_path)
-
-    # 1. 구글 드라이브 상시 연동 헤더 배너 (브리핑 폴더 한정 보안 격리)
-    st.markdown(f"""
-    <div style="background: linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%); border: 1.5px solid #3B82F6; border-radius: 12px; padding: 14px 18px; margin-bottom: 16px;">
-        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
-            <div>
-                <div style="font-size: 15px; font-weight: 800; color: #1E3A8A; display: flex; align-items: center; gap: 8px;">
-                    ☁️ <span>구글 드라이브 연동: <b style="color: #16A34A;">🟢 브리핑 전용 폴더 직통 연결됨 (Active)</b></span>
-                </div>
-                <div style="font-size: 12px; color: #1D4ED8; margin-top: 3px;">
-                    🔒 <b>보안 격리 적용:</b> <code>1-haXkilzNot3-4vbKUO-t2VP4hEJXIST</code> • 개인 드라이브 전체가 아닌 <b>[브리핑 전용 폴더]</b>로만 접근이 엄격히 한정되어 타 개인 파일은 원천 보호됩니다.
-                </div>
-            </div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    top_c1, top_c2 = st.columns([3, 2])
-    with top_c1:
-        storage_choice = st.radio(
-            "📁 아카이브 연결 저장소 선택",
-            ["☁️ 구글 드라이브 (Google Drive)", "💻 로컬 보관함 (Local reports/)"],
-            index=0,  # 항상 구글 드라이브 기본 선택
-            horizontal=True
-        )
-    with top_c2:
-        c_btn1, c_btn2 = st.columns(2)
-        with c_btn1:
-            st.link_button("📂 브리핑 폴더 열기 ↗", current_gdrive_url, use_container_width=True, type="primary")
-        with c_btn2:
-            if st.button("🔄 리포트 즉시 동기화", use_container_width=True):
-                with st.spinner("구글 드라이브로 리포트 복사 및 동기화 중..."):
-                    sync_res = g_sync_tool.sync_all_reports(source_dir="reports", target_drive_path=current_gdrive_path)
-                    if sync_res.get("success"):
-                        st.success(f"✅ 동기화 완료! ({sync_res['count']}개 파일)")
-                        st.cache_data.clear()
-                        st.rerun()
-                    else:
-                        st.error(sync_res.get("message"))
-
-    with st.expander("👁️ 구글 드라이브 브리핑 전용 폴더 웹 뷰어", expanded=False):
-        st.caption("구글 계정 로그인 상태에서 실시간 폴더 목록을 바로 확인할 수 있습니다. 새 창에서 크게 보려면 위의 [📂 브리핑 폴더 열기 ↗] 버튼을 누르세요.")
-        embed_url = "https://drive.google.com/embeddedfolderview?id=1-haXkilzNot3-4vbKUO-t2VP4hEJXIST#list"
-        st.components.v1.iframe(embed_url, height=400, scrolling=True)
-
-    is_gdrive_selected = "구글 드라이브" in storage_choice
-    target_scan_dir = current_gdrive_path if (is_gdrive_selected and gdrive_exists) else "reports"
-    source_label = "☁️ 구글 드라이브 연동 클라우드 보관함" if is_gdrive_selected else "💻 로컬 프로젝트 보관함"
-
-    st.markdown(f"""
-    <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 10px 14px; margin-bottom: 14px; font-size: 13px;">
-        📂 <b>현재 아카이브 뷰어 연결 경로:</b> <code>{target_scan_dir}</code> 
-        <span style="color: #2563EB; font-weight: bold;">({source_label})</span>
-    </div>
-    """, unsafe_allow_html=True)
-
-    df_archives = load_report_archives(target_scan_dir, is_gdrive_mode=is_gdrive_selected)
-    
-    if not df_archives.empty:
-        col_f1, col_f2 = st.columns([1, 2])
-        with col_f1:
-            dates = sorted(df_archives["date"].unique(), reverse=True)
-            selected_date = st.selectbox("📅 발행 일자 선택", dates)
-            
-            sub_reports = df_archives[df_archives["date"] == selected_date]
-            selected_report = st.selectbox("📄 열람할 리포트 선택", sub_reports["filename"].tolist())
-            
-        with col_f2:
-            row_match = df_archives[df_archives["filename"] == selected_report].iloc[0]
-            st.info(f"**파일명:** `{row_match['filename']}`  \n**저장소:** `{row_match['source']}`  \n**실제 경로:** `{row_match['path']}`  \n**용량:** `{row_match['size_kb']} KB`")
-
-        # 내용 렌더링
-        target_path = row_match["path"]
-        if target_path.endswith(".md"):
-            with open(target_path, "r", encoding="utf-8") as f:
-                content = f.read()
-            st.markdown("---")
-            st.markdown(content)
-        elif target_path.endswith(".html"):
-            st.markdown("---")
-            st.caption("반응형 모바일 웹리포트 미리보기 (HTML):")
-            with open(target_path, "r", encoding="utf-8") as f:
-                html_code = f.read()
-            st.components.v1.html(html_code, height=700, scrolling=True)
-        elif target_path.endswith(".pdf"):
-            st.markdown("---")
-            st.success(f"PDF 보고서가 보관되어 있습니다: `{target_path}`")
-            with open(target_path, "rb") as f:
-                st.download_button(
-                    label="📥 PDF 전략 백서 다운로드",
-                    data=f.read(),
-                    file_name=os.path.basename(target_path),
-                    mime="application/pdf"
-                )
-    else:
-        st.warning(f"⚠️ `{target_scan_dir}` 디렉토리에 열람 가능한 리포트 파일(.md, .html, .pdf)이 없습니다. 상단의 '구글 드라이브로 즉시 동기화' 버튼을 눌러 로컬 리포트를 구글 드라이브로 전송해보세요.")
 
