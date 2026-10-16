@@ -21,74 +21,89 @@ from plotly.subplots import make_subplots
 # 1. 페이지 환경설정 & 커스텀 CSS (프리미엄 다크/글래스모피즘 테마)
 # -----------------------------------------------------------------------------
 st.set_page_config(
-    page_title="AI 금융 & 부동산 실시간 인텔리전스 레이더",
-    page_icon="📈",
+    page_title="인텔리전스 허브",
+    page_icon="✨",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"
 )
 
 st.markdown("""
 <style>
-    /* 전체 폰트 및 배경 미려화 */
-    @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@300;400;600;700;800;900&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@300;400;500;600;700;800&display=swap');
     html, body, [class*="css"] {
         font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     }
     
-    /* 상단 배너 */
-    .hero-banner {
-        background: linear-gradient(135deg, #0F172A 0%, #1E293B 50%, #1E3A8A 100%);
-        border: 1px solid #334155;
-        border-radius: 12px;
-        padding: 22px 26px;
-        margin-bottom: 20px;
-        color: #F8FAFC;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+    /* 모바일 반응형 패딩 최적화 */
+    .main .block-container {
+        padding-top: 1.5rem !important;
+        padding-bottom: 2rem !important;
+        padding-left: 1.2rem !important;
+        padding-right: 1.2rem !important;
+        max-width: 1400px;
     }
-    .hero-title {
-        font-size: 26px;
-        font-weight: 800;
-        margin: 0 0 6px 0;
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        color: #FFFFFF;
-    }
-    .hero-desc {
-        font-size: 13.5px;
-        color: #94A3B8;
-        margin: 0;
-        line-height: 1.5;
+    @media (max-width: 768px) {
+        .main .block-container {
+            padding-top: 1rem !important;
+            padding-left: 0.8rem !important;
+            padding-right: 0.8rem !important;
+        }
+        .stTabs [data-baseweb="tab"] {
+            padding: 0 10px !important;
+            font-size: 13px !important;
+            height: 38px !important;
+        }
+        .metric-value {
+            font-size: 20px !important;
+        }
     }
 
-    /* KPI 메트릭 카드 */
+    /* 컴팩트 상단 헤더 */
+    .hub-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 16px;
+        padding-bottom: 12px;
+        border-bottom: 1px solid #E2E8F0;
+    }
+    .hub-title {
+        font-size: 22px;
+        font-weight: 800;
+        color: #0F172A;
+        letter-spacing: -0.5px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .hub-sub {
+        font-size: 13px;
+        color: #64748B;
+        margin-top: 3px;
+    }
+
+    /* 정갈한 모바일 친화 메트릭 카드 */
     .metric-card {
         background: #FFFFFF;
         border: 1px solid #E2E8F0;
         border-radius: 10px;
         padding: 14px 16px;
-        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
-    }
-    .metric-card:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 6px 14px rgba(0, 0, 0, 0.08);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+        margin-bottom: 10px;
     }
     .metric-label {
         font-size: 12px;
-        font-weight: 700;
+        font-weight: 600;
         color: #64748B;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
     }
     .metric-value {
-        font-size: 24px;
-        font-weight: 900;
+        font-size: 22px;
+        font-weight: 800;
         color: #0F172A;
         margin-top: 4px;
     }
     .metric-sub {
-        font-size: 11px;
+        font-size: 11.5px;
         color: #10B981;
         font-weight: 600;
         margin-top: 2px;
@@ -96,22 +111,22 @@ st.markdown("""
 
     /* 탭 헤더 스타일 */
     .stTabs [data-baseweb="tab-list"] {
-        gap: 8px;
-        border-bottom: 2px solid #E2E8F0;
+        gap: 6px;
+        border-bottom: 1.5px solid #E2E8F0;
         padding-bottom: 4px;
+        margin-bottom: 16px;
     }
     .stTabs [data-baseweb="tab"] {
-        height: 44px;
-        white-space: pre-wrap;
-        border-radius: 6px;
-        font-size: 14px;
+        height: 40px;
+        border-radius: 8px;
+        font-size: 13.5px;
         font-weight: 700;
-        padding: 0 16px;
+        padding: 0 14px;
         color: #475569;
     }
     .stTabs [aria-selected="true"] {
         background-color: #EFF6FF !important;
-        color: #1D4ED8 !important;
+        color: #2563EB !important;
         border-bottom: 2px solid #2563EB !important;
     }
 </style>
@@ -292,132 +307,49 @@ def load_report_archives(target_dir: str = None, is_gdrive_mode: bool = False):
 
 
 # -----------------------------------------------------------------------------
-# 3. 사이드바 컨트롤 & 시스템 인프라 현황
+# 3. 사이드바 컨트롤 (간소화 및 모바일 친화형)
 # -----------------------------------------------------------------------------
 with st.sidebar:
-    st.image("https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=600&auto=format&fit=crop&q=80", use_container_width=True)
-    st.title("⚡ 레이더 제어판")
-    st.caption("Auto Intelligence Briefing & Radar")
+    st.markdown("### ⚡ 메뉴 & 설정")
     
     # 실시간 새로고침 버튼
-    if st.button("🔄 실시간 시세 즉시 새로고침", use_container_width=True, type="primary"):
+    if st.button("🔄 실시간 시세 새로고침", use_container_width=True, type="primary"):
         st.cache_data.clear()
         st.session_state["last_sync_time"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        st.toast("⚡ 업비트·야후·네이버 실시간 시세가 성공적으로 갱신되었습니다!", icon="✅")
+        st.toast("⚡ 실시간 데이터가 갱신되었습니다.", icon="✅")
         st.rerun()
 
-    last_sync = st.session_state.get("last_sync_time", datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-    st.markdown(f"""
-    <div style="background: #F0FDF4; border: 1px solid #BBF7D0; border-radius: 6px; padding: 6px 10px; margin-top: 6px; font-size: 11.5px; color: #166534;">
-        🟢 <b>실시간 연동 상태:</b> 정상 작동 중<br>
-        ⏱️ <b>최근 실시간 갱신:</b> <code>{last_sync.split()[-1]}</code>
-    </div>
-    """, unsafe_allow_html=True)
-
-
-    st.markdown("---")
-    st.subheader("📡 인프라 연동 상태")
-    
-    # 국토부 API 키 확인
-    molit_key = os.environ.get("MOLIT_API_KEY") or os.environ.get("DATA_GO_KR_API_KEY")
-    if molit_key:
-        st.success("🟢 국토교통부 실거래가 Open API (공식)")
-    else:
-        st.info("🔵 국토부 레이더 (랜드마크 실시간 폴백 가동)")
-
-    # KIS API 확인
-    kis_key = os.environ.get("KIS_APP_KEY")
-    if kis_key:
-        st.success("🟢 한국투자증권 Open API (모의/실전)")
-    else:
-        st.warning("⚪ KIS 트레이딩 모듈 (테스트 모드)")
-
-    # 네이버 메일 확인
-    mail_user = os.environ.get("NAVER_USER")
-    if mail_user:
-        st.success(f"🟢 이메일 자동발송 ({mail_user[:3]}***)")
-    else:
-        st.caption("⚪ 이메일 설정 대기")
-
-    # 구글 드라이브 연동 상태 & 경로 설정
-    from src.sync.google_drive_sync import GoogleDriveSync
-    g_sync = GoogleDriveSync()
-    detected_gdrive = g_sync.get_archive_folder()
-
-    saved_gdrive = st.session_state.get(
-        "custom_gdrive_folder",
-        os.environ.get("GOOGLE_DRIVE_FOLDER", detected_gdrive or r"G:\내 드라이브\데일리_브리핑_수집")
-    )
     DEFAULT_GDRIVE_URL = "https://drive.google.com/drive/folders/1-haXkilzNot3-4vbKUO-t2VP4hEJXIST?usp=drive_link"
     saved_gdrive_url = st.session_state.get(
         "custom_gdrive_url",
         os.environ.get("GOOGLE_DRIVE_FOLDER_URL", DEFAULT_GDRIVE_URL)
     )
-    st.success("🟢 구글 드라이브 (브리핑 폴더 직통 연동)")
-
-    st.markdown("---")
-    st.subheader("☁️ 브리핑 전용 드라이브")
-    st.link_button("📂 브리핑 전용 폴더 웹 열기 ↗", saved_gdrive_url, use_container_width=True)
-
-    with st.expander("⚙️ 브리핑 폴더 경로 / 웹 링크 설정", expanded=False):
-        st.caption("🔒 **개인정보 보호**: 전체 드라이브가 아닌 **[브리핑 전용 폴더]**로만 접근이 엄격히 한정됩니다.")
-        gdrive_url_input = st.text_input(
-            "브리핑 폴더 웹 주소 (URL)",
-            value=saved_gdrive_url,
-            help="구글 드라이브에서 '데일리_브리핑_수집' 폴더 우클릭 > 링크 복사한 URL"
-        )
-        if gdrive_url_input != saved_gdrive_url:
-            st.session_state["custom_gdrive_url"] = gdrive_url_input
-            st.rerun()
-
-        gdrive_input = st.text_input(
-            "PC 로컬 브리핑 폴더 경로",
-            value=saved_gdrive,
-            help="PC에 마운트된 구글 드라이브 내 브리핑 폴더 경로"
-        )
-        if gdrive_input != saved_gdrive:
-            st.session_state["custom_gdrive_folder"] = gdrive_input
-            st.cache_data.clear()
-            st.rerun()
-
-        if os.path.exists(saved_gdrive):
-            st.caption(f"📁 로컬 연동 감지됨: `{saved_gdrive}`")
-        else:
-            st.caption("☁️ 클라우드 동기화 모드로 동작 중")
+    st.link_button("☁️ 구글 드라이브 (브리핑) ↗", saved_gdrive_url, use_container_width=True)
 
     st.markdown("---")
     auth_user = st.session_state.get("auth_user", "Master Admin")
-    auth_method = st.session_state.get("auth_method", "google_oauth")
-    badge_label = "🌐 Google 인증됨" if auth_method == "google_oauth" else "🔒 관리자 인증됨"
+    st.caption(f"👤 **접속 계정:** `{auth_user}`")
+    if st.button("로그아웃", use_container_width=True):
+        st.session_state["authenticated"] = False
+        if hasattr(st, "logout"):
+            try:
+                st.logout()
+            except Exception:
+                pass
+        st.rerun()
 
-    st.caption(f"👤 **인증 계정:** `{auth_user}`")
-    col_auth1, col_auth2 = st.columns([1.5, 1])
-    with col_auth1:
-        st.caption(badge_label)
-    with col_auth2:
-        if st.button("로그아웃", use_container_width=True):
-            st.session_state["authenticated"] = False
-            if hasattr(st, "logout") and auth_method == "google_oauth":
-                try:
-                    st.logout()
-                except Exception:
-                    pass
-            st.rerun()
-
-    st.caption("마스터 데이터: `reports/일자별_누적_...xlsx`")
-    st.caption(f"시스템 일시: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}")
-
+    last_sync = st.session_state.get("last_sync_time", datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+    st.caption(f"갱신 기준: {last_sync.split()[-1]}")
 
 
 # -----------------------------------------------------------------------------
-# 4. 메인 대시보드 헤더
+# 4. 메인 컴팩트 헤더 & 데이터 로드
 # -----------------------------------------------------------------------------
 st.markdown("""
-<div class="hero-banner">
-    <div class="hero-title">🚀 글로벌 금융 & 부동산 실시간 인텔리전스 레이더</div>
-    <div class="hero-desc">
-        AI 추천 주식의 1년치 백테스팅 에쿼티 커브(Equity Curve) 감사, 국토교통부 아파트 실거래가 신고가 레이더, 
-        글로벌 매크로 지표(WTI·금·VIX·국채) 및 가상자산 온체인 수급을 총망라한 통합 관제 대시보드입니다.
+<div class="hub-header">
+    <div>
+        <div class="hub-title">✨ 데일리 인텔리전스 허브</div>
+        <div class="hub-sub">실시간 브리핑 · AI 종목 · 부동산 실거래 · 시장 지표 통합 관제</div>
     </div>
 </div>
 """, unsafe_allow_html=True)
@@ -430,23 +362,22 @@ df_macro = data.get("시장지표_누적", pd.DataFrame())
 
 
 # -----------------------------------------------------------------------------
-# 5. 메인 탭 구성
+# 5. 메인 탭 구성 (모바일 친화 간결 타이틀 & 향후 확장 슬롯 탑재)
 # -----------------------------------------------------------------------------
-tab1, tab2, tab3, tab4, tab5 = st.tabs([
-    "📂 데일리 브리핑 아카이브 (최신 리포트)",
-    "📊 백테스팅 성과 & 에쿼티 커브",
-    "🎯 AI 주식 추천 & 스마트머니 레이더",
-    "🏛️ 국토교통부 부동산 실거래가 레이더",
-    "🪙 가상자산 & 매크로 지표"
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+    "📑 데일리 브리핑",
+    "🎯 AI 종목 추천",
+    "📊 백테스팅 성과",
+    "🏛️ 부동산 실거래",
+    "🪙 코인 · 시장지표",
+    "➕ 맞춤 화면 확장"
 ])
 
 
 # =============================================================================
-# TAB 1: 📂 데일리 브리핑 아카이브 (최신 리포트 기본 자동 열람)
+# TAB 1: 📑 데일리 브리핑 (최신 리포트 기본 자동 열람)
 # =============================================================================
 with tab1:
-    st.subheader("📂 데일리 브리핑 & 모바일 웹리포트 아카이브 (안전 열람 전용)")
-
     from src.sync.google_drive_sync import GoogleDriveSync
     g_sync_tool = GoogleDriveSync()
     
@@ -460,60 +391,11 @@ with tab1:
         os.environ.get("GOOGLE_DRIVE_FOLDER_URL", DEFAULT_GDRIVE_URL)
     )
     gdrive_exists = os.path.exists(current_gdrive_path)
+    target_scan_dir = current_gdrive_path if gdrive_exists else "reports"
 
-    # 1. 구글 드라이브 상시 연동 헤더 배너 (격리 보안 명시)
-    st.markdown(f"""
-    <div style="background: linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%); border: 1.5px solid #3B82F6; border-radius: 12px; padding: 14px 18px; margin-bottom: 16px;">
-        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
-            <div>
-                <div style="font-size: 15px; font-weight: 800; color: #1E3A8A; display: flex; align-items: center; gap: 8px;">
-                    ☁️ <span>구글 드라이브 연동: <b style="color: #16A34A;">🟢 브리핑 전용 폴더 직통 연결됨 (Active)</b></span>
-                    <span style="font-size: 11px; background: #DBEAFE; color: #1E40AF; padding: 2px 8px; border-radius: 999px; font-weight: 600;">🔒 열람 전용 (Read-Only)</span>
-                </div>
-                <div style="font-size: 12px; color: #1D4ED8; margin-top: 3px;">
-                    🔒 <b>보안 격리 폴더 ID:</b> <code>1-haXkilzNot3-4vbKUO-t2VP4hEJXIST</code> • 개인 파일 원천 차단 • 수정/다운로드/삭제 불가 열람 모드
-                </div>
-            </div>
-            <div>
-                <a href="{current_gdrive_url}" target="_blank" style="background: #2563EB; color: white; padding: 8px 16px; border-radius: 6px; text-decoration: none; font-size: 13px; font-weight: bold; display: inline-block;">
-                    📂 브리핑 구글 드라이브 열기 ↗
-                </a>
-            </div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    top_c1, top_c2 = st.columns([3, 2])
-    with top_c1:
-        storage_choice = st.radio(
-            "📁 아카이브 연결 저장소 선택",
-            ["☁️ 구글 드라이브 (Google Drive)", "💻 로컬 보관함 (Local reports/)"],
-            index=0,
-            horizontal=True
-        )
-    with top_c2:
-        st.caption("🔒 **보안 정책:** 파일 열람 전용 모드로 동작하며, 파일의 임의 수정·업로드·다운로드·삭제는 일체 제한됩니다.")
-
-    with st.expander("👁️ 구글 드라이브 브리핑 전용 폴더 웹 뷰어", expanded=False):
-        st.caption("구글 계정 로그인 상태에서 실시간 폴더 목록을 확인할 수 있습니다. 새 창에서 크게 보려면 위의 [📂 브리핑 구글 드라이브 열기 ↗] 버튼을 누르세요.")
-        embed_url = "https://drive.google.com/embeddedfolderview?id=1-haXkilzNot3-4vbKUO-t2VP4hEJXIST#list"
-        st.components.v1.iframe(embed_url, height=380, scrolling=True)
-
-    is_gdrive_selected = "구글 드라이브" in storage_choice
-    target_scan_dir = current_gdrive_path if (is_gdrive_selected and gdrive_exists) else "reports"
-    source_label = "☁️ 구글 드라이브 연동 클라우드 보관함" if is_gdrive_selected else "💻 로컬 프로젝트 보관함"
-
-    st.markdown(f"""
-    <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 10px 14px; margin-bottom: 14px; font-size: 13px;">
-        📂 <b>현재 아카이브 뷰어 연결 경로:</b> <code>{target_scan_dir}</code> 
-        <span style="color: #2563EB; font-weight: bold;">({source_label})</span>
-    </div>
-    """, unsafe_allow_html=True)
-
-    df_archives = load_report_archives(target_scan_dir, is_gdrive_mode=is_gdrive_selected)
+    df_archives = load_report_archives(target_scan_dir, is_gdrive_mode=gdrive_exists)
     
     if not df_archives.empty:
-        # 가장 최근 날짜 및 최신 HTML 파일 탐색
         dates = sorted(df_archives["date"].unique(), reverse=True)
         html_df = df_archives[df_archives["ext"] == ".html"]
         if not html_df.empty:
@@ -524,164 +406,183 @@ with tab1:
             default_date = dates[0]
             default_filename = df_archives[df_archives["date"] == default_date]["filename"].iloc[0]
 
-        col_f1, col_f2 = st.columns([1, 2])
-        with col_f1:
+        # 상단 컴팩트 컨트롤러 (발행일, 리포트 선택 및 구글 드라이브 열기)
+        col_c1, col_c2, col_c3 = st.columns([1.2, 2.5, 1.3])
+        with col_c1:
             date_idx = dates.index(default_date) if default_date in dates else 0
-            selected_date = st.selectbox("📅 발행 일자 선택", dates, index=date_idx)
+            selected_date = st.selectbox("📅 발행일", dates, index=date_idx, label_visibility="collapsed")
             
-            sub_reports = df_archives[df_archives["date"] == selected_date]
-            filenames = sub_reports["filename"].tolist()
+        sub_reports = df_archives[df_archives["date"] == selected_date]
+        filenames = sub_reports["filename"].tolist()
+        fn_idx = 0
+        if selected_date == default_date and default_filename in filenames:
+            fn_idx = filenames.index(default_filename)
+        else:
+            html_in_sub = [f for f in filenames if f.endswith(".html")]
+            if html_in_sub:
+                fn_idx = filenames.index(html_in_sub[0])
+                
+        with col_c2:
+            selected_report = st.selectbox("📄 리포트", filenames, index=fn_idx, label_visibility="collapsed")
             
-            # HTML 파일 우선 선택
-            fn_idx = 0
-            if selected_date == default_date and default_filename in filenames:
-                fn_idx = filenames.index(default_filename)
-            else:
-                html_in_sub = [f for f in filenames if f.endswith(".html")]
-                if html_in_sub:
-                    fn_idx = filenames.index(html_in_sub[0])
-                    
-            selected_report = st.selectbox("📄 열람할 리포트 선택", filenames, index=fn_idx)
-            
-        with col_f2:
-            row_match = df_archives[df_archives["filename"] == selected_report].iloc[0]
-            st.info(f"**파일명:** `{row_match['filename']}`  \n**저장소:** `{row_match['source']}`  \n**보안 등급:** 🔒 `안전 열람 전용 (Read-Only • 수정/다운로드/삭제 차단)`")
+        with col_c3:
+            st.link_button("☁️ 구글 드라이브 ↗", current_gdrive_url, use_container_width=True)
 
-        # 내용 렌더링 (가장 최근 브리핑 HTML 기본 표시)
+        row_match = df_archives[df_archives["filename"] == selected_report].iloc[0]
         target_path = row_match["path"]
+
+        # 본문 리포트 렌더링 (모바일 반응형 전체화면)
         if target_path.endswith(".html"):
-            st.markdown("---")
-            st.caption("📱 반응형 모바일 브리핑 웹리포트 (HTML 열람 전용):")
             with open(target_path, "r", encoding="utf-8") as f:
                 html_code = f.read()
-            st.components.v1.html(html_code, height=850, scrolling=True)
+            st.components.v1.html(html_code, height=920, scrolling=True)
         elif target_path.endswith(".md"):
-            st.markdown("---")
             with open(target_path, "r", encoding="utf-8") as f:
                 content = f.read()
             st.markdown(content)
         elif target_path.endswith(".pdf"):
-            st.markdown("---")
-            st.info(f"📄 PDF 보고서 보관: `{row_match['filename']}` ({row_match['size_kb']} KB) • 보안 정책에 따라 외부 다운로드는 제한되며 안전하게 열람 보호 중입니다.")
+            st.info(f"📄 PDF 보고서 보관: `{row_match['filename']}` ({row_match['size_kb']} KB)")
     else:
-        st.warning(f"⚠️ `{target_scan_dir}` 디렉토리에 열람 가능한 리포트 파일(.md, .html, .pdf)이 없습니다.")
+        st.warning(f"⚠️ `{target_scan_dir}` 디렉토리에 열람 가능한 리포트 파일이 없습니다.")
 
 
 # =============================================================================
-# TAB 2: 📊 백테스팅 성과 & 에쿼티 커브
+# TAB 2: 🎯 AI 종목 추천
 # =============================================================================
 with tab2:
-    st.subheader("📈 AI 추천 종목 사후 실적 전수 감사 (Backtest Auditing)")
-    
-    if not df_backtest.empty:
-        # 데이터 전처리
-        df_b = df_backtest.copy()
+    if not df_stocks.empty:
+        latest_date = df_stocks["분석일자"].max()
+        today_picks = df_stocks[df_stocks["분석일자"] == latest_date]
         
-        # 수익률 숫자 변환
+        st.markdown(f"##### 🎯 오늘의 AI 추천 종목 (`{latest_date}` 기준 {len(today_picks)}선)")
+        
+        # 모바일 친화적 카드 레이아웃
+        cols = st.columns(min(len(today_picks), 3)) if len(today_picks) > 0 else [st]
+        for idx, (_, row) in enumerate(today_picks.head(3).iterrows()):
+            col_target = cols[idx % len(cols)]
+            with col_target:
+                st.markdown(f"""
+                <div style="background: #F0FDF4; border: 1px solid #BBF7D0; border-radius: 10px; padding: 14px 16px; margin-bottom: 10px;">
+                    <div style="font-size: 16px; font-weight: 800; color: #166534; display: flex; justify-content: space-between; align-items: center;">
+                        <span>{row.get('종목명')} <span style="font-size: 12px; font-weight: normal; color: #15803D;">({row.get('티커')})</span></span>
+                        <span style="font-size: 11px; background: #DCFCE7; color: #15803D; padding: 2px 8px; border-radius: 999px; font-weight: 700;">{row.get('섹터', '주요산업')}</span>
+                    </div>
+                    <div style="margin: 8px 0; font-size: 13px; color: #14532D; line-height: 1.6;">
+                        • 현재가: <b>{row.get('현재가')}</b> | 기대수익: <b style="color: #16A34A;">{row.get('기대_수익률')}</b><br>
+                        • 목표가: <b style="color: #166534;">{row.get('목표_매도금액')}</b> (매수가: {row.get('매수_추천금액')})<br>
+                        • 손절가: {row.get('손절_기준가')}
+                    </div>
+                    <div style="font-size: 11.5px; color: #475569; background: #FFFFFF; padding: 6px 10px; border-radius: 6px; border: 1px solid #E2E8F0;">
+                        💡 <b>포인트:</b> {row.get('단기신호', '')} - {str(row.get('단기근거', ''))[:45]}...
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown("##### ⚡ 외인·기관 실시간 수급 쌍끌이 종목")
+        live_sm = fetch_live_smart_money()
+        if live_sm:
+            df_sm = pd.DataFrame(live_sm)
+            col_map_sm = {
+                "name": "종목명",
+                "code": "티커",
+                "badge": "수급 국면",
+                "close_price": "현재가",
+                "foreign_quant": "외국인순매수",
+                "organ_quant": "기관순매수",
+            }
+            target_sm_cols = [c for c in col_map_sm.keys() if c in df_sm.columns]
+            display_sm = df_sm[target_sm_cols].rename(columns=col_map_sm)
+            st.dataframe(display_sm, use_container_width=True, hide_index=True)
+
+        with st.expander("📋 역대 추천 종목 히스토리 검색", expanded=False):
+            search_query = st.text_input("종목명 검색", "", label_visibility="collapsed")
+            if search_query:
+                df_display = df_stocks[df_stocks["종목명"].str.contains(search_query, na=False) | df_stocks["티커"].str.contains(search_query, na=False)]
+            else:
+                df_display = df_stocks
+            stock_cols = ["분석일자", "종목명", "티커", "현재가", "매수_추천금액", "목표_매도금액", "손절_기준가", "기대_수익률"]
+            valid_cols = [c for c in stock_cols if c in df_display.columns]
+            st.dataframe(df_display[valid_cols].head(25), use_container_width=True, hide_index=True)
+    else:
+        st.info("ℹ️ 누적 주식 추천 데이터가 없습니다.")
+
+
+# =============================================================================
+# TAB 3: 📊 백테스팅 성과
+# =============================================================================
+with tab3:
+    if not df_backtest.empty:
+        df_b = df_backtest.copy()
         def parse_yield(val):
             try:
                 s = str(val).replace("%", "").replace("+", "").strip()
                 return float(s)
             except Exception:
                 return 0.0
-                
         df_b["수익률_num"] = df_b["실현수익률"].apply(parse_yield)
-        
-        # 소요일수 숫자 변환
-        def parse_days(val):
-            try:
-                m = re.search(r"(\d+)", str(val))
-                return int(m.group(1)) if m else 1
-            except Exception:
-                return 1
-        df_b["소요일수_num"] = df_b["소요일수"].apply(parse_days)
 
         total_picks = len(df_b)
         success_picks = len(df_b[df_b["검증결과"].str.contains("달성|성공", na=False)])
-        holding_picks = len(df_b[df_b["검증결과"].str.contains("추적|진행", na=False)])
-        loss_picks = len(df_b[df_b["검증결과"].str.contains("손절", na=False)])
         win_rate = round((success_picks / total_picks * 100), 1) if total_picks > 0 else 0.0
         avg_yield = round(df_b[df_b["검증결과"].str.contains("달성", na=False)]["수익률_num"].mean(), 2) if success_picks > 0 else 0.0
-        avg_days = round(df_b[df_b["검증결과"].str.contains("달성", na=False)]["소요일수_num"].mean(), 1) if success_picks > 0 else 0.0
 
-        # 상단 핵심 KPI 메트릭 5종
-        c1, c2, c3, c4, c5 = st.columns(5)
+        # 모바일 가로 과부하를 방지한 3종 핵심 지표
+        c1, c2, c3 = st.columns(3)
         with c1:
             st.markdown(f"""
             <div class="metric-card">
-                <div class="metric-label">총 사후 검증 표본</div>
-                <div class="metric-value">{total_picks}건</div>
-                <div class="metric-sub" style="color: #64748B;">전수 투명 감사</div>
+                <div class="metric-label">누적 적중 승률</div>
+                <div class="metric-value" style="color: #2563EB;">{win_rate}%</div>
+                <div class="metric-sub">목표가 도달</div>
             </div>
             """, unsafe_allow_html=True)
         with c2:
             st.markdown(f"""
             <div class="metric-card">
-                <div class="metric-label">누적 적중 승률 (Win Rate)</div>
-                <div class="metric-value" style="color: #1D4ED8;">{win_rate}%</div>
-                <div class="metric-sub">목표가 도달 적중</div>
+                <div class="metric-label">평균 실현 수익률</div>
+                <div class="metric-value" style="color: #16A34A;">+{avg_yield if avg_yield > 0 else 4.8}%</div>
+                <div class="metric-sub">달성 종목 평균</div>
             </div>
             """, unsafe_allow_html=True)
         with c3:
             st.markdown(f"""
             <div class="metric-card">
-                <div class="metric-label">목표가 달성 건수</div>
-                <div class="metric-value" style="color: #16A34A;">{success_picks}건</div>
-                <div class="metric-sub">추적 중 {holding_picks}건</div>
-            </div>
-            """, unsafe_allow_html=True)
-        with c4:
-            st.markdown(f"""
-            <div class="metric-card">
-                <div class="metric-label">달성 종목 평균 수익률</div>
-                <div class="metric-value" style="color: #16A34A;">+{avg_yield if avg_yield > 0 else 4.8}%</div>
-                <div class="metric-sub">익절 기준 실현치</div>
-            </div>
-            """, unsafe_allow_html=True)
-        with c5:
-            st.markdown(f"""
-            <div class="metric-card">
-                <div class="metric-label">목표 도달 평균 소요일</div>
-                <div class="metric-value" style="color: #9333EA;">{avg_days if avg_days > 0 else 2.1}일</div>
-                <div class="metric-sub">단기 스윙 적중 속도</div>
+                <div class="metric-label">목표 달성 건수</div>
+                <div class="metric-value" style="color: #0F172A;">{success_picks} / {total_picks}건</div>
+                <div class="metric-sub" style="color: #64748B;">전수 감사</div>
             </div>
             """, unsafe_allow_html=True)
 
-        st.markdown("<br>", unsafe_allow_html=True)
-
-        # 인터랙티브 Plotly 차트 2분할
-        col_chart1, col_chart2 = st.columns([3, 2])
-        
-        with col_chart1:
-            st.markdown("##### 📈 누적 에쿼티 커브 (Cumulative Alpha Curve)")
+        col_c1, col_c2 = st.columns([3, 2])
+        with col_c1:
+            st.markdown("##### 📈 누적 수익률 에쿼티 곡선")
             df_sorted = df_b.sort_values(by="추천일자").reset_index(drop=True)
             df_sorted["누적수익률"] = df_sorted["수익률_num"].cumsum()
-            
             fig_curve = go.Figure()
             fig_curve.add_trace(go.Scatter(
                 x=df_sorted.index,
                 y=df_sorted["누적수익률"],
                 mode="lines+markers",
-                name="AI 모델 누적 수익률 (%)",
-                line=dict(color="#2563EB", width=3),
-                marker=dict(size=6, color="#1D4ED8"),
+                name="누적 수익률(%)",
+                line=dict(color="#2563EB", width=2.5),
+                marker=dict(size=5, color="#1D4ED8"),
                 fill="tozeroy",
-                fillcolor="rgba(37, 99, 235, 0.1)",
-                hovertemplate="<b>종목: %{text}</b><br>누적 수익률: %{y:.1f}%<extra></extra>",
-                text=df_sorted["종목명"]
+                fillcolor="rgba(37, 99, 235, 0.08)",
+                text=df_sorted["종목명"],
+                hovertemplate="<b>%{text}</b>: 누적 %{y:.1f}%<extra></extra>"
             ))
             fig_curve.update_layout(
-                margin=dict(l=20, r=20, t=30, b=20),
-                height=350,
-                xaxis=dict(title="추천 순번 (Cumulative Trades)", showgrid=True),
+                margin=dict(l=10, r=10, t=20, b=20),
+                height=300,
+                xaxis=dict(title="추천 순번", showgrid=True),
                 yaxis=dict(title="누적 수익률 (%)", showgrid=True),
-                template="plotly_white",
-                hovermode="x unified"
+                template="plotly_white"
             )
             st.plotly_chart(fig_curve, use_container_width=True)
 
-        with col_chart2:
-            st.markdown("##### 🎯 검증 결과별 분포 비율 (Outcome Status)")
+        with col_c2:
+            st.markdown("##### 🎯 검증 결과 비율")
             status_counts = df_b["검증결과"].value_counts().reset_index()
             status_counts.columns = ["상태", "건수"]
             fig_pie = px.pie(
@@ -697,169 +598,57 @@ with tab2:
                 hole=0.45
             )
             fig_pie.update_layout(
-                margin=dict(l=20, r=20, t=30, b=20),
-                height=350,
+                margin=dict(l=10, r=10, t=20, b=20),
+                height=300,
                 legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5)
             )
             st.plotly_chart(fig_pie, use_container_width=True)
 
-        # 백테스팅 상세 테이블
-        st.markdown("##### 📋 추천 종목 사후 실적 전수 감사 테이블")
-        filter_status = st.multiselect(
-            "결과 상태 필터링", 
-            options=df_b["검증결과"].unique().tolist(),
-            default=df_b["검증결과"].unique().tolist()
-        )
-        filtered_df = df_b[df_b["검증결과"].isin(filter_status)]
-        
-        display_cols = ["검증기준일", "추천일자", "종목명", "티커", "매수추천가", "목표매도가", "검증결과", "실현수익률", "최고도달가", "소요일수"]
-        st.dataframe(
-            filtered_df[display_cols],
-            use_container_width=True,
-            hide_index=True
-        )
+        with st.expander("📋 추천 종목별 상세 실적 목록", expanded=False):
+            display_cols = ["검증기준일", "추천일자", "종목명", "티커", "매수추천가", "목표매도가", "검증결과", "실현수익률", "소요일수"]
+            valid_b_cols = [c for c in display_cols if c in df_b.columns]
+            st.dataframe(df_b[valid_b_cols], use_container_width=True, hide_index=True)
     else:
-        st.warning("⚠️ 백테스팅 누적 데이터(`추천성과_검증누적` 시트)가 아직 생성되지 않았습니다.")
+        st.info("ℹ️ 백테스팅 누적 데이터가 없습니다.")
 
 
 # =============================================================================
-# TAB 3: 🎯 AI 주식 추천 & 스마트머니 레이더
-# =============================================================================
-with tab3:
-    st.subheader("🎯 AI 주식 매매 추천 & 외인·기관 스마트머니 레이더")
-    
-    if not df_stocks.empty:
-        # 최근 추천 일자 추출
-        latest_date = df_stocks["분석일자"].max()
-        today_picks = df_stocks[df_stocks["분석일자"] == latest_date]
-        
-        st.markdown(f"**최신 추천 일자:** `{latest_date}` (총 {len(today_picks)}종목 발굴)")
-        
-        # 오늘 발굴 추천 카드
-        cols = st.columns(min(len(today_picks), 3)) if len(today_picks) > 0 else [st]
-        for idx, (_, row) in enumerate(today_picks.head(3).iterrows()):
-            col_target = cols[idx % len(cols)]
-            with col_target:
-                st.markdown(f"""
-                <div style="background: #F0FDF4; border: 1px solid #BBF7D0; border-radius: 8px; padding: 14px 16px; margin-bottom: 12px;">
-                    <div style="font-size: 16px; font-weight: 800; color: #166534; display: flex; justify-content: space-between;">
-                        <span>{row.get('종목명')} ({row.get('티커')})</span>
-                        <span style="font-size: 13px; background: #DCFCE7; color: #15803D; padding: 2px 6px; border-radius: 4px;">{row.get('섹터', '주요산업')}</span>
-                    </div>
-                    <div style="margin: 8px 0; font-size: 13px; color: #14532D;">
-                        • <b>현재가:</b> {row.get('현재가')} &nbsp;|&nbsp; <b>기대수익:</b> <b style="color: #15803D;">{row.get('기대_수익률')}</b><br>
-                        • <b>매수가:</b> {row.get('매수_추천금액')} ➔ <b>목표가:</b> <b style="color: #166534;">{row.get('목표_매도금액')}</b><br>
-                        • <b>손절가:</b> {row.get('손절_기준가')}
-                    </div>
-                    <div style="font-size: 11.5px; color: #4B5563; background: #FFFFFF; padding: 6px 10px; border-radius: 6px; border: 1px solid #E2E8F0;">
-                        💡 <b>신호 및 근거:</b> {row.get('단기신호', '')} - {str(row.get('단기근거', ''))[:55]}...
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-
-        st.markdown("---")
-
-        # 스마트머니 (외인 / 기관 수급 레이더)
-        st.markdown("##### ⚡ 외인·기관 실시간 수급 쌍끌이 레이더 (네이버 증권 polling 실시간)")
-        live_sm = fetch_live_smart_money()
-        if live_sm:
-            df_sm = pd.DataFrame(live_sm)
-            col_map_sm = {
-                "name": "종목명",
-                "code": "티커",
-                "sector": "섹터",
-                "badge": "수급 국면",
-                "close_price": "현재가",
-                "foreign_quant": "외국인순매수",
-                "organ_quant": "기관순매수",
-                "foreign_ratio": "외국인보유율",
-                "consec_foreign": "외인연속일",
-                "consec_organ": "기관연속일"
-            }
-            target_sm_cols = [c for c in col_map_sm.keys() if c in df_sm.columns]
-            display_sm = df_sm[target_sm_cols].rename(columns=col_map_sm)
-            st.dataframe(display_sm, use_container_width=True, hide_index=True)
-        else:
-            smart_money_data = [
-                {"종목명": "삼성전자", "티커": "005930.KS", "외국인순매수": "+4,820억", "기관순매수": "+1,940억", "수급연속성": "3일 연속 쌍끌이", "모멘텀": "HBM3E 공급 가시화"},
-                {"종목명": "SK하이닉스", "티커": "000660.KS", "외국인순매수": "+3,150억", "기관순매수": "+890억", "수급연속성": "5일 연속 쌍끌이", "모멘텀": "AI 서버 메모리 슈퍼사이클"},
-            ]
-            st.dataframe(pd.DataFrame(smart_money_data), use_container_width=True, hide_index=True)
-
-
-        st.markdown("##### 📋 역대 AI 추천 종목 전체 히스토리 (Search & Filter)")
-        search_query = st.text_input("종목명 또는 티커 검색", "")
-        if search_query:
-            df_display = df_stocks[df_stocks["종목명"].str.contains(search_query, na=False) | df_stocks["티커"].str.contains(search_query, na=False)]
-        else:
-            df_display = df_stocks
-            
-        stock_cols = ["분석일자", "종목명", "티커", "현재가", "매수_추천금액", "목표_매도금액", "손절_기준가", "기대_수익률", "RSI(14)", "52주위치"]
-        valid_cols = [c for c in stock_cols if c in df_display.columns]
-        st.dataframe(df_display[valid_cols].head(30), use_container_width=True, hide_index=True)
-    else:
-        st.info("ℹ️ 누적 주식 추천 데이터가 없습니다.")
-
-
-# =============================================================================
-# TAB 4: 🏛️ 국토교통부 부동산 실거래가 레이더
+# TAB 4: 🏛️ 부동산 실거래
 # =============================================================================
 with tab4:
-    st.subheader("🏛️ 국토교통부 실거래가 연동 & 수도권 랜드마크 신고가 레이더")
-    
-    # 실거래가 수집기 로드
     from src.collectors.molit_real_estate_collector import MolitRealEstateCollector
     molit = MolitRealEstateCollector()
     trades = molit.get_recent_notable_trades(limit=10)
     df_trades = pd.DataFrame(trades)
 
-    re_c1, re_c2, re_c3, re_c4 = st.columns(4)
-    with re_c1:
-        st.markdown("""
-        <div class="metric-card">
-            <div class="metric-label">국토부 연동 엔진</div>
-            <div class="metric-value" style="font-size: 20px; color: #0284C7;">MOLIT OpenAPI</div>
-            <div class="metric-sub">실시간 공공데이터포털</div>
-        </div>
-        """, unsafe_allow_html=True)
-    with re_c2:
+    # 핵심 요약 2개 카드
+    rc1, rc2 = st.columns(2)
+    with rc1:
         st.markdown("""
         <div class="metric-card">
             <div class="metric-label">최고가 랜드마크</div>
             <div class="metric-value" style="font-size: 20px; color: #DC2626;">60억 0,000만</div>
-            <div class="metric-sub">래미안원베일리 (전용 84㎡)</div>
+            <div class="metric-sub" style="color: #64748B;">래미안원베일리 (전용 84㎡)</div>
         </div>
         """, unsafe_allow_html=True)
-    with re_c3:
+    with rc2:
         st.markdown("""
         <div class="metric-card">
-            <div class="metric-label">주담대 금리 밴드</div>
+            <div class="metric-label">수도권 주담대 금리 밴드</div>
             <div class="metric-value" style="font-size: 20px; color: #0F172A;">3.65% ~ 4.85%</div>
-            <div class="metric-sub">5년 고정 혼합형</div>
+            <div class="metric-sub" style="color: #64748B;">5년 고정 혼합형</div>
         </div>
         """, unsafe_allow_html=True)
-    with re_c4:
-        st.markdown("""
-        <div class="metric-card">
-            <div class="metric-label">규제 국면</div>
-            <div class="metric-value" style="font-size: 20px; color: #D97706;">2단계 스트레스 DSR</div>
-            <div class="metric-sub">수도권 1.2%p 가산 적용</div>
-        </div>
-        """, unsafe_allow_html=True)
-
-    st.markdown("<br>", unsafe_allow_html=True)
 
     col_re_t, col_re_chart = st.columns([3, 2])
-    
     with col_re_t:
-        st.markdown("##### 🏢 최근 수도권 핵심 단지 실거래 & 신고가 포착 일람")
+        st.markdown("##### 🏢 수도권 핵심 단지 최근 실거래")
         if not df_trades.empty:
             if "dong" not in df_trades.columns:
                 if "district" in df_trades.columns:
                     df_trades["dong"] = df_trades["district"].apply(lambda d: str(d).split()[-1] if pd.notna(d) else "-")
                 else:
                     df_trades["dong"] = "-"
-            
             col_map = {
                 "apt_name": "단지명",
                 "dong": "법정동",
@@ -867,63 +656,42 @@ with tab4:
                 "price": "거래금액",
                 "floor": "층수",
                 "deal_date": "계약일",
-                "badge": "거래특징"
+                "badge": "특징"
             }
             target_cols = [c for c in col_map.keys() if c in df_trades.columns]
-            display_trades = df_trades[target_cols].rename(columns=col_map)
-            st.dataframe(display_trades, use_container_width=True, hide_index=True)
+            st.dataframe(df_trades[target_cols].rename(columns=col_map), use_container_width=True, hide_index=True)
         else:
             st.info("실거래 데이터 로딩 중...")
 
-
     with col_re_chart:
-        st.markdown("##### 📊 7대 권역별 주간 아파트 매매·전세 변동률")
+        st.markdown("##### 📊 7대 권역별 주간 변동률(%)")
         regional_data = [
-            {"권역": "강남3구", "매매변동": 0.14, "전세변동": 0.09},
-            {"권역": "마용성", "매매변동": 0.08, "전세변동": 0.07},
-            {"권역": "여의도·영등포", "매매변동": 0.11, "전세변동": 0.08},
-            {"권역": "노도강", "매매변동": 0.01, "전세변동": 0.03},
-            {"권역": "1기 신도시", "매매변동": 0.11, "전세변동": 0.06},
-            {"권역": "경기외곽", "매매변동": -0.01, "전세변동": 0.02},
-            {"권역": "지방5대광역시", "매매변동": -0.04, "전세변동": -0.02},
+            {"권역": "강남3구", "매매": 0.14, "전세": 0.09},
+            {"권역": "마용성", "매매": 0.08, "전세": 0.07},
+            {"권역": "여의도", "매매": 0.11, "전세": 0.08},
+            {"권역": "노도강", "매매": 0.01, "전세": 0.03},
+            {"권역": "1기신도시", "매매": 0.11, "전세": 0.06},
+            {"권역": "경기외곽", "매매": -0.01, "전세": 0.02},
+            {"권역": "지방5대", "매매": -0.04, "전세": -0.02},
         ]
         df_reg = pd.DataFrame(regional_data)
         fig_reg = go.Figure()
-        fig_reg.add_trace(go.Bar(
-            x=df_reg["권역"], y=df_reg["매매변동"], name="매매 증감률(%)", marker_color="#2563EB"
-        ))
-        fig_reg.add_trace(go.Bar(
-            x=df_reg["권역"], y=df_reg["전세변동"], name="전세 증감률(%)", marker_color="#10B981"
-        ))
+        fig_reg.add_trace(go.Bar(x=df_reg["권역"], y=df_reg["매매"], name="매매", marker_color="#2563EB"))
+        fig_reg.add_trace(go.Bar(x=df_reg["권역"], y=df_reg["전세"], name="전세", marker_color="#10B981"))
         fig_reg.update_layout(
             barmode="group",
-            margin=dict(l=10, r=10, t=20, b=20),
-            height=320,
+            margin=dict(l=10, r=10, t=10, b=10),
+            height=260,
             template="plotly_white",
-            legend=dict(orientation="h", yanchor="bottom", y=-0.25, xanchor="center", x=0.5)
+            legend=dict(orientation="h", yanchor="bottom", y=-0.3, xanchor="center", x=0.5)
         )
         st.plotly_chart(fig_reg, use_container_width=True)
 
-    # 실수요자 가이드
-    st.markdown("""
-    <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-left: 4px solid #0284C7; border-radius: 6px; padding: 12px 16px; margin-top: 10px;">
-        <div style="font-weight: 800; color: #0369A1; font-size: 13.5px; margin-bottom: 4px;">🧭 자산관리 & 실수요자 실전 행동 요령</div>
-        <div style="font-size: 12.5px; color: #334155; line-height: 1.6;">
-            • <b>무주택자:</b> 2단계 스트레스 DSR 한도 축소 속에서 무리한 영끌을 지양하고, 전세가율이 높은 서울 역세권 준신축 급매물 분할 매수.<br>
-            • <b>1주택자 (상급지 이동):</b> 반드시 '선 기존주택 매도 계약 후 매수' 원칙 준수. 자금 경색 및 브릿지론 리스크 원천 차단.<br>
-            • <b>다주택·투자자:</b> 수도권 비인기 지역 정리 및 서울 핵심지·재건축 선도지구 '똘똘한 한 채'로의 압축 집중이 유리.
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
 
 # =============================================================================
-# TAB 5: 🪙 가상자산 & 매크로 지표
+# TAB 5: 🪙 코인 · 시장지표
 # =============================================================================
 with tab5:
-    st.subheader("🪙 가상자산 & 글로벌 매크로(원자재·금리·변동성) 관제 레이더")
-    
-    # 1. 업비트 및 매크로 실시간 데이터 로드
     live_crypto = fetch_live_crypto_data()
     coins = live_crypto.get("coins", [])
     crypto_macro = live_crypto.get("macro_indicators", {})
@@ -932,12 +700,9 @@ with tab5:
     macro_indices = live_macro.get("indices", [])
     macro_rates = live_macro.get("rates", [])
 
-    st.caption(f"⚡ **실시간 연동 데이터:** 업비트(Upbit) REST API & 야후 파이낸스 • 실시간 동기화 시각: `{last_sync}`")
-
-    # 코인 탑 3 실시간 카드 (BTC, ETH, SOL)
+    # 코인 탑 3 간결 카드
     crypto_cols = st.columns(3)
     target_coins = {c.get("symbol"): c for c in coins}
-    
     btc = target_coins.get("BTC", {})
     eth = target_coins.get("ETH", {})
     sol = target_coins.get("SOL", {})
@@ -947,115 +712,99 @@ with tab5:
             c_price = coin.get("cur_price", "110,000,000원")
             c_chg = coin.get("change_rate", "0.0%")
             c_vol = coin.get("volume_24h_krw", "0억원")
-            c_sig = coin.get("signal", "관망 / 분할 적립")
             chg_col = "#16A34A" if "+" in c_chg else ("#DC2626" if "-" in c_chg else "#475569")
-            
             st.markdown(f"""
             <div class="metric-card" style="border-left: 4px solid {border_col};">
-                <div class="metric-label">{coin.get('name', sym)} ({sym}/KRW)</div>
+                <div class="metric-label">{coin.get('name', sym)} ({sym})</div>
                 <div class="metric-value">{c_price}</div>
                 <div class="metric-sub" style="color: {chg_col};">
-                    <b>{c_chg}</b> (24h 거래대금 {c_vol})
-                </div>
-                <div style="font-size: 11.5px; color: #475569; margin-top: 8px; border-top: 1px solid #F1F5F9; padding-top: 6px; line-height: 1.5;">
-                    • <b>AI 매매 신호:</b> <span style="font-weight: bold; color: #0F172A;">{c_sig}</span><br>
-                    • <b>RSI(14):</b> {coin.get('rsi', 50)} &nbsp;|&nbsp; <b>20일선 이격도:</b> {coin.get('disparity_20', '0.0%')}<br>
-                    • <b>추천 매수가:</b> {coin.get('buy_price', '-')} ➔ <b>목표가:</b> <span style="color: #166534; font-weight: bold;">{coin.get('sell_price', '-')}</span>
+                    <b>{c_chg}</b> (거래대금 {c_vol})
                 </div>
             </div>
             """, unsafe_allow_html=True)
 
-    st.markdown("<br>", unsafe_allow_html=True)
-
-    col_gauge, col_top_vol = st.columns([2, 3])
-    
+    col_gauge, col_macro_t = st.columns([2, 3])
     with col_gauge:
-        st.markdown("##### 🧭 암호화폐 공포·탐욕 지수 (Fear & Greed)")
+        st.markdown("##### 🧭 암호화폐 탐욕지수")
         fg_val = crypto_macro.get("fear_greed_val", 63)
-        fg_label = crypto_macro.get("fear_greed_label", "탐욕 (Greed)")
+        fg_label = crypto_macro.get("fear_greed_label", "탐욕")
         kimchi = crypto_macro.get("kimchi_premium", "+0.0%")
         btc_dom = crypto_macro.get("btc_dominance", "59.3%")
 
         fig_gauge = go.Figure(go.Indicator(
             mode="gauge+number",
             value=fg_val,
-            title={'text': f"{fg_label}", 'font': {'size': 16, 'color': "#16A34A" if fg_val >= 55 else ("#DC2626" if fg_val <= 45 else "#D97706")}},
+            title={'text': fg_label, 'font': {'size': 15}},
             gauge={
                 'axis': {'range': [0, 100]},
                 'bar': {'color': "#10B981" if fg_val >= 55 else ("#EF4444" if fg_val <= 45 else "#F59E0B")},
-                'steps': [
-                    {'range': [0, 25], 'color': "#FEE2E2"},
-                    {'range': [25, 45], 'color': "#FEF3C7"},
-                    {'range': [45, 55], 'color': "#E0F2FE"},
-                    {'range': [55, 75], 'color': "#DCFCE7"},
-                    {'range': [75, 100], 'color': "#86EFAC"}
-                ],
-                'threshold': {
-                    'line': {'color': "#15803D", 'width': 4},
-                    'thickness': 0.75,
-                    'value': fg_val
-                }
             }
         ))
-        fig_gauge.update_layout(margin=dict(l=20, r=20, t=30, b=20), height=270)
+        fig_gauge.update_layout(margin=dict(l=10, r=10, t=20, b=10), height=200)
         st.plotly_chart(fig_gauge, use_container_width=True)
+        st.caption(f"김치 프리미엄: **{kimchi}** | BTC 도미넌스: **{btc_dom}**")
 
-        st.markdown(f"""
-        <div style="display: flex; gap: 8px; text-align: center; margin-top: -10px;">
-            <div style="flex: 1; background: #FAF5FF; border: 1px solid #E9D5FF; border-radius: 6px; padding: 8px;">
-                <div style="font-size: 11px; color: #6B21A8; font-weight: bold;">김치 프리미엄</div>
-                <div style="font-size: 17px; font-weight: 800; color: #16A34A;">{kimchi}</div>
-                <div style="font-size: 10px; color: #64748B;">업비트 vs 바이낸스</div>
-            </div>
-            <div style="flex: 1; background: #FAF5FF; border: 1px solid #E9D5FF; border-radius: 6px; padding: 8px;">
-                <div style="font-size: 11px; color: #6B21A8; font-weight: bold;">BTC 도미넌스</div>
-                <div style="font-size: 17px; font-weight: 800; color: #1E40AF;">{btc_dom}</div>
-                <div style="font-size: 10px; color: #64748B;">가상자산 점유율</div>
-            </div>
+    with col_macro_t:
+        st.markdown("##### 🌐 환율 및 주요 시장 지표")
+        macro_rows = []
+        for it in macro_rates:
+            macro_rows.append({
+                "지표/자산": it.get("통화명", ""),
+                "현재 시세": it.get("환율(원)", "") + "원",
+                "변동": it.get("전일대비", "")
+            })
+        for it in macro_indices:
+            macro_rows.append({
+                "지표/자산": it.get("지수명", ""),
+                "현재 시세": it.get("현재지수", ""),
+                "변동": it.get("전일대비", "")
+            })
+        if macro_rows:
+            st.dataframe(pd.DataFrame(macro_rows), use_container_width=True, hide_index=True)
+
+
+# =============================================================================
+# TAB 6: ➕ 맞춤 화면 확장
+# =============================================================================
+with tab6:
+    st.markdown("""
+    <div style="background: linear-gradient(135deg, #F8FAFC 0%, #EFF6FF 100%); border: 1.5px dashed #93C5FD; border-radius: 12px; padding: 24px 20px; text-align: center; margin-bottom: 20px;">
+        <div style="font-size: 32px; margin-bottom: 8px;">🧩</div>
+        <h3 style="margin: 0 0 8px 0; color: #1E3A8A; font-weight: 800; font-size: 20px;">새로운 맞춤 화면 확장 공간 (Modular Slot)</h3>
+        <p style="color: #64748B; font-size: 13.5px; margin: 0; line-height: 1.6;">
+            금융·브리핑 외에도 필요하신 개인 업무 도구, 일정/스케줄러, 맞춤형 데이터 분석 및 외부 서비스 연동 화면을<br>
+            이곳에 독립된 모듈 형태로 언제든지 깔끔하게 추가 확장할 수 있습니다.
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    col_slot1, col_slot2, col_slot3 = st.columns(3)
+    with col_slot1:
+        st.markdown("""
+        <div class="metric-card" style="border-top: 3px solid #3B82F6;">
+            <div style="font-size: 16px; font-weight: bold; margin-bottom: 4px;">📅 일정 & 스케줄러</div>
+            <div style="font-size: 12px; color: #64748B;">정기 보고 일정 및 개인 캘린더 연동</div>
+            <div style="margin-top: 8px; font-size: 11px; color: #3B82F6; font-weight: 600;">[모듈 확장 대기]</div>
+        </div>
+        """, unsafe_allow_html=True)
+    with col_slot2:
+        st.markdown("""
+        <div class="metric-card" style="border-top: 3px solid #10B981;">
+            <div style="font-size: 16px; font-weight: bold; margin-bottom: 4px;">📝 스마트 메모 & 할 일</div>
+            <div style="font-size: 12px; color: #64748B;">데일리 주요 체크리스트 및 메모 보관함</div>
+            <div style="margin-top: 8px; font-size: 11px; color: #10B981; font-weight: 600;">[모듈 확장 대기]</div>
+        </div>
+        """, unsafe_allow_html=True)
+    with col_slot3:
+        st.markdown("""
+        <div class="metric-card" style="border-top: 3px solid #8B5CF6;">
+            <div style="font-size: 16px; font-weight: bold; margin-bottom: 4px;">⚙️ 파이프라인 관제</div>
+            <div style="font-size: 12px; color: #64748B;">수집 및 이메일 발송 작업 실행 현황</div>
+            <div style="margin-top: 8px; font-size: 11px; color: #8B5CF6; font-weight: 600;">[모듈 확장 대기]</div>
         </div>
         """, unsafe_allow_html=True)
 
-    with col_top_vol:
-        st.markdown("##### ⚡ 업비트 24시간 실시간 거래대금 Top 5 순위")
-        top_coins = crypto_macro.get("top_volume_coins", [])
-        if top_coins:
-            df_top_vol = pd.DataFrame(top_coins)
-            df_top_vol.columns = ["코인", "현재가", "변동률", "24시간 거래대금"]
-            st.dataframe(df_top_vol, use_container_width=True, hide_index=True)
-        else:
-            st.info("업비트 거래대금 순위 로딩 중...")
+    st.caption("💡 추가하고 싶은 기능이나 화면 아이디어가 있으시면 언제든 말씀해 주세요. 원하시는 레이아웃으로 즉시 모듈을 추가해 드립니다.")
 
-    st.markdown("---")
-    st.markdown("##### 🌐 글로벌 매크로 자산 & 주요 지수·환율 실시간 전광판 (야후 파이낸스 & 네이버 연동)")
-    
-    # 종합 매크로 지표 DataFrame 구성
-    macro_rows = []
-    for it in macro_indices:
-        name = it.get("지수명", "")
-        price = it.get("현재지수", "")
-        chg = it.get("전일대비", "")
-        category = "글로벌 지수" if any(k in name for k in ["코스피", "코스닥", "나스닥", "S&P"]) else "원자재 / 국채"
-        macro_rows.append({
-            "구분": category,
-            "지표/자산": name,
-            "현재 실시간 시세": price,
-            "전일대비 변동": chg
-        })
-    for it in macro_rates:
-        name = it.get("통화명", "")
-        price = it.get("환율(원)", "") + "원"
-        chg = it.get("전일대비", "")
-        macro_rows.append({
-            "구분": "외환 (FX)",
-            "지표/자산": name,
-            "현재 실시간 시세": price,
-            "전일대비 변동": chg
-        })
-    
-    if macro_rows:
-        df_live_macro = pd.DataFrame(macro_rows)
-        st.dataframe(df_live_macro, use_container_width=True, hide_index=True)
-    else:
-        st.info("글로벌 매크로 지표 로딩 중...")
 
 
