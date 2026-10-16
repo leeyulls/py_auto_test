@@ -170,24 +170,29 @@ def fetch_live_smart_money():
         return []
 
 
-@st.cache_data(ttl=60)
-def load_report_archives():
-    """reports 디렉토리 내 생성된 리포트 파일 목록 수집"""
+@st.cache_data(ttl=30)
+def load_report_archives(target_dir: str = None):
+    """지정된 디렉토리(구글 드라이브 또는 로컬 reports) 내 생성된 리포트 파일 목록 수집"""
+    search_dir = target_dir if target_dir and os.path.exists(target_dir) else "reports"
     reports = []
-    for root, _, files in os.walk("reports"):
-        for f in files:
-            if f.endswith((".md", ".html", ".pdf")):
-                full_p = os.path.join(root, f)
-                date_match = re.search(r"(\d{4}-\d{2}-\d{2})", f)
-                date_str = date_match.group(1) if date_match else "기타"
-                reports.append({
-                    "date": date_str,
-                    "filename": f,
-                    "path": full_p,
-                    "ext": os.path.splitext(f)[1].lower(),
-                    "size_kb": round(os.path.getsize(full_p) / 1024, 1),
-                })
+    if os.path.exists(search_dir):
+        for root, _, files in os.walk(search_dir):
+            for f in files:
+                if f.endswith((".md", ".html", ".pdf")):
+                    full_p = os.path.join(root, f)
+                    date_match = re.search(r"(\d{4}-\d{2}-\d{2})", f)
+                    date_str = date_match.group(1) if date_match else "기타"
+                    is_gdrive = "reports" not in os.path.abspath(full_p).lower() or "데일리_브리핑_수집" in full_p
+                    reports.append({
+                        "date": date_str,
+                        "filename": f,
+                        "path": full_p,
+                        "ext": os.path.splitext(f)[1].lower(),
+                        "size_kb": round(os.path.getsize(full_p) / 1024, 1),
+                        "source": "☁️ 구글 드라이브 (Cloud)" if is_gdrive else "💻 로컬 보관함 (Local)"
+                    })
     return pd.DataFrame(reports)
+
 
 
 # -----------------------------------------------------------------------------
@@ -238,9 +243,37 @@ with st.sidebar:
     else:
         st.caption("⚪ 이메일 설정 대기")
 
+    # 구글 드라이브 연동 상태 & 경로 설정
+    from src.sync.google_drive_sync import GoogleDriveSync
+    g_sync = GoogleDriveSync()
+    detected_gdrive = g_sync.get_archive_folder()
+
+    
+    saved_gdrive = st.session_state.get(
+        "custom_gdrive_folder",
+        os.environ.get("GOOGLE_DRIVE_FOLDER", detected_gdrive or r"G:\내 드라이브\데일리_브리핑_수집")
+    )
+    st.markdown("---")
+    st.subheader("☁️ 구글 드라이브 보관함")
+    gdrive_input = st.text_input(
+        "구글 드라이브 수집 폴더 경로",
+        value=saved_gdrive,
+        help="PC에 마운트된 구글 드라이브(G:\\내 드라이브 등) 내 데일리_브리핑_수집 폴더 경로"
+    )
+    if gdrive_input != saved_gdrive:
+        st.session_state["custom_gdrive_folder"] = gdrive_input
+        st.cache_data.clear()
+        st.rerun()
+
+    if os.path.exists(gdrive_input):
+        st.success("🟢 구글 드라이브 폴더 연동 완료")
+    else:
+        st.info("🔵 구글 드라이브 지정 대기 (유효 경로 입력 시 자동 연동)")
+
     st.markdown("---")
     st.caption("마스터 데이터: `reports/일자별_누적_...xlsx`")
     st.caption(f"시스템 일시: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}")
+
 
 
 # -----------------------------------------------------------------------------
@@ -809,8 +842,46 @@ with tab4:
 # =============================================================================
 with tab5:
     st.subheader("📂 데일리 브리핑 & 모바일 웹리포트 아카이브 뷰어")
+
+    from src.sync.google_drive_sync import GoogleDriveSync
+    g_sync_tool = GoogleDriveSync()
     
-    df_archives = load_report_archives()
+    current_gdrive_path = st.session_state.get(
+        "custom_gdrive_folder",
+        os.environ.get("GOOGLE_DRIVE_FOLDER", g_sync_tool.get_archive_folder() or r"G:\내 드라이브\데일리_브리핑_수집")
+    )
+    gdrive_exists = os.path.exists(current_gdrive_path)
+
+    top_c1, top_c2 = st.columns([3, 2])
+    with top_c1:
+        storage_choice = st.radio(
+            "📁 아카이브 연결 저장소 선택",
+            ["☁️ 구글 드라이브 (Google Drive)", "💻 로컬 보관함 (Local reports/)"],
+            index=0 if gdrive_exists else 1,
+            horizontal=True
+        )
+    with top_c2:
+        st.write("")
+        if st.button("☁️ 로컬 리포트를 구글 드라이브로 즉시 동기화(복사)", use_container_width=True):
+            with st.spinner("구글 드라이브로 리포트 복사 및 동기화 중..."):
+                sync_res = g_sync_tool.sync_all_reports(source_dir="reports", target_drive_path=current_gdrive_path)
+                if sync_res.get("success"):
+                    st.success(f"✅ 구글 드라이브로 {sync_res['count']}개 리포트 동기화 완료! ({sync_res['target_folder']})")
+                    st.cache_data.clear()
+                    st.rerun()
+                else:
+                    st.error(sync_res.get("message"))
+
+    target_scan_dir = current_gdrive_path if ("구글 드라이브" in storage_choice and gdrive_exists) else "reports"
+
+    st.markdown(f"""
+    <div style="background: {'#EFF6FF' if '구글 드라이브' in storage_choice else '#F8FAFC'}; border: 1px solid {'#93C5FD' if '구글 드라이브' in storage_choice else '#CBD5E1'}; border-radius: 8px; padding: 10px 14px; margin-bottom: 14px; font-size: 13px;">
+        {'☁️' if '구글 드라이브' in storage_choice else '💻'} <b>현재 아카이브 뷰어 연결 경로:</b> <code>{target_scan_dir}</code> 
+        <span style="color: #2563EB; font-weight: bold;">({'구글 드라이브 클라우드 연동' if '구글 드라이브' in storage_choice else '로컬 프로젝트 보관함'})</span>
+    </div>
+    """, unsafe_allow_html=True)
+
+    df_archives = load_report_archives(target_scan_dir)
     
     if not df_archives.empty:
         col_f1, col_f2 = st.columns([1, 2])
@@ -823,7 +894,7 @@ with tab5:
             
         with col_f2:
             row_match = df_archives[df_archives["filename"] == selected_report].iloc[0]
-            st.info(f"**파일명:** `{row_match['filename']}`  \n**용량:** `{row_match['size_kb']} KB`  \n**경로:** `{row_match['path']}`")
+            st.info(f"**파일명:** `{row_match['filename']}`  \n**저장소:** `{row_match['source']}`  \n**실제 경로:** `{row_match['path']}`  \n**용량:** `{row_match['size_kb']} KB`")
 
         # 내용 렌더링
         target_path = row_match["path"]
@@ -849,4 +920,5 @@ with tab5:
                     mime="application/pdf"
                 )
     else:
-        st.info("아직 생성된 브리핑 리포트 파일이 없습니다.")
+        st.warning(f"⚠️ `{target_scan_dir}` 디렉토리에 열람 가능한 리포트 파일(.md, .html, .pdf)이 없습니다. 상단의 '구글 드라이브로 즉시 동기화' 버튼을 눌러 로컬 리포트를 구글 드라이브로 전송해보세요.")
+

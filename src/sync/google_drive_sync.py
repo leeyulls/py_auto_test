@@ -41,7 +41,44 @@ class GoogleDriveSync:
                 return path
         return None
 
+    def get_archive_folder(self, custom_path: str = None) -> str:
+        """구글 드라이브 리포트 수집 보관함(데일리_브리핑_수집) 경로 반환"""
+        if custom_path:
+            return custom_path
+        if self.drive_folder:
+            if os.path.basename(self.drive_folder) == "데일리_브리핑_수집":
+                return self.drive_folder
+            return os.path.join(self.drive_folder, "데일리_브리핑_수집")
+        
+        local_drive = self.find_desktop_drive_path()
+        if local_drive:
+            return os.path.join(local_drive, "데일리_브리핑_수집")
+        return None
+
+    def sync_all_reports(self, source_dir: str = "reports", target_drive_path: str = None) -> dict:
+        """로컬 reports 폴더의 모든 생성 파일을 구글 드라이브 보관함으로 동기화 복사"""
+        target_folder = self.get_archive_folder(target_drive_path)
+        if not target_folder:
+            target_folder = r"G:\내 드라이브\데일리_브리핑_수집"
+
+        try:
+            os.makedirs(target_folder, exist_ok=True)
+            synced = 0
+            for root, _, files in os.walk(source_dir):
+                rel_dir = os.path.relpath(root, source_dir)
+                dest_dir = target_folder if rel_dir == "." else os.path.join(target_folder, rel_dir)
+                os.makedirs(dest_dir, exist_ok=True)
+                for f in files:
+                    src_f = os.path.join(root, f)
+                    dst_f = os.path.join(dest_dir, f)
+                    shutil.copy2(src_f, dst_f)
+                    synced += 1
+            return {"success": True, "count": synced, "target_folder": target_folder}
+        except Exception as e:
+            return {"success": False, "count": 0, "message": f"구글 드라이브 복사 실패: {e}"}
+
     def sync_file(self, file_path: str, is_master: bool = False, subfolder: str = "") -> dict:
+
         """
         생성된 리포트 파일(당일 리포트 또는 누적 마스터 리포트, PDF 리포트)을 구글 드라이브로 동기화
         """
