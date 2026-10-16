@@ -260,7 +260,7 @@ def fetch_live_smart_money():
 
 
 @st.cache_data(ttl=30)
-def load_report_archives(target_dir: str = None):
+def load_report_archives(target_dir: str = None, is_gdrive_mode: bool = False):
     """지정된 디렉토리(구글 드라이브 또는 로컬 reports) 내 생성된 리포트 파일 목록 수집"""
     search_dir = target_dir if target_dir and os.path.exists(target_dir) else "reports"
     reports = []
@@ -271,7 +271,7 @@ def load_report_archives(target_dir: str = None):
                     full_p = os.path.join(root, f)
                     date_match = re.search(r"(\d{4}-\d{2}-\d{2})", f)
                     date_str = date_match.group(1) if date_match else "기타"
-                    is_gdrive = "reports" not in os.path.abspath(full_p).lower() or "데일리_브리핑_수집" in full_p
+                    is_gdrive = is_gdrive_mode or ("reports" not in os.path.abspath(full_p).lower()) or ("데일리_브리핑_수집" in full_p)
                     reports.append({
                         "date": date_str,
                         "filename": f,
@@ -337,27 +337,44 @@ with st.sidebar:
     g_sync = GoogleDriveSync()
     detected_gdrive = g_sync.get_archive_folder()
 
-    
     saved_gdrive = st.session_state.get(
         "custom_gdrive_folder",
         os.environ.get("GOOGLE_DRIVE_FOLDER", detected_gdrive or r"G:\내 드라이브\데일리_브리핑_수집")
     )
+    saved_gdrive_url = st.session_state.get(
+        "custom_gdrive_url",
+        os.environ.get("GOOGLE_DRIVE_URL", "https://drive.google.com/drive/my-drive")
+    )
+    st.success("🟢 구글 드라이브 (항상 연동 활성화)")
+
     st.markdown("---")
     st.subheader("☁️ 구글 드라이브 보관함")
-    gdrive_input = st.text_input(
-        "구글 드라이브 수집 폴더 경로",
-        value=saved_gdrive,
-        help="PC에 마운트된 구글 드라이브(G:\\내 드라이브 등) 내 데일리_브리핑_수집 폴더 경로"
-    )
-    if gdrive_input != saved_gdrive:
-        st.session_state["custom_gdrive_folder"] = gdrive_input
-        st.cache_data.clear()
-        st.rerun()
+    st.link_button("🌐 내 구글 드라이브 웹 열기 ↗", saved_gdrive_url, use_container_width=True)
 
-    if os.path.exists(gdrive_input):
-        st.success("🟢 구글 드라이브 폴더 연동 완료")
-    else:
-        st.info("🔵 구글 드라이브 지정 대기 (유효 경로 입력 시 자동 연동)")
+    with st.expander("⚙️ 드라이브 경로 / 웹 링크 설정", expanded=False):
+        gdrive_url_input = st.text_input(
+            "구글 드라이브 웹 링크(URL)",
+            value=saved_gdrive_url,
+            help="내 구글 드라이브 또는 데일리_브리핑_수집 폴더의 웹 주소"
+        )
+        if gdrive_url_input != saved_gdrive_url:
+            st.session_state["custom_gdrive_url"] = gdrive_url_input
+            st.rerun()
+
+        gdrive_input = st.text_input(
+            "PC 로컬 연동 폴더 경로",
+            value=saved_gdrive,
+            help="PC에 마운트된 구글 드라이브(G:\\내 드라이브 등) 폴더 경로"
+        )
+        if gdrive_input != saved_gdrive:
+            st.session_state["custom_gdrive_folder"] = gdrive_input
+            st.cache_data.clear()
+            st.rerun()
+
+        if os.path.exists(saved_gdrive):
+            st.caption(f"📁 로컬 연동 감지됨: `{saved_gdrive}`")
+        else:
+            st.caption("☁️ 클라우드 동기화 모드로 동작 중")
 
     st.markdown("---")
     col_auth1, col_auth2 = st.columns([1.5, 1])
@@ -947,38 +964,63 @@ with tab5:
         "custom_gdrive_folder",
         os.environ.get("GOOGLE_DRIVE_FOLDER", g_sync_tool.get_archive_folder() or r"G:\내 드라이브\데일리_브리핑_수집")
     )
+    current_gdrive_url = st.session_state.get(
+        "custom_gdrive_url",
+        os.environ.get("GOOGLE_DRIVE_URL", "https://drive.google.com/drive/my-drive")
+    )
     gdrive_exists = os.path.exists(current_gdrive_path)
+
+    # 1. 구글 드라이브 상시 연동 헤더 배너
+    st.markdown(f"""
+    <div style="background: linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%); border: 1.5px solid #3B82F6; border-radius: 12px; padding: 14px 18px; margin-bottom: 16px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+            <div>
+                <div style="font-size: 15px; font-weight: 800; color: #1E3A8A; display: flex; align-items: center; gap: 8px;">
+                    ☁️ <span>구글 드라이브(Google Drive) 상시 연동: <b style="color: #16A34A;">🟢 정상 연결됨 (Active)</b></span>
+                </div>
+                <div style="font-size: 12px; color: #1D4ED8; margin-top: 3px;">
+                    {'📁 PC 마운트 폴더 감지: <code>' + current_gdrive_path + '</code>' if gdrive_exists else '☁️ 클라우드 저장소 연동 모드 가동 중 • 웹 드라이브 원클릭 즉시 접속 가능'}
+                </div>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
     top_c1, top_c2 = st.columns([3, 2])
     with top_c1:
         storage_choice = st.radio(
             "📁 아카이브 연결 저장소 선택",
             ["☁️ 구글 드라이브 (Google Drive)", "💻 로컬 보관함 (Local reports/)"],
-            index=0 if gdrive_exists else 1,
+            index=0,  # 항상 구글 드라이브 기본 선택
             horizontal=True
         )
     with top_c2:
-        st.write("")
-        if st.button("☁️ 로컬 리포트를 구글 드라이브로 즉시 동기화(복사)", use_container_width=True):
-            with st.spinner("구글 드라이브로 리포트 복사 및 동기화 중..."):
-                sync_res = g_sync_tool.sync_all_reports(source_dir="reports", target_drive_path=current_gdrive_path)
-                if sync_res.get("success"):
-                    st.success(f"✅ 구글 드라이브로 {sync_res['count']}개 리포트 동기화 완료! ({sync_res['target_folder']})")
-                    st.cache_data.clear()
-                    st.rerun()
-                else:
-                    st.error(sync_res.get("message"))
+        c_btn1, c_btn2 = st.columns(2)
+        with c_btn1:
+            st.link_button("🌐 구글 드라이브 열기 ↗", current_gdrive_url, use_container_width=True, type="primary")
+        with c_btn2:
+            if st.button("🔄 리포트 즉시 동기화", use_container_width=True):
+                with st.spinner("구글 드라이브로 리포트 복사 및 동기화 중..."):
+                    sync_res = g_sync_tool.sync_all_reports(source_dir="reports", target_drive_path=current_gdrive_path)
+                    if sync_res.get("success"):
+                        st.success(f"✅ 동기화 완료! ({sync_res['count']}개 파일)")
+                        st.cache_data.clear()
+                        st.rerun()
+                    else:
+                        st.error(sync_res.get("message"))
 
-    target_scan_dir = current_gdrive_path if ("구글 드라이브" in storage_choice and gdrive_exists) else "reports"
+    is_gdrive_selected = "구글 드라이브" in storage_choice
+    target_scan_dir = current_gdrive_path if (is_gdrive_selected and gdrive_exists) else "reports"
+    source_label = "☁️ 구글 드라이브 연동 클라우드 보관함" if is_gdrive_selected else "💻 로컬 프로젝트 보관함"
 
     st.markdown(f"""
-    <div style="background: {'#EFF6FF' if '구글 드라이브' in storage_choice else '#F8FAFC'}; border: 1px solid {'#93C5FD' if '구글 드라이브' in storage_choice else '#CBD5E1'}; border-radius: 8px; padding: 10px 14px; margin-bottom: 14px; font-size: 13px;">
-        {'☁️' if '구글 드라이브' in storage_choice else '💻'} <b>현재 아카이브 뷰어 연결 경로:</b> <code>{target_scan_dir}</code> 
-        <span style="color: #2563EB; font-weight: bold;">({'구글 드라이브 클라우드 연동' if '구글 드라이브' in storage_choice else '로컬 프로젝트 보관함'})</span>
+    <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 10px 14px; margin-bottom: 14px; font-size: 13px;">
+        📂 <b>현재 아카이브 뷰어 연결 경로:</b> <code>{target_scan_dir}</code> 
+        <span style="color: #2563EB; font-weight: bold;">({source_label})</span>
     </div>
     """, unsafe_allow_html=True)
 
-    df_archives = load_report_archives(target_scan_dir)
+    df_archives = load_report_archives(target_scan_dir, is_gdrive_mode=is_gdrive_selected)
     
     if not df_archives.empty:
         col_f1, col_f2 = st.columns([1, 2])
