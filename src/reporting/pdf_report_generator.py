@@ -381,12 +381,29 @@ class PdfReportGenerator:
         ag_cards = ""
         for ag in real_estate_data.get("action_guides", []):
             ag_cards += f"""
-            <div style="background: #FFFFFF; border: 1px solid #CBD5E1; border-left: 4px solid #0284C7; border-radius: 4px; padding: 6px 10px; margin-bottom: 6px; font-size: 11px;">
+            <div style="background: #FFFFFF; border: 1px solid #CBD5E1; border-left: 4px solid #0284C7; border-radius: 4px; padding: 4px 8px; margin-bottom: 4px; font-size: 10px;">
                 <b>🎯 {ag.get('target')}:</b> {ag.get('tip')}
             </div>
             """
 
+        # 국토교통부 실거래가 레이더 행
+        re_trades_rows = ""
+        for t in real_estate_data.get("notable_trades", [])[:5]:
+            badge = t.get("badge", "실거래")
+            badge_col = "#DC2626" if "신고가" in badge else ("#16A34A" if "회복" in badge or "급매" in badge else "#2563EB")
+            re_trades_rows += f"""
+            <tr style="border-bottom: 1px solid #E2E8F0;">
+                <td style="padding: 4px 6px; font-weight: bold; color: #0F172A; font-size: 10px;">{t.get('apt_name')} <span style="font-size: 9px; color: #64748B;">({t.get('dong')})</span></td>
+                <td style="padding: 4px 6px; text-align: center; color: #475569; font-size: 9.5px;">{t.get('area')}</td>
+                <td style="padding: 4px 6px; text-align: right; font-weight: bold; color: #0F172A; font-size: 10px;">{t.get('price')}</td>
+                <td style="padding: 4px 6px; text-align: center; color: #64748B; font-size: 9.5px;">{t.get('floor')}</td>
+                <td style="padding: 4px 6px; text-align: center; color: #64748B; font-size: 9.5px;">{t.get('deal_date')}</td>
+                <td style="padding: 4px 6px; text-align: center;"><span style="background: #F1F5F9; color: {badge_col}; font-weight: bold; font-size: 9px; padding: 1px 5px; border-radius: 3px;">{badge}</span></td>
+            </tr>
+            """
+
         # 6. 사후 검증(Backtesting) 테이블
+
         backtest_rows = ""
         p_records = performance_data.get("records", []) if isinstance(performance_data, dict) else []
         for r in p_records[:8]:
@@ -947,10 +964,24 @@ class PdfReportGenerator:
     </div>
   </div>
 
-  <div style="font-size: 12px; font-weight: bold; color: #0369A1; margin-bottom: 6px;">🧭 실수요자 및 자산관리 실전 행동 요령</div>
+  <div style="font-size: 11px; font-weight: bold; color: #0369A1; margin-bottom: 4px;">🏛️ 국토교통부 실거래가 레이더 (최근 핵심 단지 실거래 & 신고가 포착)</div>
+  <table style="margin-bottom: 8px;">
+    <tr>
+      <th style="width: 28%;">단지명(동)</th>
+      <th style="width: 18%; text-align: center;">전용면적</th>
+      <th style="width: 18%; text-align: right;">거래금액</th>
+      <th style="width: 10%; text-align: center;">층</th>
+      <th style="width: 12%; text-align: center;">계약일</th>
+      <th style="width: 14%; text-align: center;">특징</th>
+    </tr>
+    {re_trades_rows}
+  </table>
+
+  <div style="font-size: 11px; font-weight: bold; color: #0369A1; margin-bottom: 4px;">🧭 실수요자 및 자산관리 실전 행동 요령</div>
   {ag_cards}
 
   <div class="page-break"></div>
+
 
   <!-- ============================================================ -->
   <!-- 🎯 [Page 9] 9면 추천 종목 사후 검증(Backtesting) 성과 백서 -->
@@ -1985,8 +2016,30 @@ class PdfReportGenerator:
             </div>
             """
 
+        # 국토교통부 실거래가 레이더 (반응형 카드 리스트)
+        trades_cards_html = ""
+        for t in (real_estate_data or {}).get("notable_trades", []):
+            badge = t.get("badge", "실거래")
+            badge_col = "#DC2626" if "신고가" in badge else ("#16A34A" if "회복" in badge or "급매" in badge else "#2563EB")
+            trades_cards_html += f"""
+            <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 6px; padding: 10px 12px; margin-bottom: 8px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                    <span style="font-weight: bold; font-size: 13.5px; color: #0F172A;">{t.get('apt_name')} <span style="font-size: 11px; color: #64748B;">({t.get('dong')})</span></span>
+                    <span style="background: #FFFFFF; color: {badge_col}; border: 1px solid #CBD5E1; font-size: 10.5px; font-weight: bold; padding: 2px 7px; border-radius: 10px;">{badge}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 12.5px; color: #334155;">
+                    <span>전용 {t.get('area')} • {t.get('floor')}</span>
+                    <span style="font-weight: 800; color: #0F172A; font-size: 13.5px;">{t.get('price')}</span>
+                </div>
+                <div style="font-size: 11px; color: #94A3B8; margin-top: 2px;">
+                    계약일: {t.get('deal_date')} • {t.get('build_year')}년 준공
+                </div>
+            </div>
+            """
+
         # =========================================================================
         # 10. 🎯 9면 추천 종목 사후 검증(Backtesting) 성과 백서
+
         # =========================================================================
         p_sum = performance_data.get("summary", {}) if isinstance(performance_data, dict) else {}
         p_records = performance_data.get("records", []) if isinstance(performance_data, dict) else []
@@ -2360,11 +2413,15 @@ class PdfReportGenerator:
       {coin_cards_html}
     </div>
 
-    <!-- 10. 8면 대한민국 부동산 시장 동향 (7대 권역) -->
+    <!-- 10. 8면 대한민국 부동산 시장 동향 (7대 권역 & 국토부 실거래가) -->
     <div id="re" class="card">
       <div class="sec-title">🏢 [8면] 대한민국 부동산 7대 권역 실시간 인텔리전스</div>
       {re_cards}
-      <div style="background: #F8FAFC; border: 1px solid #CBD5E1; border-radius: 8px; padding: 12px; margin-bottom: 12px; font-size: 12.5px;">
+
+      <div style="font-weight: bold; font-size: 13.5px; color: #0369A1; margin-top: 14px; margin-bottom: 8px;">🏛️ 국토교통부 실거래가 레이더 (최근 랜드마크 실거래 & 신고가)</div>
+      {trades_cards_html}
+
+      <div style="background: #F8FAFC; border: 1px solid #CBD5E1; border-radius: 8px; padding: 12px; margin-top: 12px; margin-bottom: 12px; font-size: 12.5px;">
         <div style="font-weight: bold; color: #0369A1; margin-bottom: 4px;">🏦 주택담보대출 금리 밴드 & 대출 규제</div>
         <div>• <b>5년 고정 혼합형:</b> {mi.get('fixed_rate_band')} &nbsp;|&nbsp; <b>변동금리:</b> {mi.get('variable_rate_band')}</div>
         <div>• <b>대출 규제:</b> {mi.get('dsr_status')}</div>
@@ -2373,6 +2430,7 @@ class PdfReportGenerator:
       <div style="font-weight: bold; font-size: 13.5px; color: #0369A1; margin-bottom: 6px;">🧭 실수요자 실전 행동 요령</div>
       {ag_cards}
     </div>
+
 
     <!-- 11. 9면 추천 종목 사후 검증(Backtesting) 성과 백서 -->
     <div id="backtest" class="card" style="background: #EFF6FF; border: 1px solid #BFDBFE;">

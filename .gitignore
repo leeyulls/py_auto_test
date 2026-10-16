@@ -9,6 +9,10 @@ env/
 # Environment & config variables
 .env
 email_config.txt
+*.token
+*token*.json
+.kis_*
+
 
 # Logs & temporary files
 *.log

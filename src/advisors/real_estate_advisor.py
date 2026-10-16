@@ -9,12 +9,14 @@ import datetime
 import requests
 import feedparser
 import re
+from src.collectors.molit_real_estate_collector import MolitRealEstateCollector
 
 
 class RealEstateAdvisor:
     def __init__(self, gemini_client=None):
         self.headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
         self.gemini_client = gemini_client
+        self.molit_collector = MolitRealEstateCollector()
 
     def fetch_real_estate_news(self, limit: int = 6) -> list:
         """최신 주요 부동산 정책, 아파트 시세 및 금리 관련 실시간 뉴스 복합 수집"""
@@ -62,6 +64,7 @@ class RealEstateAdvisor:
         - 실시간 수집된 부동산/금융 뉴스 팩트를 바탕으로 동적 구성
         """
         news = self.fetch_real_estate_news(limit=6)
+        notable_trades = self.molit_collector.get_recent_notable_trades(limit=8)
 
         # 1. Gemini AI 실시간 분석 시도
         if self.gemini_client and getattr(self.gemini_client, "is_active", False) and news:
@@ -69,6 +72,7 @@ class RealEstateAdvisor:
                 ai_data = self.gemini_client.analyze_real_estate(news)
                 if ai_data and "regional_trends" in ai_data and "mortgage_info" in ai_data:
                     ai_data["news"] = news[:3]
+                    ai_data["notable_trades"] = notable_trades
                     return ai_data
             except Exception as e:
                 print(f"   [RealEstateAdvisor] Gemini 실시간 분석 폴백: {e}")
@@ -169,5 +173,7 @@ class RealEstateAdvisor:
             "mortgage_info": mortgage_info,
             "market_metrics": market_metrics,
             "action_guides": action_guides,
+            "notable_trades": notable_trades,
             "news": news[:3]
         }
+

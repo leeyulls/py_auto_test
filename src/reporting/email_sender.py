@@ -247,6 +247,41 @@ class EmailSender:
             </div>
             """
 
+        # 국토교통부 실거래가 레이더 테이블
+        trades_rows_html = ""
+        for t in real_estate_data.get("notable_trades", [])[:6]:
+            badge = t.get("badge", "실거래")
+            badge_col = "#DC2626" if "신고가" in badge else ("#16A34A" if "회복" in badge or "급매" in badge else "#2563EB")
+            trades_rows_html += f"""
+            <tr style="border-bottom: 1px solid #E2E8F0;">
+                <td style="padding: 5px 8px; font-weight: bold; color: #0F172A;">{t.get('apt_name')} <span style="font-size: 10px; color: #64748B;">({t.get('dong')})</span></td>
+                <td style="padding: 5px 8px; text-align: center; color: #475569; font-size: 11px;">{t.get('area')}</td>
+                <td style="padding: 5px 8px; text-align: right; font-weight: bold; color: #0F172A;">{t.get('price')}</td>
+                <td style="padding: 5px 8px; text-align: center; color: #64748B; font-size: 11px;">{t.get('floor')}</td>
+                <td style="padding: 5px 8px; text-align: center; color: #64748B; font-size: 11px;">{t.get('deal_date')}</td>
+                <td style="padding: 5px 8px; text-align: center;"><span style="background: #F1F5F9; color: {badge_col}; font-weight: bold; font-size: 10px; padding: 2px 6px; border-radius: 4px;">{badge}</span></td>
+            </tr>
+            """
+
+        trades_table_html = ""
+        if trades_rows_html:
+            trades_table_html = f"""
+            <div style="margin-top: 10px; margin-bottom: 10px;">
+                <div style="font-size: 12px; font-weight: bold; color: #0369A1; margin-bottom: 6px;">🏛️ 국토교통부 실거래가 레이더 (핵심 단지 실거래 & 신고가 동향)</div>
+                <table style="width: 100%; border-collapse: collapse; font-size: 11.5px;">
+                    <tr style="background: #F0F9FF; color: #0369A1;">
+                        <th style="padding: 5px 8px; text-align: left; border: 1px solid #E2E8F0;">단지명</th>
+                        <th style="padding: 5px 8px; text-align: center; border: 1px solid #E2E8F0;">전용면적</th>
+                        <th style="padding: 5px 8px; text-align: right; border: 1px solid #E2E8F0;">거래금액</th>
+                        <th style="padding: 5px 8px; text-align: center; border: 1px solid #E2E8F0;">층</th>
+                        <th style="padding: 5px 8px; text-align: center; border: 1px solid #E2E8F0;">계약일</th>
+                        <th style="padding: 5px 8px; text-align: center; border: 1px solid #E2E8F0;">특징</th>
+                    </tr>
+                    {trades_rows_html}
+                </table>
+            </div>
+            """
+
         real_estate_section_html = f"""
         <div style="margin-bottom: 24px;">
             <h2 style="font-size: 17px; color: #1E293B; border-bottom: 2px solid #0284C7; padding-bottom: 6px; margin-top: 0;">
@@ -262,6 +297,8 @@ class EmailSender:
                 {re_rows_html}
             </table>
 
+            {trades_table_html}
+
             <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 6px; padding: 10px 12px; font-size: 11.5px; margin-bottom: 10px;">
                 <div style="font-weight: bold; color: #0369A1; margin-bottom: 4px;">🏦 주택담보대출 금리 밴드 & 대출 규제</div>
                 <div>• <b>5년 고정 혼합형:</b> {mi.get('fixed_rate_band')} &nbsp;|&nbsp; <b>변동금리:</b> {mi.get('variable_rate_band')}</div>
@@ -275,6 +312,7 @@ class EmailSender:
             </div>
         </div>
         """
+
 
         # ---------------------------------------------------------
         # 3. 🎯 주식 매매 추천 카드
